@@ -18,8 +18,16 @@
  * через прямой репозиторий или `getDrizzle()` мимо `buildAppDeps()`; чтение внутри вызванного до
  * двери helper'а; промис, начатый до двери и дождавшийся `await` после неё; переприсваивание
  * результата двери между объявлением и проверкой. Два ЛОЖНЫХ срабатывания того же круга — на
- * объявлении inline-helper и на обработчике в обёртке — закрыты, и обе формы стоят зелёными
- * образцами в self-test.
+ * объявлении inline-helper и на обработчике в обёртке — закрыты.
+ *
+ * Круг 6 (`docs/_TODO/AUDIT_E5A_GATE_FALSE_POSITIVES_2026-09-16.md`) показал, что снятие обеих
+ * ложных тревог создало два НОВЫХ обхода, и оба закрыты здесь же:
+ *   — граница функции перестала видеть чтение через ВЫЗОВ локального helper'а; теперь вызов идёт
+ *     по имени в тело — один переход, не анализ потока. Граница сузилась: молчание осталось только
+ *     на helper'ах, объявленных ВНЕ файла маршрута;
+ *   — разбор обёртки брал ПЕРВОЕ найденное тело, и настоящий обработчик можно было спрятать первым
+ *     аргументом за callback'ом с дверью; теперь дверь обязана быть в КАЖДОМ теле-кандидате, а
+ *     пустой список кандидатов — отказ.
  *
  * Оставшиеся четыре формы сознательно НЕ преследуются: за ними начинается анализ потока данных, а
  * это уже не гейт, а вторая система. Правило владельца (запрет аудит-разгона): два круга подряд,
@@ -132,25 +140,61 @@ function importsAcceptedGuard(source) {
  * форму записи целиком, вместо того чтобы смотреть порядок внутри неё. Обёртка — законная форма;
  * разбираем её и берём тело первого функционального аргумента.
  */
-function handlerBodyOf(initializer) {
-  if (!initializer) return undefined;
+function localFunctionBodies(sourceFile) {
+  const map = new Map();
+  const add = (name, node) => {
+    if (!name || !node) return;
+    /* Тело может быть и блоком, и одним выражением (`async () => await ...`) — обе формы читают
+       одинаково, поэтому сохраняем как есть; кому нужен именно блок, проверяет это у себя. */
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) map.set(name, node.body);
+  };
+  const walk = (n) => {
+    if (ts.isFunctionDeclaration(n) && n.name && n.body) map.set(n.name.text, n.body);
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name)) add(n.name.text, n.initializer);
+    ts.forEachChild(n, walk);
+  };
+  walk(sourceFile);
+  return map;
+}
+
+/**
+ * ВСЕ тела-кандидаты обработчика из инициализатора экспорта.
+ *
+ * Круг 5, MUST FIX-6: обработчик, завёрнутый в обёртку (`export const GET = makeHandler(async () =>
+ * {...})`), раньше отдавал `body: undefined`, и правило краснело на НЁМ САМОМ — то есть запрещало
+ * форму записи целиком, вместо того чтобы смотреть порядок внутри неё.
+ *
+ * Круг 6, MUST FIX-2: разбор обёртки брал ПЕРВОЕ найденное тело — и настоящий обработчик, переданный
+ * первым аргументом по имени, можно было спрятать за вторым callback'ом с дверью. Поэтому теперь
+ * возвращаются ВСЕ кандидаты (включая тела, найденные по имени локальной функции), и дверь обязана
+ * быть в КАЖДОМ: обёртка не место, где часть путей остаётся без прохода.
+ */
+function handlerBodiesOf(initializer, locals, seen = new Set()) {
+  if (!initializer) return [];
   if (
     (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) &&
     ts.isBlock(initializer.body)
   ) {
-    return initializer.body;
+    return [initializer.body];
+  }
+  if (ts.isIdentifier(initializer) && locals.has(initializer.text) && !seen.has(initializer.text)) {
+    seen.add(initializer.text);
+    const body = locals.get(initializer.text);
+    return ts.isBlock(body) ? [body] : [];
   }
   if (ts.isCallExpression(initializer)) {
+    const out = [];
     for (const argument of initializer.arguments) {
-      const nested = handlerBodyOf(argument);
-      if (nested) return nested;
+      out.push(...handlerBodiesOf(argument, locals, seen));
     }
+    return out;
   }
-  return undefined;
+  return [];
 }
 
 function exportedHandlers(sourceFile) {
   const handlers = [];
+  const locals = localFunctionBodies(sourceFile);
   for (const statement of sourceFile.statements) {
     if (
       ts.isFunctionDeclaration(statement) &&
@@ -158,7 +202,7 @@ function exportedHandlers(sourceFile) {
       statement.name &&
       httpMethods.has(statement.name.text)
     ) {
-      handlers.push({ method: statement.name.text, body: statement.body });
+      handlers.push({ method: statement.name.text, bodies: [statement.body] });
       continue;
     }
     if (ts.isVariableStatement(statement) && isExported(statement)) {
@@ -166,8 +210,8 @@ function exportedHandlers(sourceFile) {
         if (!ts.isIdentifier(declaration.name) || !httpMethods.has(declaration.name.text)) {
           continue;
         }
-        const body = handlerBodyOf(declaration.initializer);
-        handlers.push({ method: declaration.name.text, body });
+        const bodies = handlerBodiesOf(declaration.initializer, locals);
+        handlers.push({ method: declaration.name.text, bodies });
       }
       continue;
     }
@@ -178,7 +222,7 @@ function exportedHandlers(sourceFile) {
     ) {
       for (const element of statement.exportClause.elements) {
         if (httpMethods.has(element.name.text)) {
-          handlers.push({ method: element.name.text, body: undefined });
+          handlers.push({ method: element.name.text, bodies: [] });
         }
       }
     }
@@ -297,7 +341,7 @@ function dataReadPortOf(expression, depsVars) {
 }
 
 /** Первый порт данных, прочитанный внутри узла, в порядке появления. */
-function firstDataReadPortIn(node, depsVars) {
+function firstDataReadPortIn(node, depsVars, locals = new Map(), seen = new Set()) {
   let found;
   const visit = (n) => {
     if (found !== undefined) return;
@@ -320,6 +364,18 @@ function firstDataReadPortIn(node, depsVars) {
         found = port;
         return;
       }
+      /* Круг 6, MUST FIX-1: ВЫЗОВ локально объявленной функции читает ровно то, что читает её тело.
+         Граница функции (круг 5) снимала ложную тревогу на ОБЪЯВЛЕНИИ — и заодно перестала видеть
+         чтение через вызов. Здесь она возвращается по имени: один переход, не анализ потока. */
+      const callee = ts.isCallExpression(n.expression) ? n.expression.expression : undefined;
+      if (callee && ts.isIdentifier(callee) && locals.has(callee.text) && !seen.has(callee.text)) {
+        seen.add(callee.text);
+        const nested = firstDataReadPortIn(locals.get(callee.text), depsVars, locals, seen);
+        if (nested !== undefined) {
+          found = nested;
+          return;
+        }
+      }
     }
     ts.forEachChild(n, visit);
   };
@@ -327,7 +383,7 @@ function firstDataReadPortIn(node, depsVars) {
   return found;
 }
 
-function handlerPassesDoor(body, guardLocals) {
+function handlerPassesDoor(body, guardLocals, locals = new Map()) {
   for (let index = 0; index < body.statements.length; index += 1) {
     const binding = guardBindingFromStatement(body.statements[index], guardLocals);
     if (!binding) continue;
@@ -340,7 +396,7 @@ function handlerPassesDoor(body, guardLocals) {
         // Порядок (круг 4, MUST FIX-1): дверь обязана стоять ВЫШЕ любого чтения данных.
         const depsVars = depsLocals(body);
         for (const earlier of body.statements.slice(0, index)) {
-          const port = firstDataReadPortIn(earlier, depsVars);
+          const port = firstDataReadPortIn(earlier, depsVars, locals);
           if (port !== undefined) return { ok: false, early: port };
         }
         return { ok: true };
@@ -370,9 +426,15 @@ export function checkSource(relativePath, source, exceptions = routeExceptions) 
     ts.ScriptKind.TS,
   );
   const guardLocals = importedGuardLocals(sourceFile);
+  const sourceLocals = localFunctionBodies(sourceFile);
   const findings = [];
   for (const handler of exportedHandlers(sourceFile)) {
-    const verdict = handler.body ? handlerPassesDoor(handler.body, guardLocals) : { ok: false };
+    /* Круг 6, MF2: дверь обязана быть в КАЖДОМ теле-кандидате; пустой список — тоже отказ. */
+    const verdicts = (handler.bodies ?? []).map((body) =>
+      handlerPassesDoor(body, guardLocals, sourceLocals),
+    );
+    const verdict =
+      verdicts.length === 0 ? { ok: false } : (verdicts.find((v) => !v.ok) ?? { ok: true });
     if (verdict.ok) continue;
     if (verdict.early) {
       findings.push(
@@ -434,6 +496,18 @@ function selfTest() {
     "const gate = await requirePatientApiBusinessAccess(); if (!gate.ok) return gate.response;";
 
   const bypasses = [
+    [
+      'круг 6, MF1: локальный helper ВЫЗВАН до двери — читает он, а не объявление',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const deps = buildAppDeps(); const loadPlan = async () => await deps.treatmentProgram.getForPatient({}); const exposed = await loadPlan(); ${guarded} return Response.json(exposed); }`,
+      new Map(),
+    ],
+    [
+      'круг 6, MF2: настоящий обработчик спрятан первым аргументом обёртки, дверь — во втором callback',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { return Response.json(await buildAppDeps().treatmentProgram.getForPatient({})); } export const GET = wrap(actualHandler, async () => { ${guarded} return Response.json({ settled: true }); });`,
+      new Map(),
+    ],
     [
       'handler without the common door',
       'patient/x/route.ts',
