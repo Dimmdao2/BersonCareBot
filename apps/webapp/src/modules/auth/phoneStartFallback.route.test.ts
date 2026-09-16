@@ -275,10 +275,11 @@ describe('direct phone OTP boundary', () => {
 
 
 
-  /* §10b: положительные ожидания прямой привязки номера через `phone/start` сняты. У этого пути нет
-     ни одного продуктового клиента — живая привязка идёт `PhoneMessengerAuthFlow` →
-     `phone/messenger-bind/*`, — а owner-оракул С7 говорит только о ВХОДЕ. Ожидания были взяты из
-     самого кода и не видели разрыв цепочки: удаление `profileBindUserId` оставляло набор зелёным.
+  /* §10a/§10b: ВСЕ положительные ожидания прямой привязки номера через `phone/start` и
+     `phone/confirm` сняты, включая подтверждение profile-bind challenge. У этого пути нет ни одного
+     продуктового клиента — живая привязка идёт `PhoneMessengerAuthFlow` → `phone/messenger-bind/*`, —
+     а owner-оракул С7 говорит только о ВХОДЕ. Независимого оракула у такого ожидания нет: оно взято
+     из самого кода и потому запирало бы честное удаление неиспользуемого compatibility API.
      Остаётся матрица отказов: она держит решение владельца, а не устройство снятого пути. */
   it('rejects phone/confirm challenges that were not issued for profile binding', async () => {
     fakes.getPhoneChallenge.mockResolvedValue({
@@ -297,26 +298,5 @@ describe('direct phone OTP boundary', () => {
       error: 'direct_phone_login_disabled',
     });
     expect(fakes.confirmPhoneAuth).not.toHaveBeenCalled();
-  });
-
-  it('keeps profile binding confirmation available for a profile-bind challenge', async () => {
-    fakes.getPhoneChallenge.mockResolvedValue({
-      phone: '+79991234567',
-      expiresAt: 1_800_000_000,
-      deliveryChannel: 'telegram',
-      profileBindUserId: patient.userId,
-      profileBindOrganizationId: ORGANIZATION_ID,
-    });
-
-    const response = await confirmPhone(
-      confirmRequest({ challengeId: 'profile-bind-challenge', code: '123456' }),
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      ok: true,
-      redirectTo: '/app/patient',
-      role: 'client',
-    });
   });
 });
