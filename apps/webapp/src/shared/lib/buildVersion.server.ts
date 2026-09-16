@@ -8,6 +8,9 @@ import { join } from 'node:path';
  */
 const UNKNOWN_BUILD_ID = randomUUID();
 
+/** Ключа подписи нет — публичный идентификатор постоянен и пуст по смыслу. */
+const UNSIGNED_BUILD_ID = 'unsigned';
+
 /**
  * Возвращает один публичный непрозрачный идентификатор сборки для layout и `/api/version`.
  * Хостовая выкладка объявляет BUILD_ID, docker-выкладка полагается на файл Next; значение
@@ -29,7 +32,12 @@ export function resolvePublicBuildId(): string {
   if (!privateBuildId) privateBuildId = UNKNOWN_BUILD_ID;
 
   const secret = process.env.SESSION_COOKIE_SECRET?.trim();
-  if (!secret) return UNKNOWN_BUILD_ID;
+  // Без ключа хеш не защищает: пространство исходных значений мало и перебирается. Но и значение
+  // НА ПРОЦЕСС сюда ставить нельзя — вкладка перезагружается, когда видит новый идентификатор,
+  // поэтому каждый рестарт выбрасывал бы всех открытых пользователей (находка круга 2). Пустой
+  // секрет на этом стенде уже случался, поэтому ветка настоящая. Отдаём постоянную строку: она
+  // одинакова у всех процессов и не несёт наружу ничего.
+  if (!secret) return UNSIGNED_BUILD_ID;
 
   return createHmac('sha256', secret)
     .update('public-build-id:v1\0', 'utf8')
