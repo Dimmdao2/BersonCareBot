@@ -372,9 +372,9 @@ export function DoctorTodayDashboard({
               }
               value={activeTodayAppointments.length}
               valuePlacement="side-center"
-              opensDetails={isMobile}
+              opensDetails
               detailsIcon={<CalendarDays className="size-full" />}
-              onClick={isMobile ? () => setMobileModal('calendar') : undefined}
+              onClick={() => setMobileModal('calendar')}
             />
           </DoctorMetricList>
 

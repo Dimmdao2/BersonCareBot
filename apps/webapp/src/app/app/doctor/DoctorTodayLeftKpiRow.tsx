@@ -256,7 +256,6 @@ export function DoctorTodayLeftKpiRow({
     ) : null,
   ].filter((tile) => tile !== null);
   const kpiGridClass = kpiGridClassByTileCount[kpiTiles.length] ?? kpiGridClassByTileCount[4];
-  const kpiValuePlacement = kpiTiles.length === 3 ? 'stacked' : 'responsive';
 
   return (
     <>
@@ -266,7 +265,7 @@ export function DoctorTodayLeftKpiRow({
           aria-label="Входящий поток"
           className={kpiGridClass}
         >
-          {kpiTiles.map((tile) => cloneElement(tile, { valuePlacement: kpiValuePlacement }))}
+          {kpiTiles.map((tile) => cloneElement(tile, { valuePlacement: 'stacked' }))}
         </DoctorMetricList>
       ) : null}
 

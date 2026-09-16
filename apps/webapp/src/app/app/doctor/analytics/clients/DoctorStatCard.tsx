@@ -76,7 +76,7 @@ export function DoctorStatCard({
   const isStacked = valuePlacement === 'stacked';
   const shellClass = cn(
     tone === 'warning' ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
-    isStacked && 'flex items-center py-2.5 pr-2 pl-2.5',
+    isStacked && 'flex items-center py-2.5 pr-1 pl-2.5',
     (href || onClick) && doctorStatCardInteractiveClass,
     tone === 'neutral' && (href || onClick) && doctorStatCardInteractiveNeutralClass,
     selected &&
