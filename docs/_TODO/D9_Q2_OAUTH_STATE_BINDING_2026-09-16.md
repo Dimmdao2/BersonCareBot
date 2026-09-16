@@ -1,102 +1,86 @@
 # Д9 Q2 — привязка OAuth `state` к браузеру
 
-Дата проверки: 2026-09-16.
+Дата реализации: 2026-09-16.
 
 ## Итог
 
-Реализация остановлена на обязательной host-развилке из brief: совпадение хоста, на котором начинается OAuth,
-и хоста callback гарантировано не для всех провайдеров. Добавление host-only cookie в текущую схему сломает
-Google, VK и Apple при старте с surface-хоста, отличного от их единственного настроенного callback-хоста.
+Публичный OAuth `state` теперь связан с браузером, который начал вход, и потребляется один раз. При старте
+сервер кладёт в host-only first-party cookie случайный непрозрачный маркер, а в подписанный `state` — только
+SHA-256-хеш маркера. Callback удаляет cookie до дальнейшей обработки и принимает `state` только при совпадении
+хеша. Отсутствие cookie, несовпадение и повторное предъявление идут в тот же существующий отказ, что неверная
+подпись; новая наружная причина ошибки не добавлена.
 
-Есть второй независимый конфликт для Apple: callback реализован как cross-site `POST`
-(`response_mode=form_post`), а заданная решением cookie `SameSite=Lax` на таком запросе браузером не
-отправляется.
+Новых таблиц, миграций и серверного хранилища нет.
 
-## Что найдено про хосты
+## Что найдено про хосты — пункт «ловушка»
 
-### Где ставилась бы cookie
+Предыдущий проход правильно остановился: cookie, поставленная на исходном брендированном хосте, не доходит до
+глобальных callback Google, VK и Apple; Apple дополнительно возвращается cross-site POST и не присылает
+`SameSite=Lax`.
 
-`POST /api/auth/oauth/start` обслуживается на хосте исходного запроса. Маршрут получает поверхность через
-`getResolvedSurface()` (`apps/webapp/src/app/api/auth/oauth/start/route.ts:161-179`), причём резолвер допускает
-platform patient host, брендированный поддомен и собственный домен клиники
-(`apps/webapp/src/shared/lib/surface/requestSurface.ts:301-384`). Следовательно, first-party cookie без `Domain`
-будет принадлежать именно этому исходному хосту.
+Реализована зафиксированная ведущим топология:
 
-### На каком хосте принимается callback
-
-- **Yandex:** совпадение гарантировано кодом. `resolveYandexOAuthConfig()` строит callback из
-  `surface.publicOrigin` и допускает старт только при наличии точного URL в allowlist
-  (`apps/webapp/src/modules/auth/yandexOAuthConfig.ts:28-73`). Callback повторно сверяет `surface`,
-  `publicOrigin` и `organizationId` из подписанного state с текущей поверхностью
-  (`apps/webapp/src/modules/auth/yandexOAuthCallbackHandler.ts:63-93`).
-- **Google:** совпадение не гарантировано. Start и callback читают один глобальный
-  `google_oauth_login_redirect_uri`; связи с `surface.publicOrigin` нет
-  (`apps/webapp/src/app/api/auth/oauth/start/route.ts:210-235`,
-  `apps/webapp/src/app/api/auth/oauth/callback/google/route.ts:35-70`,
-  `apps/webapp/src/modules/system-settings/integrationRuntime.ts:82-84`).
-- **VK:** совпадение не гарантировано. Start и callback читают один глобальный `vk_id_redirect_uri`; связи с
-  `surface.publicOrigin` нет (`apps/webapp/src/app/api/auth/oauth/start/route.ts:238-265`,
-  `apps/webapp/src/modules/auth/vkOAuthCallbackHandler.ts:71-99`,
-  `apps/webapp/src/modules/system-settings/integrationRuntime.ts:47-49`).
-- **Apple:** совпадение не гарантировано по той же причине: используется один глобальный
-  `apple_oauth_redirect_uri` (`apps/webapp/src/app/api/auth/oauth/start/route.ts:268-295`,
-  `apps/webapp/src/app/api/auth/oauth/callback/apple/route.ts:38-97`,
-  `apps/webapp/src/modules/system-settings/integrationRuntime.ts:102-104`). Дополнительно start задаёт
-  `response_mode=form_post`, а callback экспортирует `POST`, поэтому `SameSite=Lax` cookie не сопровождает
-  возврат Apple (`apps/webapp/src/app/api/auth/oauth/start/route.ts:287-294`,
-  `apps/webapp/src/app/api/auth/oauth/callback/apple/route.ts:35-39`).
-
-Одна surface-политика не устраняет разрыв: публичный auth snapshot перебирает все четыре OAuth-провайдера для
-переданной patient policy (`apps/webapp/src/modules/auth/publicAuthSnapshot.ts:14-27`), а registry содержит
-Google, VK и Apple наряду с Yandex (`apps/webapp/src/modules/auth/oauthProviderRegistry.ts:25-54`).
+- Yandex начинает и завершает вход на текущей patient surface; cookie остаётся на том же host с
+  `SameSite=Lax`.
+- Google, VK и Apple при несовпадении origin текущего запроса и настроенного callback сначала возвращают браузеру
+  URL `GET /api/auth/oauth/start` на origin callback. Это top-level навигация: уже глобальный start ставит cookie
+  и перенаправляет к провайдеру.
+- Для Apple cookie имеет `SameSite=None; Secure`; для остальных провайдеров — `SameSite=Lax`. Срок cookie и
+  `state` один и тот же: 600 секунд.
+- Возврат после Google/VK/Apple на брендированный хост не добавлялся: отдельного owner-решения на него нет.
 
 ## Что изменено
 
-Создан только этот отчёт. Продуктовый код, тесты, миграции, конфигурация и план владельца не изменялись.
-
-## Вопрос ведущему
-
-Нужно зафиксировать две части topology-контракта, прежде чем реализация может продолжиться:
-
-1. Какой механизм должен обеспечить один origin между `/oauth/start` и callback для Google, VK и Apple при
-   старте с брендированного поддомена или собственного домена клиники: запрет такого старта, callback на каждом
-   surface-origin либо отдельный согласованный relay-механизм?
-2. Какой cookie-контракт применять к Apple `form_post`, поскольку требуемый `SameSite=Lax` браузер не отправит
-   на cross-site `POST`?
-
-До ответа выбирать один из этих вариантов самостоятельно нельзя: каждый меняет принятую форму решения или
-доступность OAuth на существующих поверхностях.
+- `oauthSignedState.ts`: signed payload получил хеш browser-binding; открытое значение в `state` не попадает.
+- `oauthStateBinding.server.ts`: единая выдача, проверка и потребление короткоживущей cookie.
+- `/api/auth/oauth/start`: добавлен общий POST/GET start-path, host-handoff для Google/VK/Apple и выдача binding
+  непосредственно на host callback.
+- Все четыре публичных callback используют consume-проверку до обмена provider code. Apple nonce и VK PKCE
+  сохранены без изменения.
+- Добавлен route-тест конечного поведения двери: replay уже потреблённого `state` и `state` с cookie другого
+  браузера получают существующий CSRF-отказ.
 
 ## Проверки и команды
 
-Карта правил:
+Все прогоны выполнялись через обязательный host-lock:
 
 ```bash
-grep -n "^## \\|^### " AGENTS.md
+/home/dev/brain/host-orch/run-tests.sh "pnpm -C apps/webapp exec vitest --run --project=route src/modules/auth/oauthStateBinding.route.test.ts src/modules/auth/oauthAppleToggle.route.test.ts"
 ```
 
-Поиск входа, callback, surface resolver и redirect URI выполнен командами:
+Результат: 2 файла, 10 тестов — PASS.
+
+Инъекция поломки: временно заменена `timingSafeEqual(actualHash, expectedHash)` на безусловное принятие состояния,
+затем выполнено:
 
 ```bash
-node /home/dev/brain/tools/code-search.mjs "oauth start callback redirect_uri request surface origin host" --repo bcb -k 20
-node /home/dev/brain/tools/code-search.mjs "oauthSignedState create verify state cookie" --repo bcb -k 20
-node /home/dev/brain/tools/code-search.mjs "api auth oauth callback google yandex apple vk" --repo bcb -k 20
-node /home/dev/brain/tools/code-search.mjs "resolve request surface host oauth" --repo bcb -k 20
-node /home/dev/brain/tools/code-search.mjs "getGoogleOauthLoginRedirectUri getAppleOauthRedirectUri getVkIdRedirectUri definitions system settings" --repo bcb -k 20
-node /home/dev/brain/tools/code-search.mjs "yandex_oauth_redirect_uri google_oauth_login_redirect_uri apple_oauth_redirect_uri vk_id_redirect_uri" --repo bcb -k 30
-node /home/dev/brain/tools/code-search.mjs "oauth callback publicOrigin branded host custom domain redirect URI" --repo bcb -k 20
+/home/dev/brain/host-orch/run-tests.sh "pnpm -C apps/webapp exec vitest --run --project=route src/modules/auth/oauthStateBinding.route.test.ts"
 ```
 
-Результат инспекции: Yandex вычисляет callback из origin текущей поверхности; Google, VK и Apple используют
-глобальные redirect URI; Apple принимает callback методом POST.
+Результат: сценарий чужой browser-cookie покраснел — ожидался `403`, получен `307`. Поломка возвращена.
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh "pnpm -C apps/webapp exec tsc --noEmit -p tsconfig.json"
+```
+
+Результат: PASS.
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh "pnpm -C apps/webapp exec eslint src/modules/auth/oauthSignedState.ts src/modules/auth/oauthStateBinding.server.ts src/app/api/auth/oauth/start/route.ts src/app/api/auth/oauth/callback/google/route.ts src/app/api/auth/oauth/callback/apple/route.ts src/modules/auth/yandexOAuthCallbackHandler.ts src/modules/auth/vkOAuthCallbackHandler.ts src/modules/auth/oauthStateBinding.route.test.ts src/modules/auth/oauthAppleToggle.route.test.ts src/modules/auth/yandexOAuthCallbackSurfaceRedirect.audit.unit.test.ts"
+```
+
+Результат: PASS.
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh "pnpm -C apps/webapp exec vitest --run src/modules/auth/oauthStateBinding.route.test.ts src/modules/auth/oauthAppleToggle.route.test.ts src/modules/auth/oauthWebSession.unit.test.ts src/modules/auth/yandexOAuthCallbackSurfaceRedirect.audit.unit.test.ts src/modules/auth/yandexOAuthConfig.audit.unit.test.ts src/modules/auth/yandexOAuthConfig.unit.test.ts"
+```
+
+Результат: 6 файлов, 22 теста — PASS.
 
 ## НЕ СДЕЛАНО
 
-- Не добавлены cookie, хеш привязки и удаление cookie при первом callback.
-- Не менялись Apple nonce и VK PKCE.
-- Не создавался поведенческий тест и не выполнялась инъекция поломки: без выбранного host/Apple-контракта тест
-  закрепил бы не принятое ведущим поведение.
-- Не запускались typecheck, ESLint и затронутые тесты: исполняемый код не менялся, работа остановлена до этого
-  этапа обязательным условием brief.
-- Галочка в `docs/_TODO/AUTH_DOORS_FIX_2026-09-16.md` не ставилась.
-- PROD, TEST, DEV-БД, миграции и `.env` не затрагивались.
+- Галочка Д9/Q2 в `AUTH_DOORS_FIX_2026-09-16.md` не ставилась — её ставит ведущий после независимого аудита.
+- Возврат Google/VK/Apple с глобального host на брендированный host не реализован.
+- PROD, TEST, DEV-БД, миграции, привилегии и `.env` не затрагивались.
+- Полный CI и автоматические UI-тесты не запускались и не создавались; выполнены только затронутые route/unit
+  тесты, typecheck и ESLint.

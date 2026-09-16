@@ -8,9 +8,9 @@ import {
 } from '@/app-layer/product-analytics/registrationOAuthWebCallback';
 import { registrationAttemptIdFromOAuthState } from '@/app-layer/product-analytics/recordAuthRegistration';
 import {
-  parseVerifiedSignedOAuthState,
   roleLoginPortalFromOAuthState,
 } from '@/modules/auth/oauthSignedState';
+import { consumeBrowserBoundOAuthState } from '@/modules/auth/oauthStateBinding.server';
 import {
   getAppleOauthClientId,
   getAppleOauthRedirectUri,
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   }
 
   const stateRaw = params.get('state') ?? '';
-  const verified = parseVerifiedSignedOAuthState(stateRaw, 'apple');
+  const verified = await consumeBrowserBoundOAuthState(stateRaw, 'apple');
   const attemptId = registrationAttemptIdFromOAuthState(verified);
   const logBase = {
     attemptId,

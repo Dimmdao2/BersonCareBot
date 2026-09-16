@@ -21,9 +21,11 @@ vi.mock('@/shared/lib/surface/requestSurface.server', () => ({
   getResolvedSurface: fakes.getResolvedSurface,
 }));
 vi.mock('@/modules/auth/oauthSignedState', () => ({
-  parseVerifiedSignedOAuthState: fakes.parseVerifiedSignedOAuthState,
   roleLoginPortalFromOAuthState: (state: { roleLoginPortal?: 'doctor' | 'patient' | 'admin' }) =>
     state.roleLoginPortal ?? 'patient',
+}));
+vi.mock('@/modules/auth/oauthStateBinding.server', () => ({
+  consumeBrowserBoundOAuthState: fakes.parseVerifiedSignedOAuthState,
 }));
 vi.mock('@/modules/auth/yandexOAuthConfig', () => ({
   resolveYandexOAuthConfig: fakes.resolveYandexOAuthConfig,

@@ -8,9 +8,9 @@ import {
 } from '@/app-layer/product-analytics/registrationOAuthWebCallback';
 import { registrationAttemptIdFromOAuthState } from '@/app-layer/product-analytics/recordAuthRegistration';
 import {
-  parseVerifiedSignedOAuthState,
   roleLoginPortalFromOAuthState,
 } from '@/modules/auth/oauthSignedState';
+import { consumeBrowserBoundOAuthState } from '@/modules/auth/oauthStateBinding.server';
 import {
   getGoogleClientId,
   getGoogleClientSecret,
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   const appBase = env.APP_BASE_URL;
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get('state') ?? '';
-  const verifiedState = parseVerifiedSignedOAuthState(stateFromQuery, 'google_login');
+  const verifiedState = await consumeBrowserBoundOAuthState(stateFromQuery, 'google_login');
   const attemptId = registrationAttemptIdFromOAuthState(verifiedState);
   const logBase = {
     attemptId,

@@ -10,9 +10,9 @@ import { resolveUserIdForYandexOAuth } from '@/modules/auth/oauthYandexResolve';
 import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
 import {
-  parseVerifiedSignedOAuthState,
   roleLoginPortalFromOAuthState,
 } from '@/modules/auth/oauthSignedState';
+import { consumeBrowserBoundOAuthState } from '@/modules/auth/oauthStateBinding.server';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 import {
   resolveYandexOAuthConfig,
@@ -63,7 +63,7 @@ export async function handleYandexOAuthCallbackGet(
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get('state') ?? '';
 
-  const verifiedState = parseVerifiedSignedOAuthState(stateFromQuery, 'yandex');
+  const verifiedState = await consumeBrowserBoundOAuthState(stateFromQuery, 'yandex');
   const attemptId = registrationAttemptIdFromOAuthState(verifiedState);
   if (!verifiedState) {
     await logOAuthFailure(attemptId, 'oauth_csrf', 'callback');
