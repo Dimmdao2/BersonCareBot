@@ -74,20 +74,6 @@
 - контролируемые security logs, alerts, access review, incident runbook и tabletop drill;
 - Security CI и процесс устранения находок с владельцем и сроком.
 
-### COMM — внешние каналы, push и вторичные copies
-
-> **SUPERSEDED AS TARGET — 2026-07-27.** Требования о product push-only/auth-only bots ниже заменены строкой **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md) (`OWNER_PRODUCT_RULES.md` §2, §15, §21–§25); оставить как историческую baseline.
-
-- Telegram/MAX используются только для login/bind code и минимального auth handshake; product chat, reminders,
-  booking lifecycle, broadcasts, support и operator alerts не используют пользовательские messenger bots;
-- product event имеет canonical in-app state и доставляется только через app push: Web Push для browser/PWA,
-  APNs/FCM для native app после provider/legal gates;
-- отсутствие push target/permission не включает fallback в messenger/email/SMS; delivery status и onboarding
-  остаются наблюдаемыми;
-- routine date/time/payment/subscription/reminder details могут быть полезными; raw chat, diagnosis, symptom/test,
-  clinical note, intake summary, filename, attachment preview, presigned URL и secret в push запрещены;
-- invitation/access recovery/receipt/legal/export/deletion email/SMS — отдельные allowlisted service classes, а не
-  fallback продуктовых уведомлений;
 - APNs/FCM/Apple/Google и фактически передаваемые token/payload metadata включаются в processing/vendor/transborder
   register до production;
 - SQL params, message bodies и clinical payload не дублируются в logs, delivery attempts, queues, retries или
