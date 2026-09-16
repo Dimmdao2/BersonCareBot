@@ -27,8 +27,6 @@ const fakes = vi.hoisted(() => ({
   startPhoneAuth: vi.fn<StartPhoneAuth>(),
   after: vi.fn<(task: () => Promise<void>) => void>(),
   isChannelEnabled: vi.fn<(channel: string) => Promise<boolean>>(),
-  getClientVisiblePolicy: vi.fn(),
-  resolveAuthOtpChannel: vi.fn(),
 }));
 
 vi.mock('next/server', async (importOriginal) => {
@@ -55,7 +53,6 @@ vi.mock('@/shared/platform-user/isPlatformUserUuid', () => ({
 }));
 vi.mock('@/modules/auth/authChannelPolicy', () => ({
   isAuthChannelEnabled: fakes.isChannelEnabled,
-  getClientVisibleAuthChannelPolicy: fakes.getClientVisiblePolicy,
 }));
 vi.mock('@/shared/lib/surface/requestSurface', () => ({
   requireResolvedSurface: () =>
@@ -65,12 +62,12 @@ vi.mock('@/shared/lib/surface/requestSurface', () => ({
           publicOrigin: 'https://clinic.therapygo.test',
           organizationId: BRANDED_ORG_ID,
           clinicSlug: 'clinic',
-          authPolicy: { availableMethods: [], enabledMethods: [] },
+          authPolicy: { availableMethods: ['phone_bot'], enabledMethods: ['phone_bot'] },
         }
       : {
           surface: 'patient_default',
           publicOrigin: 'https://app.example.test',
-          authPolicy: { availableMethods: [], enabledMethods: [] },
+          authPolicy: { availableMethods: ['phone_bot'], enabledMethods: ['phone_bot'] },
         },
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
@@ -85,7 +82,6 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       getPhoneChallenge: vi.fn(),
       confirmPhoneAuth: vi.fn(),
     },
-    channelPreferences: { resolveAuthOtpChannel: fakes.resolveAuthOtpChannel },
   }),
 }));
 
@@ -108,16 +104,18 @@ const user: SessionUser = {
   ],
 };
 
-function startRequest(): Request {
+function startRequest(deliveryChannel: 'telegram' | 'max'): Request {
   return new Request('https://clinic.therapygo.test/api/auth/phone/start', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ phone: '+79995550101' }),
+    body: JSON.stringify({ phone: '+79995550101', deliveryChannel }),
   });
 }
 
-async function deliveryPassedToOtpPort(): Promise<PhoneOtpDelivery | undefined> {
-  const pending = startPhone(startRequest());
+async function deliveryPassedToOtpPort(
+  deliveryChannel: 'telegram' | 'max',
+): Promise<PhoneOtpDelivery | undefined> {
+  const pending = startPhone(startRequest(deliveryChannel));
   await vi.advanceTimersByTimeAsync(600);
   await pending;
   return fakes.startPhoneAuth.mock.calls[0]?.[2]?.delivery;
@@ -129,12 +127,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   fakes.after.mockImplementation(() => undefined);
   fakes.isChannelEnabled.mockResolvedValue(true);
-  fakes.getClientVisiblePolicy.mockResolvedValue({
-    email: true,
-    sms: true,
-    telegram: true,
-    max: true,
-  });
   fakes.findByPhone.mockResolvedValue(user);
   fakes.startPhoneAuth.mockResolvedValue({
     ok: true,
@@ -146,9 +138,8 @@ beforeEach(() => {
 describe('C3: OTP брендированного пациента требует бот клиники', () => {
   it('telegram с брендированного адреса несёт организацию клиники в порт доставки', async () => {
     fakes.surface.current = 'patient_branded';
-    fakes.resolveAuthOtpChannel.mockResolvedValue('telegram');
 
-    expect(await deliveryPassedToOtpPort()).toEqual({
+    expect(await deliveryPassedToOtpPort('telegram')).toEqual({
       channel: 'telegram',
       recipientId: 'tg-c3-777',
       clinicRequiredOrganizationId: BRANDED_ORG_ID,
@@ -157,9 +148,8 @@ describe('C3: OTP брендированного пациента требует
 
   it('MAX с брендированного адреса несёт организацию клиники в порт доставки', async () => {
     fakes.surface.current = 'patient_branded';
-    fakes.resolveAuthOtpChannel.mockResolvedValue('max');
 
-    expect(await deliveryPassedToOtpPort()).toEqual({
+    expect(await deliveryPassedToOtpPort('max')).toEqual({
       channel: 'max',
       recipientId: 'max-c3-777',
       clinicRequiredOrganizationId: BRANDED_ORG_ID,
@@ -168,9 +158,8 @@ describe('C3: OTP брендированного пациента требует
 
   it('небрендированная пациентская поверхность остаётся без clinic_required', async () => {
     fakes.surface.current = 'patient_default';
-    fakes.resolveAuthOtpChannel.mockResolvedValue('telegram');
 
-    expect(await deliveryPassedToOtpPort()).toEqual({
+    expect(await deliveryPassedToOtpPort('telegram')).toEqual({
       channel: 'telegram',
       recipientId: 'tg-c3-777',
     });

@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Публичный поток входа (browser): OAuth, email и телефон с server-selected SMS/email delivery.
- * Apple — только если нет Яндекса/Google. Messenger Mini App keeps its separate phone step.
+ * Публичный поток входа (browser): OAuth, email и подтверждение телефона в мессенджере.
+ * Apple — только если нет Яндекса/Google. Messenger Mini App keeps its explicit channel step.
  */
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -19,7 +19,6 @@ import {
   filterAuthMethodsByChannelPolicy,
   isOtpChannelAvailablePublic,
   OTP_PUBLIC_OTHER_CHANNELS_ORDER,
-  pickPrimaryOtpChannelPublic,
   type AuthChannelUiPolicy,
 } from '@/modules/auth/otpChannelUi';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
@@ -242,9 +241,6 @@ export function AuthFlowV2({
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
   const [smsStartCooldownSec, setSmsStartCooldownSec] = useState(0);
   const [otpChannel, setOtpChannel] = useState<OtpChannel>('telegram');
-  const [otpEntrySource, setOtpEntrySource] = useState<'registration' | 'channel' | 'auto' | null>(
-    null,
-  );
   const [emailLoginEmail, setEmailLoginEmail] = useState('');
   const [emailLoginPassword, setEmailLoginPassword] = useState('');
   const [passwordAltchaRequired, setPasswordAltchaRequired] = useState(false);
@@ -1177,7 +1173,6 @@ export function AuthFlowV2({
 
   const startPhoneOtp = async (
     deliveryChannel: OtpChannel,
-    entry: 'registration' | 'channel' | 'auto',
     phoneForRequest?: string | null,
   ): Promise<OtpResendOutcome> => {
     const effectivePhone = phoneForRequest ?? phone;
@@ -1220,7 +1215,6 @@ export function AuthFlowV2({
       setChallengeId(data.challengeId);
       setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
       setOtpChannel(deliveryChannel);
-      setOtpEntrySource(entry);
       setStep('code');
       return { kind: 'ok' };
     } finally {
@@ -1252,14 +1246,10 @@ export function AuthFlowV2({
       setPhone(normalized);
       const allowedMethods = filterAuthMethodsByChannelPolicy(data.methods, authChannelPolicy);
       setMethods(allowedMethods);
-      const primary = pickPrimaryOtpChannelPublic(allowedMethods);
-      if (primary == null) {
+      if (!hasPublicWebOtpChannel(allowedMethods)) {
         setStep('foreign_no_otp_channel');
       } else {
-        const outcome = await startPhoneOtp(primary, 'auto', normalized);
-        if (outcome.kind !== 'ok') {
-          setStep('choose_channel');
-        }
+        setStep('choose_channel');
       }
     } finally {
       setLoading(false);
@@ -2650,7 +2640,13 @@ export function AuthFlowV2({
         <ChannelPicker
           methods={methods}
           disabled={loading}
-          onChoose={(ch) => void startPhoneOtp(ch, 'channel')}
+          onChoose={(ch) => {
+            if (ch === 'email') {
+              openEmailPasswordLogin('phone');
+              return;
+            }
+            void startPhoneOtp(ch);
+          }}
         />
         <Button
           type="button"
@@ -2670,7 +2666,7 @@ export function AuthFlowV2({
     const alternatives = buildPublicPhoneOtpAlternatives(
       methods,
       otpChannel,
-      (ch) => startPhoneOtp(ch, 'channel'),
+      (ch) => startPhoneOtp(ch),
       emailOtpEnabled || passwordLoginEnabled ? () => openEmailPasswordLogin('phone') : null,
     );
 

@@ -1,6 +1,6 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { after, NextResponse } from 'next/server';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
@@ -21,25 +21,19 @@ import {
 import { getCurrentSession } from '@/modules/auth/service';
 import { canAccessPatient } from '@/modules/roles/service';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import {
-  getClientVisibleAuthChannelPolicy,
-  isAuthChannelEnabled,
-} from '@/modules/auth/authChannelPolicy';
+import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 import { notificationText } from '@/shared/notifications/notificationText';
 
 const PUBLIC_LOGIN_START_MIN_RESPONSE_MS = 500;
-const PUBLIC_LOGIN_DECOY_USER_ID = '00000000-0000-4000-8000-000000000000';
-
 /**
  * D15b/6: `user` here always comes from `deps.userByPhone.findByPhone(normalized)` above, which
  * (after the D15b/6 repair) already carries the full `contacts` array in one pre-session door
  * call. `deps.userByPhone.isPhoneTrustedForUser`/`getVerifiedEmailForUser` derive the identical
  * answer (primary contact of this kind, confirmed) from a SEPARATE relation read keyed by user id
  * — a door bootstrap/pre-session has no capability for (see `pgUserByPhone.ts`). Reading the same
- * fact off the payload already fetched needs no second door and preserves the decoy-lookup timing
- * symmetry (`PUBLIC_LOGIN_DECOY_USER_ID`): a missing `user` was already zero extra DB calls before,
- * and still is.
+ * fact off the payload already fetched needs no second door. A missing `user` remains zero extra
+ * contact-relation reads, preserving the public response symmetry.
  */
 function primaryConfirmedContactValue(
   user: SessionUser | null,
@@ -59,17 +53,19 @@ const bodySchema = z.object({
 });
 
 /**
- * Start phone auth. Unauthenticated login always receives web context; a caller cannot make its
- * body trusted by claiming `channel: telegram`. Authenticated profile-bind preserves its channel.
- * Для публичного web-login без deliveryChannel сервер разрешает канал автоматически (не лестницей):
- * явный профильный выбор либо канал, впервые подтвердивший номер (IDENTITY_AND_MERGE_SCHEME.md §3.1);
- * SMS — только bootstrap, когда ни того ни другого нет. Если резолвнутый канал не enabled+configured —
- * тишина, подмены другим каналом нет (Р-D27, §2.3). Явный deliveryChannel позволяет нейтрально
- * повторить отправку или выбрать другой включённый канал.
+ * Start phone auth for an explicitly selected delivery channel. Unauthenticated login always
+ * receives web context; a caller cannot make its body trusted by claiming `channel: telegram`.
+ * The public automatic channel resolver and its SMS bootstrap no longer exist: browser login by
+ * phone first proves the contact through `phone/messenger-bind/*`.
  */
 export async function POST(request: Request) {
   const startedAt = Date.now();
   stampBootstrapPrincipal('api/auth/phone/start:POST', request);
+  const resolvedSurface = requireResolvedSurface(request.headers);
+  if (!resolvedSurface.authPolicy.availableMethods.includes('phone_bot')) {
+    return NextResponse.json({ ok: false, error: 'auth_method_disabled' }, { status: 403 });
+  }
+
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
@@ -80,14 +76,16 @@ export async function POST(request: Request) {
   }
 
   const { phone, displayName } = parsed.data;
-  const resolvedSurface = requireResolvedSurface(request.headers);
   const clinicRequiredOrganizationId =
     resolvedSurface.surface === 'patient_branded' ? resolvedSurface.organizationId : undefined;
   const channel = parsed.data.channel ?? 'web';
   const purpose = parsed.data.purpose ?? 'login';
   const publicLogin = purpose === 'login';
-  const automaticPublicLogin = publicLogin && parsed.data.deliveryChannel == null;
-  let deliveryChannel = parsed.data.deliveryChannel ?? 'sms';
+  const deliveryChannel = parsed.data.deliveryChannel;
+
+  if (!deliveryChannel) {
+    return NextResponse.json({ ok: false, error: 'delivery_channel_required' }, { status: 400 });
+  }
 
   let context: ChannelContext;
 
@@ -140,7 +138,18 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!automaticPublicLogin && !(await isAuthChannelEnabled(deliveryChannel))) {
+  if (publicLogin && deliveryChannel === 'sms') {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'sms_disabled_web',
+        message: notificationText.authSmsDisabledOnWeb,
+      },
+      { status: 400 },
+    );
+  }
+
+  if (!(await isAuthChannelEnabled(deliveryChannel, 'patient'))) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 
@@ -159,32 +168,6 @@ export async function POST(request: Request) {
   const user = await deps.userByPhone.findByPhone(normalized);
 
   let delivery: PhoneOtpDelivery | undefined;
-  // Automatic public login никогда не перебирает каналы по жёсткой лестнице (искоренено 31.07,
-  // IDENTITY_AND_MERGE_SCHEME.md §3.1-3.2): код уходит либо в явно выбранный человеком канал
-  // настроек, либо в канал, впервые подтвердивший номер; SMS — только bootstrap, когда ни того
-  // ни другого нет (например регистрация нового номера, для которого ещё нечего "предпочитать").
-  let automaticChannel: typeof deliveryChannel | null = null;
-  if (automaticPublicLogin) {
-    const effectivePolicy = await getClientVisibleAuthChannelPolicy();
-    const lookupUserId = user?.userId ?? PUBLIC_LOGIN_DECOY_USER_ID;
-    const resolved = await deps.channelPreferences.resolveAuthOtpChannel(lookupUserId);
-    if (resolved) {
-      deliveryChannel = resolved;
-      if (effectivePolicy[resolved]) {
-        automaticChannel = resolved;
-        // Почта в автоподборе по номеру больше не участвует совсем (владелец 16.09.2026): вход по
-        // номеру доставляет только в бота, привязанного к этому номеру. Прежняя проверка «номер
-        // доверен аккаунту» закрывала утечку, но не главное — человек не мог назвать СВОЙ адрес и
-        // получал молчание вместо письма. Почтовый вход стоит отдельной дверью.
-        if (resolved === 'email') automaticChannel = null;
-      }
-      // else: резолвнутый канал не enabled+configured — тишина, а не подмена SMS (Р-D27, §2.3,
-      // D27-B1 note в WORK_ORDER.md).
-    } else if (isRuMobile(normalized) && effectivePolicy.sms) {
-      deliveryChannel = 'sms';
-      automaticChannel = 'sms';
-    }
-  }
 
   let profileBindUserId: string | undefined;
   let profileBindOrganizationId: string | undefined;
@@ -253,76 +236,74 @@ export async function POST(request: Request) {
         }
       : undefined;
 
-  if (!automaticPublicLogin || automaticChannel != null) {
-    if (deliveryChannel === 'sms') {
-      delivery = { channel: 'sms' };
-    } else if (deliveryChannel === 'telegram') {
-      const recipientId = user?.bindings?.telegramId;
-      if (!recipientId) {
-        if (!publicLogin) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: 'channel_unavailable',
-              message: notificationText.authTelegramNotLinkedToPhone,
-            },
-            { status: 400 },
-          );
-        }
-      } else {
-        delivery = {
-          channel: 'telegram',
-          recipientId,
-          ...(clinicRequiredOrganizationId ? { clinicRequiredOrganizationId } : {}),
-        };
-      }
-    } else if (deliveryChannel === 'max') {
-      const recipientId = user?.bindings?.maxId;
-      if (!recipientId) {
-        if (!publicLogin) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: 'channel_unavailable',
-              message: notificationText.authMaxNotLinkedToPhone,
-            },
-            { status: 400 },
-          );
-        }
-      } else {
-        delivery = {
-          channel: 'max',
-          recipientId,
-          ...(clinicRequiredOrganizationId ? { clinicRequiredOrganizationId } : {}),
-        };
+  if (deliveryChannel === 'sms') {
+    delivery = { channel: 'sms' };
+  } else if (deliveryChannel === 'telegram') {
+    const recipientId = user?.bindings?.telegramId;
+    if (!recipientId) {
+      if (!publicLogin) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'channel_unavailable',
+            message: notificationText.authTelegramNotLinkedToPhone,
+          },
+          { status: 400 },
+        );
       }
     } else {
-      const email = user || publicLogin ? primaryConfirmedContactValue(user, 'email') : null;
-      if (!user) {
-        if (!publicLogin) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: 'channel_unavailable',
-              message: notificationText.authConfirmEmailInProfileFirst,
-            },
-            { status: 400 },
-          );
-        }
-      } else if (!email) {
-        if (!publicLogin) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: 'channel_unavailable',
-              message: notificationText.authConfirmEmailInProfileFirst,
-            },
-            { status: 400 },
-          );
-        }
-      } else {
-        delivery = { channel: 'email', email };
+      delivery = {
+        channel: 'telegram',
+        recipientId,
+        ...(clinicRequiredOrganizationId ? { clinicRequiredOrganizationId } : {}),
+      };
+    }
+  } else if (deliveryChannel === 'max') {
+    const recipientId = user?.bindings?.maxId;
+    if (!recipientId) {
+      if (!publicLogin) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'channel_unavailable',
+            message: notificationText.authMaxNotLinkedToPhone,
+          },
+          { status: 400 },
+        );
       }
+    } else {
+      delivery = {
+        channel: 'max',
+        recipientId,
+        ...(clinicRequiredOrganizationId ? { clinicRequiredOrganizationId } : {}),
+      };
+    }
+  } else {
+    const email = user || publicLogin ? primaryConfirmedContactValue(user, 'email') : null;
+    if (!user) {
+      if (!publicLogin) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'channel_unavailable',
+            message: notificationText.authConfirmEmailInProfileFirst,
+          },
+          { status: 400 },
+        );
+      }
+    } else if (!email) {
+      if (!publicLogin) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'channel_unavailable',
+            message: notificationText.authConfirmEmailInProfileFirst,
+          },
+          { status: 400 },
+        );
+      }
+    } else {
+      delivery = { channel: 'email', email };
     }
   }
 
@@ -404,11 +385,7 @@ export async function POST(request: Request) {
   }
 
   if (publicLogin) {
-    return publicLoginAccepted(
-      startedAt,
-      result.challengeId,
-      automaticPublicLogin ? 'automatic' : deliveryChannel,
-    );
+    return publicLoginAccepted(startedAt, result.challengeId, deliveryChannel);
   }
 
   return NextResponse.json({
@@ -422,8 +399,8 @@ export async function POST(request: Request) {
 
 async function publicLoginAccepted(
   startedAt: number,
-  challengeId = randomBytes(16).toString('base64url'),
-  deliveryChannel: 'automatic' | 'sms' | 'telegram' | 'max' | 'email' = 'automatic',
+  challengeId: string,
+  deliveryChannel: 'sms' | 'telegram' | 'max' | 'email',
 ): Promise<NextResponse> {
   const remainingMs = PUBLIC_LOGIN_START_MIN_RESPONSE_MS - (Date.now() - startedAt);
   if (remainingMs > 0) {

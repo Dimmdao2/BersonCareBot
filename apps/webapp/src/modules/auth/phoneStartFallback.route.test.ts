@@ -3,7 +3,6 @@ import type { ConfirmPhoneAuthResult } from '@/modules/auth/phoneAuth';
 import type { PhoneChallengePayload } from '@/modules/auth/phoneChallengeStore';
 import type { SessionUser } from '@/shared/types/session';
 import type { DeferredPhoneOtpDelivery, PhoneOtpDelivery } from '@/modules/auth/smsPort';
-import type { AuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 
 type StartPhoneAuth = (
   phone: string,
@@ -24,9 +23,11 @@ const fakes = vi.hoisted(() => ({
   recordRegistrationFailure: vi.fn(),
   recordRegistrationSuccess: vi.fn(),
   isChannelEnabled: vi.fn<(channel: string) => Promise<boolean>>(),
-  getClientVisiblePolicy: vi.fn<() => Promise<AuthChannelPolicy>>(),
-  resolveAuthOtpChannel:
-    vi.fn<(userId: string) => Promise<'sms' | 'telegram' | 'max' | 'email' | null>>(),
+  surface: {
+    current: 'patient_default' as
+      'patient_default' | 'patient_branded' | 'staff' | 'platform_admin',
+    availableMethods: ['phone_bot'] as string[],
+  },
   getPhoneChallenge: vi.fn<(challengeId: string) => Promise<PhoneChallengePayload | null>>(),
   confirmPhoneAuth: vi.fn<(challengeId: string, code: string) => Promise<ConfirmPhoneAuthResult>>(),
   checkConfirmRateLimit:
@@ -68,13 +69,15 @@ vi.mock('@/shared/platform-user/isPlatformUserUuid', () => ({
 }));
 vi.mock('@/modules/auth/authChannelPolicy', () => ({
   isAuthChannelEnabled: fakes.isChannelEnabled,
-  getClientVisibleAuthChannelPolicy: fakes.getClientVisiblePolicy,
 }));
 vi.mock('@/shared/lib/surface/requestSurface', () => ({
   requireResolvedSurface: () => ({
-    surface: 'patient_default',
+    surface: fakes.surface.current,
     publicOrigin: 'https://app.example.test',
-    authPolicy: { availableMethods: [], enabledMethods: [] },
+    authPolicy: {
+      availableMethods: fakes.surface.availableMethods,
+      enabledMethods: fakes.surface.availableMethods,
+    },
   }),
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
@@ -88,9 +91,6 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       startPhoneAuth: fakes.startPhoneAuth,
       getPhoneChallenge: fakes.getPhoneChallenge,
       confirmPhoneAuth: fakes.confirmPhoneAuth,
-    },
-    channelPreferences: {
-      resolveAuthOtpChannel: fakes.resolveAuthOtpChannel,
     },
   }),
 }));
@@ -154,16 +154,11 @@ beforeEach(() => {
     retryAfterSeconds: 60,
   });
   fakes.isChannelEnabled.mockResolvedValue(true);
-  fakes.getClientVisiblePolicy.mockResolvedValue({
-    email: true,
-    sms: true,
-    telegram: true,
-    max: true,
-  });
+  fakes.surface.current = 'patient_default';
+  fakes.surface.availableMethods = ['phone_bot'];
   fakes.findByPhone.mockResolvedValue(user);
   fakes.getVerifiedEmail.mockResolvedValue('verified@example.test');
   fakes.isPhoneTrusted.mockResolvedValue(true);
-  fakes.resolveAuthOtpChannel.mockResolvedValue(null);
   fakes.getPhoneChallenge.mockResolvedValue(null);
   fakes.confirmPhoneAuth.mockResolvedValue({ ok: false, code: 'expired_code' });
   fakes.checkConfirmRateLimit.mockResolvedValue({ limited: false });
@@ -206,135 +201,58 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('phone login automatic delivery fallback', () => {
-  it('never delivers an email code at the phone door, and stays indistinguishable', async () => {
-    fakes.getClientVisiblePolicy.mockResolvedValue({
-      email: true,
-      sms: false,
-      telegram: false,
-      max: false,
-    });
-    fakes.resolveAuthOtpChannel.mockResolvedValue('email');
-    const delivered = await finishResponse(
-      startPhone(
-        request({
-          phone: '+79991234567',
-          channel: 'web',
-          chatId: 'browser-1005',
-          purpose: 'login',
-        }),
-      ),
-    );
-    const deliveredBody = (await delivered.json()) as Record<string, unknown>;
+describe('phone login surface and explicit delivery', () => {
+  it('rejects a surface without phone_bot before channel checks or identity lookup', async () => {
+    fakes.surface.current = 'staff';
+    fakes.surface.availableMethods = ['password', 'totp', 'passkey'];
 
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
-      expect.objectContaining({
-        deferredDelivery: expect.objectContaining({
-          schedule: fakes.after,
-          suppressDelivery: true,
-          challengeDeliveryChannel: 'email',
-        }),
-      }),
-    );
-    expect(fakes.startPhoneAuth.mock.calls.at(-1)?.[2]?.delivery).toBeUndefined();
+    const response = await startPhone(request({}));
 
-    fakes.findByPhone.mockResolvedValueOnce(null);
-    fakes.startPhoneAuth.mockClear();
-    const noAccount = await finishResponse(
-      startPhone(
-        request({
-          phone: '+79991234567',
-          channel: 'web',
-          chatId: 'browser-1005',
-          purpose: 'login',
-        }),
-      ),
-    );
-    const noAccountBody = (await noAccount.json()) as Record<string, unknown>;
-
-    expect(noAccount.status).toBe(delivered.status);
-    expect(Object.keys(noAccountBody).sort()).toEqual(Object.keys(deliveredBody).sort());
-    expect(noAccountBody).toMatchObject({
-      ok: true,
-      retryAfterSeconds: 60,
-      deliveryChannel: 'automatic',
-    });
-    expect(String(noAccountBody.challengeId)).toHaveLength(
-      String(deliveredBody.challengeId).length,
-    );
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
-      expect.objectContaining({
-        deferredDelivery: expect.objectContaining({
-          schedule: fakes.after,
-          suppressDelivery: true,
-          challengeDeliveryChannel: 'email',
-        }),
-      }),
-    );
-    const noAccountOptions = fakes.startPhoneAuth.mock.calls.at(-1)?.[2];
-    await noAccountOptions?.deferredDelivery?.onDeliveryResult?.({
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
       ok: false,
-      code: 'delivery_failed',
+      error: 'auth_method_disabled',
     });
-    expect(fakes.recordRegistrationAttempt).toHaveBeenCalledTimes(1);
-    expect(fakes.recordRegistrationFailure).toHaveBeenCalledWith(
-      expect.objectContaining({ errorCode: 'delivery_failed' }),
-    );
-    expect(fakes.recordRegistrationSuccess).not.toHaveBeenCalled();
+    expect(fakes.isChannelEnabled).not.toHaveBeenCalled();
+    expect(fakes.findByPhone).not.toHaveBeenCalled();
+    expect(fakes.startPhoneAuth).not.toHaveBeenCalled();
   });
 
-  it('does not fall back to email even when no other channel is available', async () => {
-    fakes.isChannelEnabled.mockResolvedValue(true);
-    fakes.getClientVisiblePolicy.mockResolvedValue({
-      email: true,
-      sms: false,
-      telegram: false,
-      max: false,
+  it('requires a human-selected delivery channel instead of choosing one automatically', async () => {
+    const response = await startPhone(
+      request({ phone: '+79991234567', channel: 'web', purpose: 'login' }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'delivery_channel_required',
     });
-    fakes.resolveAuthOtpChannel.mockResolvedValue('email');
-
-    await finishResponse(
-      startPhone(
-        request({
-          phone: '+79991234567',
-          channel: 'web',
-          chatId: 'browser-1005',
-          purpose: 'login',
-        }),
-      ),
-    );
-
-    expect(fakes.startPhoneAuth.mock.calls.at(-1)?.[2]?.delivery).toBeUndefined();
+    expect(fakes.isChannelEnabled).not.toHaveBeenCalled();
+    expect(fakes.findByPhone).not.toHaveBeenCalled();
+    expect(fakes.startPhoneAuth).not.toHaveBeenCalled();
   });
 
-  it('prefers the resolved channel (telegram) over SMS bootstrap even when SMS is available', async () => {
-    fakes.findByPhone.mockResolvedValue({ ...user, bindings: { telegramId: 'tg-1005' } });
-    fakes.resolveAuthOtpChannel.mockResolvedValue('telegram');
-
-    await finishResponse(
-      startPhone(
-        request({
-          phone: '+79991234567',
-          channel: 'web',
-          chatId: 'browser-1005',
-          purpose: 'login',
-        }),
-      ),
+  it('rejects public SMS before identity lookup instead of bootstrapping it', async () => {
+    const response = await startPhone(
+      request({
+        phone: '+79991234567',
+        purpose: 'login',
+        deliveryChannel: 'sms',
+      }),
     );
 
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
-      expect.objectContaining({ delivery: { channel: 'telegram', recipientId: 'tg-1005' } }),
-    );
-    expect(fakes.getVerifiedEmail).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'sms_disabled_web',
+    });
+    expect(fakes.isChannelEnabled).not.toHaveBeenCalled();
+    expect(fakes.findByPhone).not.toHaveBeenCalled();
+    expect(fakes.startPhoneAuth).not.toHaveBeenCalled();
   });
 
-  it('does not resolve before the public response floor', async () => {
+  it('does not resolve an explicit public channel response before the timing floor', async () => {
     let settled = false;
     const responsePromise = startPhone(
       request({
@@ -342,6 +260,7 @@ describe('phone login automatic delivery fallback', () => {
         channel: 'web',
         chatId: 'browser-1005',
         purpose: 'login',
+        deliveryChannel: 'telegram',
       }),
     ).then((response) => {
       settled = true;
@@ -442,46 +361,6 @@ describe('phone login automatic delivery fallback', () => {
       deliveryChannel: 'telegram',
     });
     expect(String(unknownBody.challengeId)).toHaveLength(String(linkedBody.challengeId).length);
-  });
-
-  it('stays silent when the resolved channel is not enabled+configured (no SMS fallback)', async () => {
-    fakes.isChannelEnabled.mockResolvedValue(true);
-    fakes.getClientVisiblePolicy.mockResolvedValue({
-      email: false,
-      sms: true,
-      telegram: false,
-      max: false,
-    });
-    fakes.resolveAuthOtpChannel.mockResolvedValue('telegram');
-
-    const response = await finishResponse(
-      startPhone(
-        request({
-          phone: '+79991234567',
-          channel: 'web',
-          chatId: 'browser-1005',
-          purpose: 'login',
-        }),
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: true,
-      deliveryChannel: 'automatic',
-    });
-    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
-      '+79991234567',
-      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
-      expect.objectContaining({
-        delivery: undefined,
-        deferredDelivery: expect.objectContaining({
-          schedule: fakes.after,
-          suppressDelivery: true,
-          challengeDeliveryChannel: 'telegram',
-        }),
-      }),
-    );
   });
 
   it('does not trust a client-claimed Telegram context to bypass opaque login', async () => {
