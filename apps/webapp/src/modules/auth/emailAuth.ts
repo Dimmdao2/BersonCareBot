@@ -338,7 +338,7 @@ export async function startEmailChallenge(
     const challengeId = randomUUID();
     const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
     memEmailChallenges.set(challengeId, { userId, email, code, expiresAt, attempts: 0, purpose });
-    const sent = await sendEmailAuthCode(email, code, mailProfile);
+    const sent = await sendEmailAuthCode(email, code, mailProfile, purpose);
     if (!sent.ok) {
       memEmailChallenges.delete(challengeId);
       return {

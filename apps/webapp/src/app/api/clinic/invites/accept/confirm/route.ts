@@ -33,7 +33,10 @@ function acceptErrorStatus(code: string): number {
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/clinic/invites/accept/confirm:POST', request);
-  if (!(await isAuthChannelEnabled('email'))) {
+  // Приглашение в клинику и смена почты — не дверь входа: их код запрашивает сама поверхность
+  // после проверенного действия. Поэтому здесь проверяется настроенность почтового канала, а не
+  // состав дверей поверхности, у которой почтового кода в наборе нет (С8).
+  if (!(await isAuthChannelEnabled('email', undefined, 'transactional'))) {
     return jsonError(AUTH_CHANNEL_DISABLED_ERROR, {}, { status: 503 });
   }
   const raw = (await request.json().catch(() => null)) as unknown;

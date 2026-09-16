@@ -44,7 +44,10 @@ export async function POST(request: Request) {
   }
   const session = gate.session;
 
-  if (!(await isAuthChannelEnabled('email'))) {
+  // Приглашение в клинику и смена почты — не дверь входа: их код запрашивает сама поверхность
+  // после проверенного действия. Поэтому здесь проверяется настроенность почтового канала, а не
+  // состав дверей поверхности, у которой почтового кода в наборе нет (С8).
+  if (!(await isAuthChannelEnabled('email', undefined, 'transactional'))) {
     return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
 

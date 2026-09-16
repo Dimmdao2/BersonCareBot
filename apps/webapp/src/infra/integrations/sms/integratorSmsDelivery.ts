@@ -10,7 +10,10 @@
  */
 import { createHash, createHmac } from 'node:crypto';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
-import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
+import {
+  withAuthDeliveryChannelGate,
+  type AuthDeliveryPurpose,
+} from '@/modules/auth/authDeliveryGate';
 
 export type SmsCodeDeliveryResult =
   | { ok: true }
@@ -69,8 +72,9 @@ export async function deliverSmsCodeViaIntegrator(
   phone: string,
   code: string,
   deps: IntegratorSmsDeliveryDeps,
+  purpose: AuthDeliveryPurpose,
 ): Promise<SmsCodeDeliveryResult> {
-  const gated = await withAuthDeliveryChannelGate('sms', () =>
+  const gated = await withAuthDeliveryChannelGate('sms', purpose, () =>
     deliverSmsCodeUnchecked(phone, code, deps),
   );
   if (!gated.ok && 'reason' in gated) {

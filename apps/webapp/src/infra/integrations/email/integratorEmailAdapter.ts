@@ -1,7 +1,11 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
 import { env, integratorWebhookSecret } from '@/config/env';
-import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
+import {
+  withAuthDeliveryChannelGate,
+  type AuthDeliveryPurpose,
+} from '@/modules/auth/authDeliveryGate';
+import type { EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 
 export type PlatformEmailAudience = 'staff' | 'patient';
@@ -28,6 +32,10 @@ function signPayload(timestamp: string, rawBody: string, secret: string): string
 function emailIdempotencyKey(payload: Record<string, string>): string {
   const digest = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
   return `email:send:${digest}`;
+}
+
+function deliveryPurposeForEmailChallenge(purpose: EmailChallengePurpose): AuthDeliveryPurpose {
+  return purpose === 'login' ? 'login_door' : 'surface_requested';
 }
 
 export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
@@ -84,13 +92,17 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
       to: string,
       code: string,
       mailProfile: MailProfileRequest,
+      purpose: EmailChallengePurpose,
     ): Promise<SendEmailResult> {
       const mailProfileJson = JSON.stringify(mailProfile);
-      const gated = await withAuthDeliveryChannelGate('email', () =>
-        postSendEmail(
-          { to, code, mailProfile: mailProfileJson, audience: 'patient' },
-          emailIdempotencyKey({ to, code, mailProfile: mailProfileJson, audience: 'patient' }),
-        ),
+      const gated = await withAuthDeliveryChannelGate(
+        'email',
+        deliveryPurposeForEmailChallenge(purpose),
+        () =>
+          postSendEmail(
+            { to, code, mailProfile: mailProfileJson, audience: 'patient' },
+            emailIdempotencyKey({ to, code, mailProfile: mailProfileJson, audience: 'patient' }),
+          ),
       );
       if (!gated.ok && 'reason' in gated) {
         return { ok: false, error: gated.reason };
@@ -118,12 +130,13 @@ export async function sendEmailCodeViaIntegrator(
   to: string,
   code: string,
   mailProfile: MailProfileRequest,
+  purpose: EmailChallengePurpose,
 ): Promise<SendEmailResult> {
   const adapter = createIntegratorEmailAdapter({
     integratorBaseUrl: env.INTEGRATOR_API_URL,
     sharedSecret: integratorWebhookSecret(),
   });
-  return adapter.sendEmailCode(to, code, mailProfile);
+  return adapter.sendEmailCode(to, code, mailProfile, purpose);
 }
 
 export async function sendEmailSetupLinkViaIntegrator(

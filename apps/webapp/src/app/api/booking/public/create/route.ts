@@ -194,9 +194,13 @@ export async function POST(request: Request) {
       return jsonError('identity_not_verified', {}, { status: 403 });
     }
 
-    const deliveryGate = await withAuthDeliveryChannelGate('sms', async () => ({
-      ok: true as const,
-    }));
+    const deliveryGate = await withAuthDeliveryChannelGate(
+      'sms',
+      'surface_requested',
+      async () => ({
+        ok: true as const,
+      }),
+    );
     if (!deliveryGate.ok) {
       return jsonError(deliveryGate.reason, {}, { status: 403 });
     }

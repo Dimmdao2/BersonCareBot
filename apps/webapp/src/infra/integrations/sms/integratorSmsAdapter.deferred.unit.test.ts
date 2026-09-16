@@ -46,8 +46,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   fakes.assertCanStart.mockResolvedValue({ ok: true });
   fakes.registerSend.mockResolvedValue(undefined);
-  fakes.authDeliveryGate.mockImplementation((_channel: string, deliver: () => Promise<unknown>) =>
-    deliver(),
+  fakes.authDeliveryGate.mockImplementation(
+    (_channel: string, _purpose: string, deliver: () => Promise<unknown>) => deliver(),
   );
   fakes.deliverSms.mockResolvedValue({
     ok: false,

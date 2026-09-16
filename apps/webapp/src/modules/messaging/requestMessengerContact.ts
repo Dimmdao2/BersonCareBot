@@ -14,8 +14,7 @@ import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
 const IDEMPOTENCY_WINDOW_MS = 5 * 60 * 1000;
 
 export type RequestMessengerContactResult =
-  | { ok: true; status: 'accepted' | 'duplicate' }
-  | { ok: false; reason: string };
+  { ok: true; status: 'accepted' | 'duplicate' } | { ok: false; reason: string };
 
 function signPayload(timestamp: string, rawBody: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('base64url');
@@ -26,7 +25,7 @@ export async function requestMessengerContactViaIntegrator(input: {
   recipientId: string;
   clinicRequiredOrganizationId?: string;
 }): Promise<RequestMessengerContactResult> {
-  const gated = await withAuthDeliveryChannelGate(input.channel, () =>
+  const gated = await withAuthDeliveryChannelGate(input.channel, 'login_door', () =>
     requestMessengerContactUnchecked(input),
   );
   return gated.ok ? gated : { ok: false, reason: gated.reason };

@@ -4,6 +4,9 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   requireClinicManagementApiContext: vi.fn(),
   startEmailChallenge: vi.fn(),
+  isAuthChannelEnabled: vi.fn(
+    async (_channel: string, _surface: unknown, use?: string) => use === 'transactional',
+  ),
 }));
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({ stampBootstrapPrincipal: vi.fn() }));
@@ -11,9 +14,13 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: fakes.requireClinicManagementApiContext,
 }));
+// Поверхность приглашения — сотрудничья, а у неё почтового кода в наборе дверей нет. Честная
+// подмена отвечает так же, как живая политика: проверка «дверь входа» отказывает, проверка
+// настроенности канала разрешает. Безусловное `true` делало выбор маршрута ненаблюдаемым, и возврат
+// маршрута к проверке дверей проходил зелёным (находка второго круга аудита С8).
 vi.mock('@/modules/auth/authChannelPolicy', () => ({
   AUTH_CHANNEL_DISABLED_ERROR: 'auth_channel_disabled',
-  isAuthChannelEnabled: vi.fn().mockResolvedValue(true),
+  isAuthChannelEnabled: fakes.isAuthChannelEnabled,
 }));
 vi.mock('@/modules/auth/emailAuth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/modules/auth/emailAuth')>();

@@ -22,7 +22,7 @@ describe('withAuthDeliveryChannelGate', () => {
     fakes.isAuthChannelEnabled.mockResolvedValue(false);
     const deliver = vi.fn().mockResolvedValue({ ok: true });
 
-    await expect(withAuthDeliveryChannelGate('sms', deliver)).resolves.toEqual({
+    await expect(withAuthDeliveryChannelGate('sms', 'login_door', deliver)).resolves.toEqual({
       ok: false,
       reason: 'auth_channel_disabled',
     });
@@ -33,7 +33,7 @@ describe('withAuthDeliveryChannelGate', () => {
     fakes.isAuthChannelEnabled.mockRejectedValue(new Error('missing surface setting'));
     const deliver = vi.fn().mockResolvedValue({ ok: true });
 
-    await expect(withAuthDeliveryChannelGate('telegram', deliver)).resolves.toEqual({
+    await expect(withAuthDeliveryChannelGate('telegram', 'login_door', deliver)).resolves.toEqual({
       ok: false,
       reason: 'auth_channel_disabled',
     });
@@ -44,7 +44,7 @@ describe('withAuthDeliveryChannelGate', () => {
     fakes.isAuthChannelEnabled.mockResolvedValue(true);
     const deliver = vi.fn().mockResolvedValue({ ok: true, marker: 'sent' });
 
-    await expect(withAuthDeliveryChannelGate('email', deliver)).resolves.toEqual({
+    await expect(withAuthDeliveryChannelGate('email', 'login_door', deliver)).resolves.toEqual({
       ok: true,
       marker: 'sent',
     });

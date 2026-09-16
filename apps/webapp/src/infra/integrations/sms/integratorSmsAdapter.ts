@@ -91,7 +91,7 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
           const sent = await deliverSmsCodeViaIntegrator(phone, code, {
             integratorBaseUrl,
             sharedSecret,
-          });
+          }, 'login_door');
           if (!sent.ok) {
             return {
               ok: false,
@@ -113,6 +113,7 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
             to,
             code,
             platformMailProfileForRecipientRole('client'),
+            'login',
           );
           const phoneMask = maskPhoneForOpsLog(phone);
           if (!sent.ok) {
@@ -131,7 +132,7 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
           if (!recipientId) {
             return { ok: false, code: 'invalid_phone' };
           }
-          const gated = await withAuthDeliveryChannelGate(deliveryChannel, async () => {
+          const gated = await withAuthDeliveryChannelGate(deliveryChannel, 'login_door', async () => {
             try {
               const timestamp = String(Math.floor(Date.now() / 1000));
               const body = JSON.stringify({
