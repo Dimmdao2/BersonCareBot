@@ -21,13 +21,17 @@ function serviceWith(status: {
   status: 'not_activated' | 'invited' | 'linked';
   inviteId: string | null;
   expiresAt: string | null;
+  organizationAccessActive?: boolean;
 }) {
   const createReplacingPending = vi.fn(async (input: { id: string }) => ({
     ok: true as const,
     invite: { id: input.id, expiresAt: '2026-09-20T00:00:00.000Z' },
   }));
   const port = {
-    getPortalStatus: vi.fn().mockResolvedValue(status),
+    getPortalStatus: vi.fn().mockResolvedValue({
+      ...status,
+      organizationAccessActive: status.organizationAccessActive ?? status.status === 'linked',
+    }),
     createReplacingPending,
   };
   return {
@@ -70,6 +74,20 @@ describe('ссылка приглашения', () => {
     expect(world.createReplacingPending).toHaveBeenCalledTimes(1);
     const created = world.createReplacingPending.mock.calls[0]?.[0] as { id: string };
     expect(result.relativeUrl).toBe(patientInviteRelativeUrl(created.id));
+  });
+
+  it('не выпускает приглашение человеку, который уже видит организацию в кабинете', async () => {
+    const world = serviceWith({
+      status: 'not_activated',
+      inviteId: null,
+      expiresAt: null,
+      organizationAccessActive: true,
+    });
+
+    const result = await world.service.issue(issueInput);
+
+    expect(result).toEqual({ ok: false, code: 'already_linked' });
+    expect(world.createReplacingPending).not.toHaveBeenCalled();
   });
 
   it('секрет не выводится из идентификатора без серверного перца', () => {

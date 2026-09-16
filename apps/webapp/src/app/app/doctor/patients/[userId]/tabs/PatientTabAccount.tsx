@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
+import type { PatientPortalState } from '@/modules/patient-invites/ports';
 import { Check, Mail, Pencil, Phone, Send } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -69,6 +70,7 @@ type Props = {
    * non-admin doctor sessions.
    */
   active?: boolean;
+  portalState?: PatientPortalState | null;
   /** SSR-provided supplementary contacts. When present, skips SecondaryPhones initial fetch. */
   initialSupplementaryContacts?: SupplementaryContact[] | null;
   /** Hides the «Администрирование» section (UUID, Telegram ID, merge, audit) for non-admin doctors. */
@@ -543,6 +545,7 @@ export function PatientTabAccount({
   userId,
   header,
   active = false,
+  portalState,
   initialSupplementaryContacts,
   isAdmin = false,
 }: Props) {
@@ -759,6 +762,18 @@ export function PatientTabAccount({
             {isAdmin && active ? <EmailChange userId={userId} /> : null}
           </div>
         </SectionCard>
+
+        {portalState ? (
+          <SectionCard title="Доступ к кабинету">
+            <span className={doctorBodyTextClass}>
+              {portalState.organizationAccessActive || portalState.status === 'linked'
+                ? 'Кабинет подключён'
+                : portalState.status === 'invited'
+                  ? 'Приглашение создано'
+                  : 'Кабинет не активирован'}
+            </span>
+          </SectionCard>
+        ) : null}
       </div>
 
       {/* ====================================================================

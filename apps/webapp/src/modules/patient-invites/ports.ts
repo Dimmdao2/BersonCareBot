@@ -1,4 +1,11 @@
 export type PatientPortalStatus = 'not_activated' | 'invited' | 'linked';
+export type PatientPortalState = {
+  status: PatientPortalStatus;
+  inviteId: string | null;
+  expiresAt: string | null;
+  /** The patient can already open this organization in their cabinet. */
+  organizationAccessActive: boolean;
+};
 export type PatientInviteRecipientBinding = 'bound_email' | 'unbound_email_claim';
 
 export type PatientInviteRecord = {
@@ -43,7 +50,7 @@ export type PatientInvitesPort = {
   getPortalStatus(input: {
     organizationId: string;
     patientUserId: string;
-  }): Promise<{ status: PatientPortalStatus; inviteId: string | null; expiresAt: string | null }>;
+  }): Promise<PatientPortalState>;
   /**
    * APPT-DETAIL-11: кто из пациентов уже `linked` к порталу — сразу по набору. Отправка ссылки в
    * чат существует только для них, а карточку деталей открывают из загруженного диапазона.
@@ -79,9 +86,10 @@ export type PatientInvitesPort = {
    * увидел бы приглашение одной клиники под логотипом другой. В браузер идентификатор не уходит —
    * сравнение делает серверный компонент страницы.
    */
-  lookupContinuation(continuationHash: string): Promise<
-    | { ok: true; preview: PatientInvitePublicPreview; organizationId: string }
-    | PatientInviteFailure
+  lookupContinuation(
+    continuationHash: string,
+  ): Promise<
+    { ok: true; preview: PatientInvitePublicPreview; organizationId: string } | PatientInviteFailure
   >;
   startEmailProof(input: {
     continuationHash: string;

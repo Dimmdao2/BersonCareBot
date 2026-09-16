@@ -59,7 +59,11 @@ const fullMechanicAccess = {
   })),
 };
 
-async function depsFor(options: { clientPortal: boolean; portalAllowed: boolean }) {
+async function depsFor(options: {
+  clientPortal: boolean;
+  portalAllowed: boolean;
+  organizationAccessActive?: boolean;
+}) {
   const port = createInMemorySystemSettingsPort();
   const composition = defaultDoctorWorkspaceComposition();
   await port.upsert(
@@ -102,9 +106,12 @@ async function depsFor(options: { clientPortal: boolean; portalAllowed: boolean 
         relativeUrl: patientInviteRelativeUrl(INVITE_ID),
       }),
       revoke: vi.fn().mockResolvedValue(true),
-      getPortalStatus: vi
-        .fn()
-        .mockResolvedValue({ status: 'invited', inviteId: INVITE_ID, expiresAt: null }),
+      getPortalStatus: vi.fn().mockResolvedValue({
+        status: options.organizationAccessActive ? 'not_activated' : 'invited',
+        inviteId: options.organizationAccessActive ? null : INVITE_ID,
+        expiresAt: null,
+        organizationAccessActive: options.organizationAccessActive ?? false,
+      }),
     },
   };
 }
@@ -130,8 +137,8 @@ describe('C3M-10 portal invite door', () => {
         session: { user: { userId: '00000000-0000-4000-8000-000000005098' } },
       },
     });
-    fakes.withDoctorWorkspacePrincipal.mockImplementation(
-      <T>(...args: unknown[]): T => (args.at(-1) as () => T)(),
+    fakes.withDoctorWorkspacePrincipal.mockImplementation(<T>(...args: unknown[]): T =>
+      (args.at(-1) as () => T)(),
     );
   });
 
@@ -152,6 +159,27 @@ describe('C3M-10 portal invite door', () => {
     // относительного пути или с хоста специалиста), — молчаливый отказ: в кабинете всё зелено, а
     // человек с телефоном упирается в чужую поверхность.
     expect(body.qrDataUri).toBe(await renderInviteQrDataUri(expectedUrl));
+  });
+
+  it('не выдаёт приглашение человеку, который уже видит организацию в кабинете', async () => {
+    const deps = await depsFor({
+      clientPortal: true,
+      portalAllowed: true,
+      organizationAccessActive: true,
+    });
+    fakes.buildAppDeps.mockReturnValue(deps);
+
+    const response = await issuePortalInvite(new Request('https://app.example.test'), params);
+    const state = await readPortalInvite(new Request('https://app.example.test'), params);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'already_linked' });
+    await expect(state.json()).resolves.toEqual({
+      ok: true,
+      state: expect.objectContaining({ organizationAccessActive: true }),
+    });
+    expect(deps.patientInvites.issue).not.toHaveBeenCalled();
+    expect(deps.resolvePatientPublicOrigin).not.toHaveBeenCalled();
   });
 
   it('отказывается выдавать ссылку, пока пациентский адрес клиники неизвестен', async () => {

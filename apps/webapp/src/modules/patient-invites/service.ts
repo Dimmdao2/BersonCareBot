@@ -71,7 +71,6 @@ function hashPatientInviteEmailCode(code: string): string {
     .digest('hex');
 }
 
-
 function lifecycleFailure(code: PatientInviteLifecycleCode): PatientInviteFailure {
   return { ok: false, code };
 }
@@ -103,6 +102,9 @@ export function createPatientInvitesService(deps: {
         organizationId: input.organizationId,
         patientUserId: input.patientUserId,
       });
+      if (current.organizationAccessActive || current.status === 'linked') {
+        return lifecycleFailure('already_linked');
+      }
       if (current.status === 'invited' && current.inviteId) {
         return {
           ok: true as const,

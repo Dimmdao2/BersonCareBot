@@ -81,9 +81,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   );
   // Пока приглашение живо, его ссылку можно показать снова — она выводится из самого приглашения,
   // а не хранится. Поэтому экран открывается уже со ссылкой, и «Пригласить» ничего не переделывает.
-  const link = state.inviteId
-    ? await inviteLinkPayload(patient.deps, gate.ctx.organizationId, state.inviteId)
-    : null;
+  const link =
+    !state.organizationAccessActive && state.inviteId
+      ? await inviteLinkPayload(patient.deps, gate.ctx.organizationId, state.inviteId)
+      : null;
   return NextResponse.json({ ok: true, state, ...(link ?? {}) });
 }
 
@@ -111,6 +112,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ us
       { ok: false, error: 'workspace_module_disabled', module: 'client_portal' },
       { status: 403 },
     );
+  }
+  const currentState = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    patient.deps.patientInvites.getPortalStatus(gate.ctx.organizationId, patient.patientUserId),
+  );
+  if (currentState.organizationAccessActive || currentState.status === 'linked') {
+    return NextResponse.json({ ok: false, error: 'already_linked' }, { status: 409 });
   }
   // Адрес проверяется ДО выпуска: приглашение, к которому нельзя собрать ссылку, показать
   // специалисту всё равно нечем, а в базе оно бы осталось висеть неотданным.

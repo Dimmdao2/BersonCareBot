@@ -115,10 +115,20 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
         )
         .limit(1);
       if (enrollment?.portalActivatedAt) {
-        return { status: 'linked', inviteId: null, expiresAt: null };
+        return {
+          status: 'linked',
+          inviteId: null,
+          expiresAt: null,
+          organizationAccessActive: enrollment.status === 'active',
+        };
       }
       if (enrollment?.status !== 'invited' && enrollment?.status !== 'active') {
-        return { status: 'not_activated', inviteId: null, expiresAt: null };
+        return {
+          status: 'not_activated',
+          inviteId: null,
+          expiresAt: null,
+          organizationAccessActive: false,
+        };
       }
       const [pending] = await db
         .select({ id: patientInvites.id, expiresAt: patientInvites.expiresAt })
@@ -134,8 +144,18 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
         .orderBy(desc(patientInvites.createdAt))
         .limit(1);
       return pending
-        ? { status: 'invited', inviteId: pending.id, expiresAt: iso(pending.expiresAt) }
-        : { status: 'not_activated', inviteId: null, expiresAt: null };
+        ? {
+            status: 'invited',
+            inviteId: pending.id,
+            expiresAt: iso(pending.expiresAt),
+            organizationAccessActive: enrollment.status === 'active',
+          }
+        : {
+            status: 'not_activated',
+            inviteId: null,
+            expiresAt: null,
+            organizationAccessActive: enrollment.status === 'active',
+          };
     },
 
     async listPortalLinkedPatients({ organizationId, patientUserIds }) {
@@ -285,7 +305,9 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
     },
 
     async lookupContinuation(continuationHash) {
-      const result = await runWebappNamedRoot<PreviewFunctionRow & { organization_id: string | null }>(
+      const result = await runWebappNamedRoot<
+        PreviewFunctionRow & { organization_id: string | null }
+      >(
         getWebappSqlDb(),
         'app.lookup_patient_invite_continuation(text)',
         [continuationHash],

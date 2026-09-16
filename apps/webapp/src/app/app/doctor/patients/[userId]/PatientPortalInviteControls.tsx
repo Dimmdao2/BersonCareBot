@@ -12,14 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
-import type { PatientPortalStatus } from '@/modules/patient-invites/ports';
+import type { PatientPortalState, PatientPortalStatus } from '@/modules/patient-invites/ports';
 import { notificationText } from '@/shared/notifications/notificationText';
-
-type PortalState = {
-  status: PatientPortalStatus;
-  inviteId: string | null;
-  expiresAt: string | null;
-};
 
 type IssueResponse = {
   ok?: unknown;
@@ -47,7 +41,7 @@ export function PatientPortalInviteControls({
   patientUserId: string;
   /** Фамилия и имя пациента — заголовок модалки с QR-кодом (владелец 10.09). */
   patientName: string;
-  initialState: PortalState;
+  initialState: PatientPortalState;
 }) {
   const [state, setState] = useState(initialState);
   const [pending, setPending] = useState(false);
@@ -107,12 +101,21 @@ export function PatientPortalInviteControls({
       // Абсолютную ссылку собирает сервер: у клиники со своим доменом она обязана вести на её
       // домен, а не на тот хост, где сейчас стоит специалист.
       const reused = state.inviteId === json.inviteId;
-      setState({ status: 'invited', inviteId: json.inviteId, expiresAt: json.expiresAt });
+      setState({
+        status: 'invited',
+        inviteId: json.inviteId,
+        expiresAt: json.expiresAt,
+        organizationAccessActive: false,
+      });
       setLink({ url: json.url, qrDataUri: json.qrDataUri });
       setCopyStatus('idle');
       // Живое приглашение сервер возвращает как есть — специалисту важно понимать, что человеку
       // уже отправленная ссылка от нажатия не погасла.
-      toast.success(reused ? notificationText.doctorInviteLinkStillActive : notificationText.doctorInviteLinkCreated);
+      toast.success(
+        reused
+          ? notificationText.doctorInviteLinkStillActive
+          : notificationText.doctorInviteLinkCreated,
+      );
     } catch {
       toast.error(notificationText.doctorInviteCreateFailed);
     } finally {
@@ -126,31 +129,7 @@ export function PatientPortalInviteControls({
    * это сервер: живое приглашение он возвращает как есть, истёкшее заменяет новым.
    */
 
-  async function revoke() {
-    if (!state.inviteId) return;
-    setPending(true);
-    try {
-      const response = await fetch(`/api/doctor/patients/${patientUserId}/portal-invite`, {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ inviteId: state.inviteId }),
-      });
-      if (!response.ok) {
-        toast.error(notificationText.doctorInviteRevokeFailed);
-        return;
-      }
-      setState({ status: 'not_activated', inviteId: null, expiresAt: null });
-      setLink(null);
-      setQrOpen(false);
-      toast.success(notificationText.doctorInviteRevoked);
-    } catch {
-      toast.error(notificationText.doctorInviteRevokeFailed);
-    } finally {
-      setPending(false);
-    }
-  }
-
-  if (state.status === 'linked') return null;
+  if (state.organizationAccessActive || state.status === 'linked') return null;
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -169,18 +148,6 @@ export function PatientPortalInviteControls({
         <Copy className="h-3.5 w-3.5" />
         Пригласить
       </Button>
-      {state.status === 'invited' ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={pending}
-          onClick={() => void revoke()}
-          className="h-7 px-2.5 text-xs text-muted-foreground"
-        >
-          Отозвать
-        </Button>
-      ) : null}
       {link ? (
         <>
           <Input

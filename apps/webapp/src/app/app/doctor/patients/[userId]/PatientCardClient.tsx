@@ -584,17 +584,11 @@ export function PatientCardClient({
                 </div>
               ) : null}
 
-              {workspaceModules?.client_portal !== false ? (
+              {workspaceModules?.client_portal !== false && shellMeta.portalState ? (
                 <PatientPortalInviteControls
                   patientUserId={identity.userId}
                   patientName={formatDoctorFioShort(identity, identity.displayName || '—')}
-                  initialState={
-                    shellMeta.portalState ?? {
-                      status: 'not_activated',
-                      inviteId: null,
-                      expiresAt: null,
-                    }
-                  }
+                  initialState={shellMeta.portalState}
                 />
               ) : null}
 
@@ -852,6 +846,7 @@ function PatientCardTabPanels({
             userId={identity.userId}
             header={header}
             active={activeTab === 'account'}
+            portalState={shellMeta.portalState}
             initialSupplementaryContacts={unwrapBootstrapEnvelope(tab.initialSupplementaryContacts)}
             isAdmin={isAdmin}
           />

@@ -142,6 +142,7 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
         status: portalStatus(organizationId, patientUserId),
         inviteId: pending?.id ?? null,
         expiresAt: pending?.expiresAt ?? null,
+        organizationAccessActive: relationship(organizationId, patientUserId).status === 'active',
       };
     },
 
