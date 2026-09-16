@@ -30,3 +30,33 @@ Authority: `docs/_TODO/STAFF_DOORS_HARDCODED_2026-09-16.md`: «Состав со
 1. Restore route-level coverage for staff/admin email-code refusal on `/api/auth/email-otp/start`, including the explicit patient portal allowed + admin/staff portal rejected case on a shared staff host. A unit policy test is not an equivalent end-of-chain route test under AGENTS.md §10a; the current remaining suite lets the route bypass `isAuthChannelEnabled` for staff/platform and still pass.
 
 VERDICT: FAIL
+
+## Круг 2
+
+SHA коррекции: `259589821` (`wt/staff-doors-hardcode`).
+
+Классификация: `app`. Тест — только прежняя причина FAIL: поведение `/api/auth/email-otp/start` по коду. Взгляд — C2, C4, C5 и миграция, потому что коррекция их не трогала: `git show --stat --oneline --name-only HEAD -- docs/_TODO/AUDIT_STAFF_DOORS_C2_C5_2026-09-16.md apps/webapp/src/app/api/auth/email-otp/start/route.route.test.ts apps/webapp/src/modules/auth/surfaceAuthSettings.ts apps/webapp/src/modules/auth/authChannelPolicy.ts` → изменены только `apps/webapp/src/app/api/auth/email-otp/start/route.route.test.ts` и этот отчёт.
+
+### Итог по ID
+
+- `C2 → PASS →` Взгляд: коррекция `259589821` не трогала storage/settings/migration scope C2. Прежнее доказательство остаётся применимым: staff/platform `auth_surface_*`-ключи сняты из write/read path, пациентские ключи оставлены.
+- `C3 → PASS →` Старый MUST FIX закрыт: в `apps/webapp/src/app/api/auth/email-otp/start/route.route.test.ts` возвращён route-level сценарий `allows the explicit patient portal but rejects admin email-code login on a shared staff host`; он проверяет конец цепочки: `roleLoginPortal: patient` → `200`, `roleLoginPortal: admin` на общем staff-host → `503`, `startPublicEmailOtpChallenge` вызван один раз. Baseline: `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/app/api/auth/email-otp/start/route.route.test.ts"` → `1 passed / 7 tests`.
+- `C4 → PASS →` Взгляд: коррекция `259589821` не трогала `staffSecurity`, password route или выбор личного второго фактора. Прежний PASS не переоткрыт.
+- `C5 → PASS →` Взгляд: коррекция `259589821` не трогала `doctor_staff_second_factor_required`, `/api/doctor/settings` или UI настройки 2FA. Прежний PASS не переоткрыт.
+- `Миграция → PASS →` Взгляд: коррекция `259589821` не трогала `apps/webapp/db/drizzle-migrations/20260916T152803_remove_staff_auth_surface_settings.sql` и generated privileges/deploy artifacts. Прежний PASS не переоткрыт.
+
+### Fault Injection
+
+- `authPolicyNameForRoleLoginPortal`: временно заменил `admin: 'platform_admin'` на `admin: 'patient'` в `apps/webapp/src/modules/auth/roleLogin.ts`. Команда `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/app/api/auth/email-otp/start/route.route.test.ts"` покраснела: `1 failed / 7 tests`, assertion `expected [ 200, 200 ] to deeply equal [ 200, 503 ]` в `route.route.test.ts:155`. Это ровно прежняя поломка: route-level разрешение admin/platform email-code теперь ловится.
+- `surfaceAuthControlAvailable`: временно добавил `if (control === 'email') return true;` в `apps/webapp/src/modules/auth/surfaceAuthSettings.ts`. Команда `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/app/api/auth/email-otp/start/route.route.test.ts"` осталась зелёной: `1 passed / 7 tests`. Подтверждаю вводную ведущего: эта инъекция сама по себе не открывает дверь, потому что для staff/platform `defaultSurfaceAuthControlEnabled(..., 'email')` всё равно смотрит на кодовую матрицу `DEFAULT_SURFACE_AUTH_POLICY_CONFIG`, где `email_code` отсутствует в `enabledMethods`; записанного staff/platform ключа маршрут не читает.
+- После отката временных правок `git diff -- apps/webapp/src/modules/auth/roleLogin.ts apps/webapp/src/modules/auth/surfaceAuthSettings.ts` → пусто. Финальный набор: `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest run src/modules/auth/authChannelPolicy.staffPhoneDoor.unit.test.ts src/app/api/auth/email-otp/start/route.route.test.ts"` → `2 passed / 9 tests`.
+
+### Второй удалённый тест
+
+Согласен, что второй удалённый route-level тест возвращать не нужно: он проверял состояние «в базе записан staff/platform переключатель `true`, но маршрут всё равно не пускает». После C2 такого public setting key в базе/read allowlist быть не должно; возвращённый route-test с такой записью проверял бы несуществующее runtime-состояние. Оставшийся unit-test `authChannelPolicy.staffPhoneDoor.unit.test.ts` допустим как проверка правила на уровне политики: даже если legacy/mock значение `true` существует, staff/platform дверь не читает его (`getPublicRuntimeBool` не вызывается) и пациентская дверь остаётся переключаемой.
+
+### ВОПРОС ВЛАДЕЛЬЦУ
+
+Нет.
+
+VERDICT: PASS
