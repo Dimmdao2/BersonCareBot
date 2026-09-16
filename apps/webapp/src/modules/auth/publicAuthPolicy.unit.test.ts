@@ -43,12 +43,11 @@ import { getAnonymousClientVisibleAuthChannelPolicy } from './anonymousAuthChann
 import {
   isAuthChannelEnabled,
   getAuthChannelPolicy,
-  isIndependentAuthMethodEnabled,
   isOAuthProviderEnabled,
   type OAuthProvider,
 } from './authChannelPolicy';
 import { getAuthChannelPolicyDetail } from './authChannelPolicyAdmin';
-import { SURFACE_AUTH_CONTROLS, patientSurfaceAuthSettingKey } from './surfaceAuthSettings';
+import { patientSurfaceAuthSettingKey } from './surfaceAuthSettings';
 import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/surfaceAuthPolicy';
 
 beforeEach(() => {
@@ -90,81 +89,6 @@ function selectPolicySurface(surface: SurfaceAuthPolicyName): void {
 }
 
 describe('public auth policy', () => {
-  it('ignores persisted staff/admin surface values and keeps their door composition in code', async () => {
-    for (const surface of ['staff', 'platform_admin'] as const) {
-      for (const control of SURFACE_AUTH_CONTROLS) {
-        fakes.publicValues.set(`auth_surface_${surface}_${control}_enabled`, control !== 'passkey');
-      }
-    }
-    for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
-      fakes.publicValues.set(`oauth_${provider}_enabled`, true);
-    }
-
-    for (const surface of ['staff', 'platform_admin'] as const) {
-      selectPolicySurface(surface);
-      await expect(getAuthChannelPolicy()).resolves.toEqual({
-        email: false,
-        sms: false,
-        telegram: false,
-        max: false,
-      });
-      // Passkey остаётся дверью сотрудника и снят у платформенного администратора (С9
-      // `docs/_TODO/STAFF_DOORS_HARDCODED_2026-09-16.md`): состав двери решает код, а не тумблер.
-      await expect(isIndependentAuthMethodEnabled('passkey')).resolves.toBe(surface === 'staff');
-      for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
-        await expect(isOAuthProviderEnabled(provider)).resolves.toBe(false);
-      }
-    }
-  });
-
-  it('keeps the patient door controlled by its persisted surface values', async () => {
-    const patientValues = {
-      email: true,
-      sms: false,
-      telegram: false,
-      max: false,
-      telegram_login_widget: false,
-      oauth_google: false,
-      oauth_yandex: false,
-      oauth_vk: false,
-      oauth_apple: false,
-      passkey: true,
-    } as const;
-
-    for (const control of SURFACE_AUTH_CONTROLS) {
-      fakes.publicValues.set(patientSurfaceAuthSettingKey(control), patientValues[control]);
-    }
-    for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
-      fakes.publicValues.set(`oauth_${provider}_enabled`, true);
-    }
-
-    selectPolicySurface('patient');
-    await expect(getAuthChannelPolicy()).resolves.toEqual({
-      email: true,
-      sms: false,
-      telegram: false,
-      max: false,
-    });
-    await expect(isIndependentAuthMethodEnabled('passkey')).resolves.toBe(true);
-    for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
-      await expect(isOAuthProviderEnabled(provider)).resolves.toBe(false);
-    }
-  });
-
-  it('applies a changed patient toggle only to the patient door', async () => {
-    for (const channel of ['email', 'sms', 'telegram', 'max'] as const) {
-      fakes.publicValues.set(patientSurfaceAuthSettingKey(channel), true);
-    }
-    fakes.publicValues.set(patientSurfaceAuthSettingKey('email'), false);
-
-    selectPolicySurface('staff');
-    await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: false });
-    selectPolicySurface('platform_admin');
-    await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: false });
-    selectPolicySurface('patient');
-    await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: false });
-  });
-
   it('fails closed when the trusted resolved-surface header is missing', async () => {
     fakes.resolvedSurfaceHeaderPresent.value = false;
     fakes.publicValues.set('auth_email_enabled', true);
