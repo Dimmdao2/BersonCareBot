@@ -41,6 +41,11 @@ type Props = {
   onActionClick?: () => void;
 };
 
+// The details rail is visually pulled through the shell's responsive right padding. Metrics that
+// sit beside it must use the same offset; otherwise the icon stays at the edge while the number
+// jumps by the padding difference between mobile and desktop.
+const doctorStatCardEdgeOffsetClass = 'translate-x-3.5 md:translate-x-2';
+
 export function DoctorStatCard({
   id,
   title,
@@ -154,7 +159,12 @@ export function DoctorStatCard({
       hint ? (
         <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
           <div className="col-start-1 row-start-1">{label}</div>
-          <div className="col-start-2 row-span-2 row-start-1 flex self-center justify-end">
+          <div
+            className={cn(
+              'col-start-2 row-span-2 row-start-1 flex self-center justify-end',
+              !actionIcon && doctorStatCardEdgeOffsetClass,
+            )}
+          >
             {metric}
           </div>
           <div className="col-start-1 row-start-2">{hintNode}</div>
@@ -162,13 +172,27 @@ export function DoctorStatCard({
       ) : (
         <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5">
           <div className="translate-y-0.5">{label}</div>
-          <div className="flex items-center justify-end">{metric}</div>
+          <div
+            className={cn(
+              'flex items-center justify-end',
+              !actionIcon && doctorStatCardEdgeOffsetClass,
+            )}
+          >
+            {metric}
+          </div>
         </div>
       )
     ) : valuePlacement === 'row-until-wide' ? (
       <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 xl:block">
         <div className="translate-y-0.5 xl:translate-y-0">{label}</div>
-        <div className="flex items-center justify-end xl:mt-0.5 xl:block">{metric}</div>
+        <div
+          className={cn(
+            'flex items-center justify-end xl:mt-0.5 xl:block xl:translate-x-0',
+            !actionIcon && doctorStatCardEdgeOffsetClass,
+          )}
+        >
+          {metric}
+        </div>
       </div>
     ) : (
       <div
@@ -227,12 +251,19 @@ export function DoctorStatCard({
       </span>
     </div>
   ) : (
-    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+    <div
+      className={cn(
+        'grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2',
+        valuePlacement === 'row-until-wide' && 'xl:relative xl:block',
+      )}
+    >
       <div className="min-w-0">{inner}</div>
       <span
         className={cn(
           'inline-flex size-4 items-center justify-center',
-          detailsIcon ? 'translate-x-3 md:translate-x-1.5' : 'translate-x-3.5 md:translate-x-2',
+          doctorStatCardEdgeOffsetClass,
+          valuePlacement === 'row-until-wide' &&
+            'xl:absolute xl:top-1/2 xl:right-0 xl:-translate-y-1/2',
           !detailsIndicatorIsActive && 'opacity-10',
         )}
       >
