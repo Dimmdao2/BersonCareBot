@@ -6,27 +6,14 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
 import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
-  OTP_OTHER_CHANNELS_ORDER,
   type AuthChannelUiPolicy,
-  type OtpUiChannel,
 } from '@/modules/auth/otpChannelUi';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage';
 import { finishChannelLinkNavigation } from '@/shared/lib/telegramChannelLinkOpen';
 import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana';
 import { InternationalPhoneInput } from '@/shared/ui/patient/auth/InternationalPhoneInput';
-import {
-  OtpCodeForm,
-  type OtpResendOutcome,
-} from '@/shared/ui/patient/auth/OtpCodeForm';
-import {
-  buildPhoneMessengerOtpAlternatives,
-  otpCodeDescription,
-} from '@/shared/ui/patient/auth/otpDoor';
-import {
-  AUTH_LOGIN_ACCENT_TEXT_CLASS,
-  AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
-} from '@/shared/ui/patient/auth/loginChrome';
+import { AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from '@/shared/ui/patient/auth/loginChrome';
 import {
   patientCaptionTextClass,
   patientInlineLinkClass,
@@ -37,26 +24,12 @@ import { notificationText } from '@/shared/notifications/notificationText';
 import { AccountMergeConfirmation } from './AccountMergeConfirmation';
 import type { HumanMergePrompt } from '@bersoncare/platform-merge';
 
-const WEB_CHAT_ID_KEY = 'bersoncare_web_chat_id';
 const POLL_MS = 2500;
-
-function getWebChatId(): string {
-  if (typeof window === 'undefined') return '';
-  let id = sessionStorage.getItem(WEB_CHAT_ID_KEY);
-  if (!id) {
-    id = crypto.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    sessionStorage.setItem(WEB_CHAT_ID_KEY, id);
-  }
-  return id;
-}
-
-type LoginOtpChannel = 'automatic' | OtpUiChannel;
 
 export type PhoneMessengerAuthFlowProps = {
   channelPolicy?: AuthChannelUiPolicy;
   purpose: 'login' | 'profile_bind';
   onBack: () => void;
-  supportContactHref?: string;
   /** Для login: безопасный next из URL `/app`. */
   nextParam?: string | null;
   /** После успешного подтверждения в профиле (без полного redirect login). */
@@ -68,13 +41,12 @@ export type PhoneMessengerAuthFlowProps = {
   hideBackOnPhoneStep?: boolean;
 };
 
-type FlowStep = 'phone' | 'messenger_pick' | 'code' | 'merge';
+type FlowStep = 'phone' | 'messenger_pick' | 'waiting' | 'merge';
 
 export function PhoneMessengerAuthFlow({
   channelPolicy = FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   purpose,
   onBack,
-  supportContactHref,
   nextParam = null,
   onProfileComplete,
   onStaffFactorRequired,
@@ -82,21 +54,14 @@ export function PhoneMessengerAuthFlow({
   hideBackOnPhoneStep = false,
 }: PhoneMessengerAuthFlowProps) {
   const hasAnyMessenger = channelPolicy.telegram || channelPolicy.max;
-  const canStartForPurpose =
-    purpose === 'login'
-      ? hasAnyMessenger || channelPolicy.sms || channelPolicy.email
-      : hasAnyMessenger;
+  const canStartForPurpose = hasAnyMessenger;
   const [step, setStep] = useState<FlowStep>('phone');
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState('');
   const [setupToken, setSetupToken] = useState<string | null>(null);
   const [bindChannel, setBindChannel] = useState<'telegram' | 'max' | null>(null);
   const [bindManualCommand, setBindManualCommand] = useState<string | null>(null);
-  const [challengeId, setChallengeId] = useState<string | null>(null);
-  const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
-  const [otpChannel, setOtpChannel] = useState<LoginOtpChannel>('automatic');
   const [mergePrompt, setMergePrompt] = useState<HumanMergePrompt | null>(null);
-  const [verifiedCode, setVerifiedCode] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearPoll = useCallback(() => {
@@ -111,7 +76,6 @@ export function PhoneMessengerAuthFlow({
     setSetupToken(null);
     setBindChannel(null);
     setBindManualCommand(null);
-    setChallengeId(null);
     setStep('messenger_pick');
   }, [clearPoll]);
 
@@ -124,8 +88,59 @@ export function PhoneMessengerAuthFlow({
     [nextParam],
   );
 
+  const finishMessengerBind = useCallback(
+    async (token: string) => {
+      clearPoll();
+      setLoading(true);
+      try {
+        const finishRes = await fetch('/api/auth/phone/messenger-bind/finish', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            setupToken: token,
+            browserCalendarIana: getBrowserCalendarIanaForAuth(),
+          }),
+        });
+        const finishData = (await finishRes.json().catch(() => ({}))) as {
+          ok?: boolean;
+          mergeRequired?: boolean;
+          prompt?: HumanMergePrompt;
+          factorRequired?: boolean;
+          redirectTo?: string;
+          role?: 'client' | 'doctor' | 'admin';
+          message?: string;
+        };
+        if (finishData.ok && finishData.mergeRequired && finishData.prompt) {
+          setMergePrompt(finishData.prompt);
+          setStep('merge');
+          return;
+        }
+        if (finishData.ok && finishData.factorRequired && purpose === 'login') {
+          onStaffFactorRequired?.();
+          return;
+        }
+        if (finishRes.ok && finishData.ok) {
+          if (purpose === 'profile_bind') {
+            onProfileComplete?.();
+          } else if (finishData.redirectTo) {
+            redirectOk(finishData.redirectTo, finishData.role);
+          }
+          return;
+        }
+        toast.error(finishData.message ?? notificationText.authConfirmationFailed);
+        resetBindAttempt();
+      } catch {
+        toast.error(notificationText.authConfirmationFailed);
+        resetBindAttempt();
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clearPoll, onProfileComplete, onStaffFactorRequired, purpose, redirectOk, resetBindAttempt],
+  );
+
   const pollBindStatus = useCallback(
-    async (token: string, _channel: 'telegram' | 'max') => {
+    async (token: string) => {
       const statusRes = await fetch('/api/auth/phone/messenger-bind/status', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -135,55 +150,15 @@ export function PhoneMessengerAuthFlow({
         ok?: boolean;
         status?: string;
         challengeId?: string;
-        retryAfterSeconds?: number;
         error?: string;
       };
       if (!statusRes.ok || !statusData.ok) return;
       if (statusData.status === 'consumed') {
-        clearPoll();
-        if (purpose === 'profile_bind') {
-          onProfileComplete?.();
-        } else {
-          toast.error(notificationText.authCodeAlreadyUsed);
-          resetBindAttempt();
-        }
+        await finishMessengerBind(token);
         return;
       }
       if (statusData.status === 'otp_ready' && statusData.challengeId) {
-        clearPoll();
-        if (purpose === 'profile_bind') {
-          const finishRes = await fetch('/api/auth/phone/messenger-bind/finish', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              setupToken: token,
-              browserCalendarIana: getBrowserCalendarIanaForAuth(),
-            }),
-          });
-          const finishData = (await finishRes.json().catch(() => ({}))) as {
-            ok?: boolean;
-            mergeRequired?: boolean;
-            prompt?: HumanMergePrompt;
-            message?: string;
-          };
-          if (finishData.ok && finishData.mergeRequired && finishData.prompt) {
-            setMergePrompt(finishData.prompt);
-            setChallengeId(statusData.challengeId);
-            setStep('merge');
-            return;
-          }
-          if (finishRes.ok && finishData.ok) {
-            onProfileComplete?.();
-            return;
-          }
-          toast.error(finishData.message ?? notificationText.authConfirmationFailed);
-          resetBindAttempt();
-          return;
-        }
-        setChallengeId(statusData.challengeId);
-        setRetryAfterSeconds(statusData.retryAfterSeconds ?? 60);
-        setOtpChannel(_channel);
-        setStep('code');
+        await finishMessengerBind(token);
         return;
       }
       if (statusData.status === 'failed') {
@@ -197,16 +172,16 @@ export function PhoneMessengerAuthFlow({
         resetBindAttempt();
       }
     },
-    [clearPoll, resetBindAttempt, purpose, onProfileComplete],
+    [clearPoll, finishMessengerBind, resetBindAttempt],
   );
 
   useEffect(() => () => clearPoll(), [clearPoll]);
 
   useEffect(() => {
-    if (step !== 'code' || !setupToken || !bindChannel) return;
+    if (step !== 'waiting' || !setupToken || !bindChannel) return;
     const onResume = () => {
       if (document.visibilityState === 'visible') {
-        void pollBindStatus(setupToken, bindChannel);
+        void pollBindStatus(setupToken);
       }
     };
     document.addEventListener('visibilitychange', onResume);
@@ -215,11 +190,7 @@ export function PhoneMessengerAuthFlow({
     };
   }, [step, setupToken, bindChannel, pollBindStatus]);
 
-  if (
-    step === 'merge' &&
-    mergePrompt &&
-    ((challengeId && verifiedCode) || (purpose === 'profile_bind' && setupToken))
-  ) {
+  if (step === 'merge' && mergePrompt && setupToken) {
     return (
       <AccountMergeConfirmation
         key={JSON.stringify(mergePrompt)}
@@ -227,34 +198,27 @@ export function PhoneMessengerAuthFlow({
         busy={loading}
         onReject={() => {
           setMergePrompt(null);
-          setVerifiedCode(null);
-          setChallengeId(null);
-          setStep('phone');
+          resetBindAttempt();
         }}
         onConfirm={async (mergeDecision) => {
           setLoading(true);
           try {
-            const profileMessengerBind = purpose === 'profile_bind' && setupToken;
-            const res = await fetch(
-              profileMessengerBind
-                ? '/api/auth/phone/messenger-bind/finish'
-                : '/api/auth/phone/confirm',
-              {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({
-                  ...(profileMessengerBind ? { setupToken } : { challengeId, code: verifiedCode }),
-                  browserCalendarIana: getBrowserCalendarIanaForAuth(),
-                  mergeDecision,
-                }),
-              },
-            );
+            const res = await fetch('/api/auth/phone/messenger-bind/finish', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                setupToken,
+                browserCalendarIana: getBrowserCalendarIanaForAuth(),
+                mergeDecision,
+              }),
+            });
             const data = (await res.json().catch(() => ({}))) as {
               ok?: boolean;
               mergeRequired?: boolean;
               prompt?: HumanMergePrompt;
               redirectTo?: string;
               role?: 'client' | 'doctor' | 'admin';
+              factorRequired?: boolean;
               message?: string;
             };
             if (data.ok && data.mergeRequired && data.prompt) {
@@ -266,7 +230,8 @@ export function PhoneMessengerAuthFlow({
               return;
             }
             clearPoll();
-            if (purpose === 'profile_bind') onProfileComplete?.();
+            if (data.factorRequired && purpose === 'login') onStaffFactorRequired?.();
+            else if (purpose === 'profile_bind') onProfileComplete?.();
             else if (data.redirectTo) redirectOk(data.redirectTo, data.role);
           } catch {
             toast.error(notificationText.authConfirmationFailed);
@@ -278,57 +243,9 @@ export function PhoneMessengerAuthFlow({
     );
   }
 
-  const startLoginPhoneOtp = async (
-    normalized: string,
-    deliveryChannel?: OtpUiChannel,
-  ): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const chatId = getWebChatId();
-      const res = await fetch('/api/auth/phone/start', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          phone: normalized,
-          channel: 'web',
-          chatId,
-          purpose: 'login',
-          ...(deliveryChannel ? { deliveryChannel } : {}),
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        challengeId?: string;
-        retryAfterSeconds?: number;
-        message?: string;
-      };
-      if (!res.ok || !data.ok || !data.challengeId) {
-        toast.error(data.message ?? notificationText.messagingCodeRequestFailed);
-        return false;
-      }
-      setPhone(normalized);
-      setChallengeId(data.challengeId);
-      setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
-      setOtpChannel(deliveryChannel ?? 'automatic');
-      setStep('code');
-      return true;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const runCheckPhone = async (normalized: string) => {
-    if (purpose === 'login') {
-      if (channelPolicy.sms || channelPolicy.email) {
-        await startLoginPhoneOtp(normalized);
-      } else {
-        setPhone(normalized);
-        setStep('messenger_pick');
-      }
-      return;
-    }
-    // Profile binding is already self-scoped by `/phone/messenger-bind/start`; never inspect the
-    // entered phone to decide which delivery channels its owner has.
+    // Login and profile binding share the same contact-proof path. Never inspect the entered phone
+    // to select a delivery channel or call the legacy direct OTP route automatically.
     setPhone(normalized);
     setStep('messenger_pick');
   };
@@ -369,7 +286,6 @@ export function PhoneMessengerAuthFlow({
       setSetupToken(bindToken);
       setBindChannel(channelCode);
       setBindManualCommand(data.manualCommand ?? null);
-      setOtpChannel(channelCode);
       finishChannelLinkNavigation({
         blankWin: null,
         url: data.url,
@@ -384,47 +300,15 @@ export function PhoneMessengerAuthFlow({
           toast('Скопируйте команду вручную в чат с ботом в Max');
         }
       }
-      setStep('code');
+      setStep('waiting');
 
-      void pollBindStatus(bindToken, channelCode);
+      void pollBindStatus(bindToken);
       pollRef.current = setInterval(() => {
-        void pollBindStatus(bindToken, channelCode);
+        void pollBindStatus(bindToken);
       }, POLL_MS);
     } finally {
       setLoading(false);
     }
-  };
-
-  const resendOtp = async (): Promise<OtpResendOutcome> => {
-    if (!phone || !challengeId)
-      return { kind: 'error', message: 'Нет данных для повторной отправки' };
-    if (purpose === 'login') {
-      return startLoginPhoneOtp(phone, otpChannel === 'automatic' ? undefined : otpChannel).then(
-        (ok) =>
-          ok
-            ? { kind: 'ok' as const }
-            : { kind: 'error' as const, message: 'Не удалось запросить код' },
-      );
-    }
-    if (setupToken && bindChannel) {
-      const statusRes = await fetch('/api/auth/phone/messenger-bind/status', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ setupToken }),
-      });
-      const statusData = (await statusRes.json().catch(() => ({}))) as {
-        ok?: boolean;
-        status?: string;
-        challengeId?: string;
-        retryAfterSeconds?: number;
-      };
-      if (statusData.ok && statusData.status === 'otp_ready' && statusData.challengeId) {
-        setChallengeId(statusData.challengeId);
-        setRetryAfterSeconds(statusData.retryAfterSeconds ?? 60);
-        return { kind: 'ok' };
-      }
-    }
-    return { kind: 'error', message: 'Начните привязку через мессенджер заново.' };
   };
 
   if (step === 'phone') {
@@ -515,25 +399,8 @@ export function PhoneMessengerAuthFlow({
     );
   }
 
-  if (step === 'code') {
-    const waitingForBot = setupToken != null && challengeId == null && purpose === 'login';
-    const loginAlternatives =
-      purpose === 'login'
-        ? buildPhoneMessengerOtpAlternatives(channelPolicy, async (channel) => {
-            if (!phone) return;
-            clearPoll();
-            const started = await startLoginPhoneOtp(phone, channel);
-            if (started) {
-              setSetupToken(null);
-              setBindChannel(null);
-              setBindManualCommand(null);
-            }
-          })
-        : undefined;
-    const waitingDescription =
-      purpose === 'profile_bind'
-        ? `Подтвердите номер в ${bindChannel === 'max' ? 'Max' : 'Telegram'}. После этого можно вернуться в приложение.`
-        : `Подтвердите номер в ${bindChannel === 'max' ? 'Max' : 'Telegram'}, затем введите код из бота.`;
+  if (step === 'waiting') {
+    const waitingDescription = `Подтвердите номер в ${bindChannel === 'max' ? 'Max' : 'Telegram'}. После этого можно вернуться в приложение.`;
     return (
       <div id="phone-messenger-auth-code" className="flex w-full flex-col gap-3 text-left">
         {purpose === 'login' ? (
@@ -550,143 +417,24 @@ export function PhoneMessengerAuthFlow({
             Войти иначе
           </Button>
         ) : null}
-        {waitingForBot ? (
-          <>
-            <p className={patientMutedTextClass}>{waitingDescription}</p>
-            {bindManualCommand ? (
-              <p className={patientCaptionTextClass}>
-                Если бот открылся без запроса контакта, отправьте команду:{' '}
-                <span className="font-mono patient-text-primary">{bindManualCommand}</span>
-              </p>
-            ) : null}
-            <Button
-              type="button"
-              variant="link"
-              className={patientInlineLinkClass}
-              onClick={resetBindAttempt}
-            >
-              Начать снова
-            </Button>
-          </>
-        ) : null}
-        {challengeId ? (
-          <OtpCodeForm
-            challengeId={challengeId}
-            retryAfterSeconds={retryAfterSeconds}
-            supportContactHref={supportContactHref}
-            submitLabel={purpose === 'login' ? 'Войти' : 'Подтвердить'}
-            description={otpCodeDescription(otpChannel)}
-            alternatives={loginAlternatives}
-            alternativesLabel="Подтвердить другим способом"
-            onConfirm={async (code) => {
-              const chatId = getWebChatId();
-              const res = await fetch('/api/auth/phone/confirm', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({
-                  challengeId,
-                  code,
-                  channel: 'web',
-                  chatId,
-                  browserCalendarIana: getBrowserCalendarIanaForAuth(),
-                }),
-              });
-              const data = (await res.json().catch(() => ({}))) as {
-                ok?: boolean;
-                redirectTo?: string;
-                factorRequired?: boolean;
-                role?: 'client' | 'doctor' | 'admin';
-                message?: string;
-                error?: string;
-                retryAfterSeconds?: number;
-                mergeRequired?: boolean;
-                prompt?: HumanMergePrompt;
-              };
-              if (data.ok && data.mergeRequired && data.prompt) {
-                setMergePrompt(data.prompt);
-                setVerifiedCode(code);
-                setStep('merge');
-                return { ok: true as const };
-              }
-              if (data.ok && data.factorRequired) {
-                clearPoll();
-                if (purpose === 'login' && onStaffFactorRequired) {
-                  onStaffFactorRequired();
-                  return { ok: true as const };
-                }
-                return {
-                  ok: false as const,
-                  message: 'Продолжите защищённый вход с главного экрана.',
-                };
-              }
-              if (data.ok) {
-                clearPoll();
-                if (purpose === 'profile_bind') {
-                  onProfileComplete?.();
-                  return { ok: true as const };
-                }
-                if (data.redirectTo) {
-                  redirectOk(data.redirectTo, data.role);
-                  return { ok: true as const, redirectTo: data.redirectTo };
-                }
-                return { ok: true as const };
-              }
-              if (data.error === 'rate_limited' && data.retryAfterSeconds != null) {
-                return {
-                  ok: false as const,
-                  message: data.message ?? '',
-                  code: 'rate_limited',
-                  retryAfterSeconds: data.retryAfterSeconds,
-                };
-              }
-              if (data.error === 'server_error') {
-                return {
-                  ok: false as const,
-                  message:
-                    data.message ?? 'Не удалось завершить вход. Повторите ввод того же кода.',
-                  code: 'server_error',
-                };
-              }
-              return { ok: false as const, message: data.message ?? 'Ошибка' };
-            }}
-            onResend={resendOtp}
-            onBack={() => {
-              clearPoll();
-              if (otpChannel === 'automatic') {
-                setStep('phone');
-              } else if (setupToken) {
-                setStep('messenger_pick');
-              } else {
-                setStep('phone');
-              }
-              setChallengeId(null);
-            }}
-            hideBack={waitingForBot || purpose === 'login'}
-          />
-        ) : (
-          <p className={cn(patientMutedTextClass, 'text-center')}>
-            Ожидание подтверждения в мессенджере…
+        <p className={patientMutedTextClass}>{waitingDescription}</p>
+        {bindManualCommand ? (
+          <p className={patientCaptionTextClass}>
+            Если бот открылся без запроса контакта, отправьте команду:{' '}
+            <span className="font-mono patient-text-primary">{bindManualCommand}</span>
           </p>
-        )}
-        {!waitingForBot && hasAnyMessenger && purpose === 'profile_bind' ? (
-          <Button
-            type="button"
-            variant="link"
-            className={cn(
-              'border-none bg-transparent underline-offset-2',
-              patientInlineLinkClass,
-              AUTH_LOGIN_ACCENT_TEXT_CLASS,
-            )}
-            disabled={loading}
-            onClick={() => {
-              clearPoll();
-              setStep('messenger_pick');
-              setChallengeId(null);
-            }}
-          >
-            {otpChannel === 'automatic' ? 'Получить код через мессенджер' : 'Другой мессенджер'}
-          </Button>
         ) : null}
+        <p className={cn(patientMutedTextClass, 'text-center')}>
+          Ожидание подтверждения в мессенджере…
+        </p>
+        <Button
+          type="button"
+          variant="link"
+          className={patientInlineLinkClass}
+          onClick={resetBindAttempt}
+        >
+          Начать снова
+        </Button>
       </div>
     );
   }

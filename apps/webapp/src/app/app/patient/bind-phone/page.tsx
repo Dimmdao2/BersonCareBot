@@ -96,7 +96,6 @@ export default async function BindPhonePage({ searchParams }: Props) {
           />
         ) : (
           <PatientBindPhoneBrowser
-            supportContactHref={supportContactHref}
             hint={hint}
             nextPath={next}
             channelPolicy={authChannelPolicy}
