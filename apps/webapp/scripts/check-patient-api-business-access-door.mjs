@@ -203,6 +203,17 @@ function valueTargetsOf(expression, scope, state) {
   }
   const nextState = { depth: state.depth + 1, seen: new Set(state.seen).add(current) };
 
+  // Проверка ведущего 16.09: получатель сам может быть обращением к свойству (`reg.a.load`).
+  // Без этого перехода вложенность глубже одного уровня возвращала сам узел, и цепочка обрывалась
+  // молча — ровно тот класс, ради которого разрешатель и заводился.
+  if (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+    const propertyName = ts.isPropertyAccessExpression(current)
+      ? current.name.text
+      : current.argumentExpression && propertyNameOf(unwrapExpression(current.argumentExpression));
+    if (propertyName === undefined) return { targets: [], unresolvedPotential: true };
+    return memberValuesOf(current.expression, propertyName, scope, nextState);
+  }
+
   if (!ts.isIdentifier(current)) {
     return { targets: [current], unresolvedPotential: false };
   }
@@ -306,6 +317,29 @@ function resolveToFunctionBodies(expression, scope = lexicalScopeOf(expression),
       lexicalScopeOf(binding.node),
       nextState,
     );
+  }
+
+  // Проверка ведущего 16.09: объектный литерал в аргументе обёртки раньше давал ноль тел и ноль
+  // подозрения, поэтому `compose({ h: real }, guardedCallback)` зеленел — один распознанный
+  // защищённый callback прикрывал контейнер с настоящим обработчиком. Разбирается симметрично
+  // массиву: значения свойств становятся кандидатами, spread оставляет нераспознанное.
+  if (ts.isObjectLiteralExpression(current)) {
+    let spread = false;
+    const values = [];
+    for (const property of current.properties) {
+      if (ts.isSpreadAssignment(property)) { spread = true; continue; }
+      if (ts.isPropertyAssignment(property)) values.push(property.initializer);
+      else if (ts.isShorthandPropertyAssignment(property)) values.push(property.name);
+      else if (ts.isMethodDeclaration(property)) values.push(property);
+      else spread = true;
+    }
+    const resolved = mergeResolutions(
+      values.map((value) => resolveToFunctionBodies(value, lexicalScopeOf(value), nextState)),
+    );
+    return {
+      bodies: resolved.bodies,
+      unresolvedPotential: spread || resolved.unresolvedPotential,
+    };
   }
 
   if (ts.isArrayLiteralExpression(current)) {
@@ -737,6 +771,22 @@ function selfTest() {
       new Map(),
       'exported GET must fail closed',
       `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { ${guarded} return Response.json(await buildAppDeps().treatmentProgram.getForPatient({})); } export const GET = compose([actualHandler], async () => { ${guarded} return Response.json({ settled: true }); });`,
+    ],
+    [
+      'проверка ведущего: вложенный контейнер не прячет чтение до двери',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const load = async () => await buildAppDeps().materialRating.listForPatient({}); const reg = { a: { load } }; const exposed = await reg.a.load(); ${guarded} return Response.json(exposed); }`,
+      new Map(),
+      'reads data through `materialRating` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const load = async () => await buildAppDeps().materialRating.listForPatient({}); const reg = { a: { load } }; ${guarded} const exposed = await reg.a.load(); return Response.json(exposed); }`,
+    ],
+    [
+      'проверка ведущего: объектный контейнер обработчика не маскируется защищённым callback',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { return Response.json(await buildAppDeps().materialRating.listForPatient({})); } export const GET = compose({ h: actualHandler }, async () => { ${guarded} return Response.json({ settled: true }); });`,
+      new Map(),
+      'exported GET must fail closed',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { ${guarded} return Response.json(await buildAppDeps().materialRating.listForPatient({})); } export const GET = compose({ h: actualHandler }, async () => { ${guarded} return Response.json({ settled: true }); });`,
     ],
     [
       'неразрешимый аргумент обёртки не маскируется защищённым callback',
