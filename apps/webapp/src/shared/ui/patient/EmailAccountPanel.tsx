@@ -379,6 +379,16 @@ export function EmailAccountPanel({
                 setEmailRetrySec(data.retryAfterSeconds ?? 60);
                 return { kind: 'ok' as const };
               }
+              // Круг 4 независимого аудита: любой 429 схлопывался в обычный таймер повтора, и
+              // человек с защитной блокировкой после перебора кода видел countdown вместо
+              // объяснения. Блокировка — отдельное состояние: у неё другая причина и другое
+              // действие человека, поэтому она проверяется ДО общей ветки частоты.
+              if (data.error === 'too_many_attempts') {
+                return {
+                  kind: 'error' as const,
+                  message: data.message ?? notificationText.authTooManyAttempts,
+                };
+              }
               if (res.status === 429 || data.error === 'rate_limited') {
                 const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
                 setEmailRetrySec(sec);
@@ -386,7 +396,7 @@ export function EmailAccountPanel({
               }
               return {
                 kind: 'error' as const,
-                message: data.message ?? 'Не удалось отправить код',
+                message: data.message ?? notificationText.authCodeSendFailed,
               };
             }}
             onBack={() => {

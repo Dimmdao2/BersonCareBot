@@ -500,6 +500,9 @@ describe('clinic-owner atomic settings readback', () => {
         analytics: true,
         client_portal: true,
         video_meetings: true,
+        leads: false,
+        content: false,
+        courses: false,
       },
     };
     const defaults = {
@@ -533,9 +536,7 @@ describe('clinic-owner atomic settings readback', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, settings: saved });
     expect(fakes.persistSettingsBatch).toHaveBeenCalledOnce();
-    // Форма кабинета не шлёт серверные механики без своего экрана («Заявки»), их дописывает
-    // нормализация — поэтому ожидается КАНОНИЧЕСКИЙ вид записи, а не дословный вход. Предмет
-    // теста прежний: запись одна и ровно в этом виде.
+    // Workspace-состав проходит через каноническую нормализацию, а batch сохраняется одной записью.
     expect(fakes.persistSettingsBatch).toHaveBeenCalledWith(
       items.map((item) =>
         item.key === 'doctor_workspace_composition'
@@ -545,7 +546,7 @@ describe('clinic-owner atomic settings readback', () => {
               value: {
                 value: {
                   ...composition,
-                  modules: { ...composition.modules, leads: true },
+                  modules: composition.modules,
                 },
               },
             }

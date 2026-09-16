@@ -2,21 +2,27 @@
 
 Канонический личный раздел сотрудника: `/app/account`.
 
-- `account` (default): существующие account email и SMS fallback; organization workspace composition,
-  channel defaults и терминология принадлежат только `/app/settings`.
-- `notifications`: существующая персональная матрица каналов/тем; organization-specific task projection читается
-  только при наличии clinical workspace.
+- На одной странице находятся почта аккаунта, личные настройки, организация, тариф, безопасность, способы входа,
+  входы и устройства и персональные уведомления. Выход находится в безопасности; внутренних вкладок у аккаунта
+  нет.
+- Organization workspace composition, channel defaults и терминология принадлежат только `/app/settings`.
+- Персональная матрица каналов/тем читает organization-specific task projection только при наличии clinical
+  workspace.
+- Для сотрудника с capability управления организацией здесь же находится блок «Организация»: название и логотип.
+- Владельцу и администратору организации здесь же показывается «Тариф и биллинг»; кнопка «Изменить тариф»
+  открывает отдельную страницу сравнения `/app/settings/tariffs`, а «Что входит в тариф» — состав тарифа в
+  правой панели на desktop и в drawer на mobile.
 - установка приложения живёт в `/app/settings?tab=workspace`.
 
 Доступ проверяет U1 capability `account.self` через `requireStaffAccountPage`; membership и specialist binding не
 являются условием личного аккаунта. Organization context, если он есть, используется только для shell и сохранённых
-specialist-specific defaults. Management-only staff не получает клинические controls, а account не выдаёт
-organization-management capability.
+specialist-specific defaults. Management-only staff не получает клинические controls; блок организации появляется
+только при уже выданной capability `organization.management` и сам её не выдаёт.
 
-Security tab содержит добровольные 2FA/sessions controls и смену пароля с текущим паролем. Для legacy
-owner-membership без `specialist_id` здесь же доступен owner-only repair «Подключить рабочий кабинет» без
-предварительного TOTP. Уже настроенный фактор по-прежнему нужно подтвердить в текущем сеансе; отдельного
-платформенного требования для всего персонала нет. Отдельного `/app/ops/account` нет.
+Раздел безопасности на этой же странице содержит добровольные 2FA/sessions controls и смену пароля с текущим
+паролем. Для legacy owner-membership без `specialist_id` здесь же доступен owner-only repair «Подключить рабочий
+кабинет» без предварительного TOTP. Уже настроенный фактор по-прежнему нужно подтвердить в текущем сеансе;
+отдельного платформенного требования для всего персонала нет. Отдельного `/app/ops/account` нет.
 
-У сотрудника ровно три вкладки: «Аккаунт», «Безопасность», «Уведомления». «Первый запуск» пока не
-рендерится; recovery-механика и её API не удалены.
+«Первый запуск» пока не рендерится; recovery-механика и её API не удалены. Ограниченная recovery-сессия видит
+только необходимые controls безопасности, без остальных личных разделов.

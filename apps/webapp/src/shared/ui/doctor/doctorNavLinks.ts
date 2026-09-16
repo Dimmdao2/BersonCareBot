@@ -8,7 +8,7 @@ import {
 import { resolvePatientTerms, type PatientTerms } from '@/modules/system-settings/patientTerms';
 import type {
   WorkspaceModuleEffective,
-  WorkspaceModuleKey,
+  WorkspaceModuleConfigKey,
 } from '@/modules/system-settings/doctorWorkspaceComposition';
 import {
   DEFAULT_COMMUNICATIONS_SURFACE,
@@ -50,7 +50,7 @@ export type DoctorMenuLinkItem = {
   requiresCmsEntitlement?: boolean;
   requiresPatientHomeTodayEntitlement?: boolean;
   requiresSpecialistTasksEntitlement?: boolean;
-  requiresWorkspaceModule?: WorkspaceModuleKey;
+  requiresWorkspaceModule?: WorkspaceModuleConfigKey;
   requiresCommunicationsSurface?: boolean;
 };
 
@@ -193,12 +193,14 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     label: 'Контент',
     href: '/app/doctor/content',
     requiresCmsEntitlement: true,
+    requiresWorkspaceModule: 'content',
   },
   {
     id: 'courses',
     label: 'Курсы',
     href: '/app/doctor/courses',
     requiresCoursesEntitlement: true,
+    requiresWorkspaceModule: 'courses',
   },
   // «Настройки» не входят в основной рабочий список: отдельная ссылка с шестерёнкой закреплена
   // прямо над аккаунтом в `DoctorAdminSidebar` и в нижней части мобильного Sheet-меню.

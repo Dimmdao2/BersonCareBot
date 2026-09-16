@@ -178,7 +178,17 @@ export async function resolveDoctorWorkspaceModules(
     AppDeps['systemSettings']['getDoctorWorkspaceComposition']
   >[1],
 ): Promise<WorkspaceModuleEffective> {
-  const [exerciseCatalog, mailings, analytics, patientApp, videoMeetings, leads, composition] =
+  const [
+    exerciseCatalog,
+    mailings,
+    analytics,
+    patientApp,
+    videoMeetings,
+    leads,
+    content,
+    courses,
+    composition,
+  ] =
     await Promise.all([
       resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'exercise_catalog'),
       resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'mailings'),
@@ -186,6 +196,8 @@ export async function resolveDoctorWorkspaceModules(
       resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'patient_app'),
       resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'video_meetings'),
       resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'leads'),
+      resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'cms_pages'),
+      resolveMechanicAccess(deps.orgEntitlements, workspace.organizationId, 'courses'),
       deps.systemSettings.getDoctorWorkspaceComposition(
         {
           organizationId: workspace.organizationId,
@@ -206,6 +218,8 @@ export async function resolveDoctorWorkspaceModules(
     client_portal: clinical && mechanicIsVisible(patientApp),
     video_meetings: clinical && mechanicIsVisible(videoMeetings),
     leads: workspace.canManageOrganization && mechanicIsVisible(leads),
+    content: clinical && mechanicIsVisible(content),
+    courses: clinical && mechanicIsVisible(courses),
   });
 }
 

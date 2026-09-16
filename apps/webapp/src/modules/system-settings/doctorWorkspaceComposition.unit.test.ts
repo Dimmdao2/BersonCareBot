@@ -34,6 +34,8 @@ const ALL_AVAILABLE = {
   // доступности: без него резолвер считает его недоступным и правило «ничего не прячем без
   // сохранённого предпочтения» проверялось бы на неполной карте.
   leads: true,
+  content: true,
+  courses: true,
 } satisfies WorkspaceModuleAvailability;
 
 const ALL_UNAVAILABLE = {
@@ -48,6 +50,8 @@ const ALL_UNAVAILABLE = {
   client_portal: false,
   video_meetings: false,
   leads: false,
+  content: false,
+  courses: false,
 } satisfies WorkspaceModuleAvailability;
 
 function compositionWith(

@@ -8,6 +8,7 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
   DoctorSection,
+  DoctorSectionActions,
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
@@ -59,14 +60,14 @@ type Props = {
   };
   /**
    * Какая половина бренда правится на этом экране (владелец 15.09.2026, разбор настроек):
-   * «Профиль» — имя организации и логотип, «Брендинг» — иконка приложения, своё приложение и боты
+   * «Организация» в аккаунте — имя и логотип, «Брендинг» — иконка приложения, своё приложение и боты
    * («Иконка приложения — в брендинге очевидно»).
    *
    * Это ОДИН раздел с двумя видами, а не два раздела: публикация бренда атомарна — имя, логотип и
    * иконка уезжают одной ревизией. Поэтому вид, который поля не показывает, отправляет их
-   * опубликованные значения без изменений, и сохранение в «Профиле» не стирает иконку.
+   * опубликованные значения без изменений, и сохранение «Организации» не стирает иконку.
    */
-  scope?: 'all' | 'profile' | 'branding';
+  scope?: 'all' | 'organization' | 'branding';
 };
 
 type ClinicBotSettings = {
@@ -309,7 +310,7 @@ export function OrgBrandingSection({
   const [savingOwnApp, setSavingOwnApp] = useState(false);
 
   const showsProfileFields = scope !== 'branding';
-  const showsBrandingFields = scope !== 'profile';
+  const showsBrandingFields = scope !== 'organization';
 
   const baselineName = (publishedDisplayName ?? coreDisplayName).trim();
   /**
@@ -387,7 +388,7 @@ export function OrgBrandingSection({
     <DoctorSection>
       <DoctorSectionHeader>
         <DoctorSectionTitle>
-          {scope === 'branding' ? 'Приложение организации' : 'Бренд организации'}
+          {scope === 'branding' ? 'Приложение организации' : 'Организация'}
         </DoctorSectionTitle>
       </DoctorSectionHeader>
 
@@ -470,7 +471,7 @@ export function OrgBrandingSection({
         <ActionFailureText failure={error} />
         {justSaved && !dirty ? <p className="text-sm text-muted-foreground">Сохранено.</p> : null}
 
-        <div>
+        <DoctorSectionActions>
           <Button
             type="button"
             size="sm"
@@ -479,7 +480,7 @@ export function OrgBrandingSection({
           >
             {saving ? 'Сохранение…' : 'Сохранить'}
           </Button>
-        </div>
+        </DoctorSectionActions>
 
         {showsBrandingFields && clinicBots?.telegram.available ? (
           <ClinicBotControls channel="telegram" settings={clinicBots.telegram} />
