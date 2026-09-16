@@ -41,11 +41,23 @@ const routeExceptions = new Map([
   ],
 ]);
 
+/**
+ * Аудит круга 4 (MUST FIX-2): перепись брала ровно имя `route.ts`, а Next считает маршрутом любой
+ * `route.<js|jsx|ts|tsx|mjs>`. Один такой файл под `api/patient/**` оставался вне надзора целиком.
+ */
+const ROUTE_FILE_NAMES = new Set([
+  'route.ts',
+  'route.tsx',
+  'route.js',
+  'route.jsx',
+  'route.mjs',
+]);
+
 function collectRouteFiles(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) collectRouteFiles(full, out);
-    else if (entry.name === 'route.ts') out.push(full);
+    else if (ROUTE_FILE_NAMES.has(entry.name)) out.push(full);
   }
   return out;
 }
@@ -185,6 +197,88 @@ function returnsFromRejectedGuard(statement) {
   return found;
 }
 
+/**
+ * Аудит круга 4 (MUST FIX-1): гейт требовал, чтобы проход БЫЛ, но не требовал, чтобы он был ПЕРВЫМ.
+ * Временный маршрут, который сначала звал `buildAppDeps().materialRating.getForPatient(...)`, а
+ * проход проходил уже после, оставлял гейт зелёным — то есть защищённые данные читались до двери.
+ *
+ * Правило порядка: до строки прохода обработчик может ждать только разбор самого запроса и чтение
+ * конфигурации. Любое другое ожидание — потенциальное чтение данных, и оно обязано стоять ПОСЛЕ.
+ * Список намеренно короткий: расширять его — осознанное действие, а не побочный эффект правки.
+ */
+const PRE_GATE_PORT_ALLOWLIST = new Set(['runtimeConfig']);
+
+/** Переменные, в которые положили `buildAppDeps()` — через них идёт доступ к данным. */
+function depsLocals(body) {
+  const locals = new Set();
+  const visit = (n) => {
+    if (
+      ts.isVariableDeclaration(n) &&
+      ts.isIdentifier(n.name) &&
+      n.initializer &&
+      ts.isCallExpression(n.initializer) &&
+      ts.isIdentifier(n.initializer.expression) &&
+      n.initializer.expression.text === 'buildAppDeps'
+    ) {
+      locals.add(n.name.text);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(body);
+  return locals;
+}
+
+/**
+ * Ожидание, которое ЧИТАЕТ ДАННЫЕ: цепочка вызова уходит корнем в `buildAppDeps()` — прямо или
+ * через переменную. Именно это и есть доступ к защищённым данным (порт БД централизован,
+ * `saas-db-port-is-getdrizzle-central`); сессия и счётчик попыток данными не являются и сюда не
+ * попадают. Порт `runtimeConfig` разрешён явно: это настройка платформы, не данные арендатора, и
+ * маршрут оценки материалов законно читает флаг включённости ДО двери.
+ */
+function dataReadPortOf(expression, depsVars) {
+  let x = expression;
+  while (ts.isParenthesizedExpression(x) || ts.isAwaitExpression(x)) x = x.expression;
+  if (!ts.isCallExpression(x)) return undefined;
+  const segments = [];
+  let node = x.expression;
+  for (;;) {
+    if (ts.isPropertyAccessExpression(node)) {
+      if (ts.isIdentifier(node.name)) segments.unshift(node.name.text);
+      node = node.expression;
+      continue;
+    }
+    if (ts.isCallExpression(node)) {
+      node = node.expression;
+      continue;
+    }
+    break;
+  }
+  const rootIsDeps =
+    (ts.isIdentifier(node) && (depsVars.has(node.text) || node.text === 'buildAppDeps'));
+  if (!rootIsDeps) return undefined;
+  const port = segments[0];
+  if (port !== undefined && PRE_GATE_PORT_ALLOWLIST.has(port)) return undefined;
+  return port ?? '<deps>';
+}
+
+/** Первый порт данных, прочитанный внутри узла, в порядке появления. */
+function firstDataReadPortIn(node, depsVars) {
+  let found;
+  const visit = (n) => {
+    if (found !== undefined) return;
+    if (ts.isAwaitExpression(n)) {
+      const port = dataReadPortOf(n.expression, depsVars);
+      if (port !== undefined) {
+        found = port;
+        return;
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return found;
+}
+
 function handlerPassesDoor(body, guardLocals) {
   for (let index = 0; index < body.statements.length; index += 1) {
     const binding = guardBindingFromStatement(body.statements[index], guardLocals);
@@ -195,11 +289,17 @@ function handlerPassesDoor(body, guardLocals) {
         isNotOkCondition(following.expression, binding) &&
         returnsFromRejectedGuard(following.thenStatement)
       ) {
-        return true;
+        // Порядок (круг 4, MUST FIX-1): дверь обязана стоять ВЫШЕ любого чтения данных.
+        const depsVars = depsLocals(body);
+        for (const earlier of body.statements.slice(0, index)) {
+          const port = firstDataReadPortIn(earlier, depsVars);
+          if (port !== undefined) return { ok: false, early: port };
+        }
+        return { ok: true };
       }
     }
   }
-  return false;
+  return { ok: false };
 }
 
 export function checkSource(relativePath, source, exceptions = routeExceptions) {
@@ -224,12 +324,19 @@ export function checkSource(relativePath, source, exceptions = routeExceptions) 
   const guardLocals = importedGuardLocals(sourceFile);
   const findings = [];
   for (const handler of exportedHandlers(sourceFile)) {
-    if (!handler.body || !handlerPassesDoor(handler.body, guardLocals)) {
+    const verdict = handler.body ? handlerPassesDoor(handler.body, guardLocals) : { ok: false };
+    if (verdict.ok) continue;
+    if (verdict.early) {
       findings.push(
-        `${relativePath}: exported ${handler.method} must fail closed through ` +
-          'requirePatientApiBusinessAccess (or requirePatientBookingTrustedPhoneAccess)',
+        `${relativePath}: exported ${handler.method} reads data through \`${verdict.early}\` BEFORE ` +
+          'the shared door — move the door above every read',
       );
+      continue;
     }
+    findings.push(
+      `${relativePath}: exported ${handler.method} must fail closed through ` +
+        'requirePatientApiBusinessAccess (or requirePatientBookingTrustedPhoneAccess)',
+    );
   }
   return findings;
 }
@@ -310,6 +417,18 @@ function selfTest() {
       new Map(),
     ],
     [
+      'чтение данных стоит ВЫШЕ двери (круг 4, MUST FIX-1)',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const deps = buildAppDeps(); const leaked = await deps.materialRating.getForPatient({}); ${guarded} return Response.json({ ok: true, leaked }); }`,
+      new Map(),
+    ],
+    [
+      'маршрут с расширением .js остаётся маршрутом (круг 4, MUST FIX-2)',
+      'patient/x/route.js',
+      'export async function GET() { return Response.json({ ok: true }); }',
+      new Map(),
+    ],
+    [
       'exception without a reason',
       'patient/x/route.ts',
       'export async function GET() { return Response.json({ ok: true }); }',
@@ -346,6 +465,12 @@ function selfTest() {
       'a route outside the two areas that never entered through the guard stays out of scope',
       'media/[id]/route.ts',
       'export async function GET() { return Response.json({ ok: true }); }',
+      new Map(),
+    ],
+    [
+      'чтение настройки платформы до двери законно — это не данные арендатора',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const deps = buildAppDeps(); const on = await deps.runtimeConfig.getServerBoolean('x'); if (!on) return Response.json({ ok: false }); ${guarded} return Response.json({ ok: true }); }`,
       new Map(),
     ],
     [
