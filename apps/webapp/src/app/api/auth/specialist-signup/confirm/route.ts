@@ -12,7 +12,11 @@ import {
 } from '@/modules/auth/authConfirmRateLimit';
 import { confirmEmailChallenge } from '@/modules/auth/emailAuth';
 import { getSpecialistSignupEnabled } from '@/modules/auth/specialistSignupRollout';
-import { getCurrentSession, setSessionFromUser } from '@/modules/auth/service';
+import {
+  getCurrentSession,
+  setSessionFromUser,
+  updateCurrentSessionFromUser,
+} from '@/modules/auth/service';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { validateOrganizationSlugCandidate } from '@/modules/clinic-directory/organizationSlug';
 import {
@@ -233,9 +237,8 @@ export async function POST(request: Request) {
     return jsonError('server_error', {}, { status: 500 });
   }
 
-  await setSessionFromUser(
+  await updateCurrentSessionFromUser(
     { ...sessionUser, role: 'doctor' },
-    'specialist_signup_email_code',
     {
       staffSecurity: { assurance: 'pending_enrollment' },
     },
