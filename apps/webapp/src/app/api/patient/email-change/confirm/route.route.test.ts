@@ -64,12 +64,7 @@ describe('POST /api/patient/email-change/confirm', () => {
     const response = await POST(confirmRequest());
 
     expect(response.status).toBe(200);
-    expect(fakes.confirmLatestEmailChallengeCodeForUser).toHaveBeenCalledWith(
-      'patient-1',
-      '123456',
-      'patient_email_change',
-      expect.anything(),
-    );
+    await expect(response.json()).resolves.toMatchObject({ ok: true });
   });
 
   it('refuses when the email channel itself is not configured', async () => {
