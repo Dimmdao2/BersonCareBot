@@ -493,16 +493,31 @@ function staticPropertyKey(expr, resolver, seen) {
   return undefined;
 }
 
+/* Проверка ведущего 16.09: разбиралось только `MAP['one']`, а обычная запись через точку `MAP.one`
+   и вложенный контейнер `reg.a.text` обрывались молча — фраза уходила пользователю мимо словаря.
+   Ключ берётся из обеих форм записи, получатель разрешается тем же переходом рекурсивно. */
 function objectLiteralPropertyInitializer(expr, resolver, seen) {
   const current = unwrapExpression(expr);
-  if (!ts.isElementAccessExpression(current) || !current.argumentExpression) return undefined;
-  const key = staticPropertyKey(current.argumentExpression, resolver, seen);
+  let key;
+  if (ts.isPropertyAccessExpression(current) || ts.isPropertyAccessChain(current)) {
+    key = current.name.text;
+  } else if (ts.isElementAccessExpression(current) && current.argumentExpression) {
+    key = staticPropertyKey(current.argumentExpression, resolver, seen);
+  }
   if (key === undefined) return undefined;
   let object = unwrapExpression(current.expression);
   if (ts.isIdentifier(object)) {
     const initializer = resolvedConstInitializer(object, resolver);
     if (!initializer || seen.has(initializer)) return undefined;
     object = unwrapExpression(initializer);
+  } else if (
+    ts.isPropertyAccessExpression(object) ||
+    ts.isPropertyAccessChain(object) ||
+    ts.isElementAccessExpression(object)
+  ) {
+    const nested = objectLiteralPropertyInitializer(object, resolver, seen);
+    if (!nested || seen.has(nested)) return undefined;
+    object = unwrapExpression(nested);
   }
   if (!ts.isObjectLiteralExpression(object)) return undefined;
   for (const property of object.properties) {
@@ -1148,6 +1163,12 @@ function selfTest() {
     ['G4b: шаблон-предложение в object-literal const по ключу',
       "const MESSAGE_KEY = 'tooLong';\nconst MESSAGE_BY_KEY = { tooLong: `Введите текст сообщения до ${LIMIT} символов` };\nreturn NextResponse.json({ message: MESSAGE_BY_KEY[MESSAGE_KEY] });",
       "const MESSAGE_KEY = 'tooLong';\nconst MESSAGE_BY_KEY = { tooLong: notificationText.someKey };\nreturn NextResponse.json({ message: MESSAGE_BY_KEY[MESSAGE_KEY] });"],
+    ['проверка ведущего: object-literal const по ключу через точку',
+      "const MESSAGE_BY_KEY = { tooLong: `Введите текст сообщения до ${LIMIT} символов` };\nreturn NextResponse.json({ message: MESSAGE_BY_KEY.tooLong });",
+      "const MESSAGE_BY_KEY = { tooLong: notificationText.someKey };\nreturn NextResponse.json({ message: MESSAGE_BY_KEY.tooLong });"],
+    ['проверка ведущего: вложенный контейнер фраз',
+      "const registry = { auth: { tooLong: `Введите текст сообщения до ${LIMIT} символов` } };\nreturn NextResponse.json({ message: registry.auth.tooLong });",
+      "const registry = { auth: { tooLong: notificationText.someKey } };\nreturn NextResponse.json({ message: registry.auth.tooLong });"],
     ['G4b: шаблон-предложение в возврате локальной фабрики',
       "function wrappedUserMessage(limit: number) { return `Введите текст сообщения до ${limit} символов`; }\nreturn NextResponse.json({ message: wrappedUserMessage(LIMIT) });",
       "function wrappedUserMessage(limit: number) { return notificationText.someKey; }\nreturn NextResponse.json({ message: wrappedUserMessage(LIMIT) });"],
