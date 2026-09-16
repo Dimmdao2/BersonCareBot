@@ -109,9 +109,13 @@ const beforeProvisioning: SessionUser = {
   bindings: {},
   sessionEpoch: 7,
 };
+// Второй поиск существует ради того, что выдача организации ЗАПИСАЛА: проекция профиля после неё
+// отличается от той, с которой человек подтвердил код. Если различия нет, снятие обновления сессии
+// остаётся незамеченным — именно так тест и пропускал мутацию.
 const afterProvisioning: SessionUser = {
   ...beforeProvisioning,
   role: 'doctor',
+  displayName: 'Иван Иванов, клиника',
 };
 
 function request(): Request {
@@ -178,11 +182,39 @@ describe('POST /api/auth/specialist-signup/confirm', () => {
     expect(encodedSession).toBeDefined();
     const session = decodeSessionCookie(encodedSession ?? '');
     expect(session).toMatchObject({
-      user: { userId, role: 'doctor', sessionEpoch: 7 },
+      user: {
+        userId,
+        role: 'doctor',
+        sessionEpoch: 7,
+        displayName: afterProvisioning.displayName,
+      },
       staffSecurity: { assurance: 'pending_enrollment' },
     });
     expect(session?.issuedAt).toBe(
       fakes.recordIdentitySessionStart.mock.calls[0]?.[0].issuedAtSeconds,
     );
+  });
+
+  // Отказ выдачи организации не должен оставлять человека без сессии: подтверждение личности уже
+  // состоялось, и именно с этой сессией он доходит до страницы безопасности.
+  it('keeps the working session when provisioning refuses', async () => {
+    fakes.provisionSpecialistOwner.mockRejectedValue(new Error('provisioning_unavailable'));
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'provisioning_pending',
+      redirectTo: '/app/account?tab=security',
+    });
+    expect(fakes.recordUserLoginEvent).toHaveBeenCalledOnce();
+
+    const encodedSession = fakes.cookieValues.get(SESSION_COOKIE_NAME);
+    expect(encodedSession).toBeDefined();
+    expect(decodeSessionCookie(encodedSession ?? '')).toMatchObject({
+      user: { userId, role: 'doctor' },
+      staffSecurity: { assurance: 'pending_enrollment' },
+    });
   });
 });
