@@ -576,7 +576,7 @@ export async function exchangeIntegratorToken(
   const binding = effectiveMessengerBinding(parsed);
   // Every active issuer names a Telegram/MAX identity. A signed token without that channel
   // identity has no channel policy to pass and is not an authentication credential.
-  if (!binding || binding.channelCode === 'vk') return null;
+  if (!binding || (binding.channelCode !== 'telegram' && binding.channelCode !== 'max')) return null;
 
   let user: SessionUser;
   let accountOutcome: AccountOutcome | undefined;
