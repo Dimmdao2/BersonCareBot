@@ -29,6 +29,7 @@ vi.mock('@/modules/auth/emailAuth', () => ({
 }));
 
 import { POST } from './route';
+import { createIntegratorEmailAdapter } from '@/infra/integrations/email/integratorEmailAdapter';
 
 const body = {
   email: 'doctor@example.test',
@@ -88,6 +89,40 @@ describe('POST /api/auth/specialist-signup/start organization title', () => {
       'specialist_signup',
       { kind: 'platform', senderDisplayName: 'Therapysto' },
     );
+  });
+
+  it('reaches email delivery for specialist signup when the login door itself is disabled', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const adapter = createIntegratorEmailAdapter({
+      integratorBaseUrl: 'https://integrator.example.test',
+      sharedSecret: 'test-secret',
+      fetchImpl,
+    });
+    fakes.isAuthChannelEnabled.mockImplementation(
+      async (_channel: string, _surface: unknown, use?: string) => use === 'transactional',
+    );
+    fakes.startEmailChallenge.mockImplementation(
+      async (_userId: string, email: string, purpose, mailProfile) => {
+        const sent = await adapter.sendEmailCode(email, '123456', mailProfile, purpose);
+        return sent.ok
+          ? {
+              ok: true as const,
+              challengeId: '00000000-0000-4000-8000-000000000001',
+              retryAfterSeconds: 60,
+            }
+          : { ok: false as const, code: 'email_send_failed' as const };
+      },
+    );
+
+    const response = await POST(request('Клиника', 'delivery@example.test'));
+
+    expect(response.status).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
   it('accepts exactly 100 characters without changing the title', async () => {

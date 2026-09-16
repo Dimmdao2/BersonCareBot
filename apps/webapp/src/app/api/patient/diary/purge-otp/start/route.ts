@@ -15,7 +15,7 @@ export async function POST() {
   if (!gate.ok) return gate.response;
   const session = gate.session;
   const phone = session.user.phone!.trim();
-  const deliveryGate = await withAuthDeliveryChannelGate('sms', async () => ({
+  const deliveryGate = await withAuthDeliveryChannelGate('sms', 'surface_requested', async () => ({
     ok: true as const,
   }));
   if (!deliveryGate.ok) {

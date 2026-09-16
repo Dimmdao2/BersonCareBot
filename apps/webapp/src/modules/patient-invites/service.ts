@@ -190,6 +190,7 @@ export function createPatientInvitesService(deps: {
         emailNormalized,
         code,
         platformMailProfileForRecipientRole('client'),
+        'clinic_invite',
       );
       if (!sent.ok) {
         await deps.port.cancelEmailProof({ continuationHash, codeHash });

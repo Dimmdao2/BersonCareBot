@@ -1774,10 +1774,15 @@ const publicBookingOtpPort = !inMemoryRepos
 const deliverPublicBookingCode: PublicBookingCodeDelivery =
   env.INTEGRATOR_API_URL && integratorWebhookSecret()
     ? (phone, code) =>
-        deliverSmsCodeViaIntegrator(phone, code, {
-          integratorBaseUrl: env.INTEGRATOR_API_URL,
-          sharedSecret: integratorWebhookSecret(),
-        })
+        deliverSmsCodeViaIntegrator(
+          phone,
+          code,
+          {
+            integratorBaseUrl: env.INTEGRATOR_API_URL,
+            sharedSecret: integratorWebhookSecret(),
+          },
+          'surface_requested',
+        )
     : // No integrator configured (local dev / stub SMS): nothing is sent, exactly as
       // `createStubSmsAdapter` sends nothing. The code lives only in the challenge row.
       async () => ({ ok: true });
