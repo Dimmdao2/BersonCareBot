@@ -83,7 +83,7 @@ export function EmailAccountPanel({
         setEmailRetrySec(data.retryAfterSeconds ?? 60);
         setEmailStep('code');
       } else {
-        setEmailStartError(data.message ?? 'Не удалось отправить код');
+        setEmailStartError(data.message ?? notificationText.authCodeSendFailed);
       }
     } finally {
       setEmailStartPending(false);
@@ -359,7 +359,7 @@ export function EmailAccountPanel({
               }
               return {
                 ok: false as const,
-                message: data.message ?? 'Ошибка',
+                message: data.message ?? notificationText.authConfirmationFailed,
                 code: data.error,
                 retryAfterSeconds: data.retryAfterSeconds,
               };
@@ -449,7 +449,7 @@ export function EmailAccountPanel({
               }
               return {
                 ok: false as const,
-                message: data.message ?? 'Ошибка',
+                message: data.message ?? notificationText.authConfirmationFailed,
                 code: data.error,
                 retryAfterSeconds: data.retryAfterSeconds,
               };
