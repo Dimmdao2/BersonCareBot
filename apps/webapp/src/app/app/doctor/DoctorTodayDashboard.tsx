@@ -203,7 +203,7 @@ export function DoctorTodayDashboard({
   specialistTasksReadable,
   appointmentsManageOwn = true,
 }: Props) {
-  const { patientPluralLabel, supportGroupLabel } = useDoctorPatientTerms();
+  const { supportGroupLabel } = useDoctorPatientTerms();
   const router = useRouter();
   const isMobile = useIsMobileViewport();
   const [mobileModal, setMobileModal] = useState<
@@ -248,19 +248,6 @@ export function DoctorTodayDashboard({
   const activeTodayAppointments = data.todayAppointments.filter(
     (appointment) => !isCancelledAppointmentStatus(appointment.status),
   );
-  const supportKpiTitle =
-    supportGroupLabel === 'Избранные' ? (
-      <>
-        <span className="block">Избранные</span>{' '}
-        <span className="block">{patientPluralLabel.toLowerCase()}</span>
-      </>
-    ) : (
-      <>
-        <span className="block">{patientPluralLabel}</span>{' '}
-        <span className="block">на сопровождении</span>
-      </>
-    );
-
   const handleTaskSaved = (task: SpecialistTaskRow, patientDisplayName?: string) => {
     setTaskOverrides((current) => ({ ...current, [task.id]: task }));
     setLocallyCompletedTaskIds((current) => {
@@ -356,7 +343,7 @@ export function DoctorTodayDashboard({
           <DoctorMetricList columns="two" aria-label="Сводка дня">
             <DoctorStatCard
               id="doctor-today-mobile-kpi-support"
-              title={supportKpiTitle}
+              title={supportGroupLabel}
               value={data.onSupportPeopleCount}
               valuePlacement="side-center"
               opensDetails={data.onSupportPeopleCount > 0}
@@ -364,12 +351,7 @@ export function DoctorTodayDashboard({
             />
             <DoctorStatCard
               id="doctor-today-mobile-kpi-appointments"
-              title={
-                <>
-                  <span className="block">Записи</span>{' '}
-                  <span className="block">сегодня</span>
-                </>
-              }
+              title={<span className="whitespace-nowrap">Записи сегодня</span>}
               value={activeTodayAppointments.length}
               valuePlacement="side-center"
               opensDetails

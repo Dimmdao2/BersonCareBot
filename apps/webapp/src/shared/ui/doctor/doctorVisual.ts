@@ -115,7 +115,7 @@ export const doctorMetricLabelClass =
   'text-xs font-medium uppercase leading-snug tracking-wide text-foreground/85 line-clamp-3';
 
 /** Shared inner spacing for KPI content. */
-export const doctorStatCardContentPaddingClass = 'py-2.5 pr-1 pl-2.5';
+export const doctorStatCardContentPaddingClass = 'py-2.5 pr-4 pl-2.5 md:p-2.5';
 
 /** Shell for KPI stat cards (`DoctorStatCard`). */
 export const doctorStatCardShellClass = cn(

@@ -34,7 +34,7 @@ type Props = {
   valueClassName?: string;
   hintClassName?: string;
   testId?: string;
-  valuePlacement?: 'responsive' | 'inline' | 'side-center' | 'stacked';
+  valuePlacement?: 'responsive' | 'inline' | 'side-center' | 'stacked' | 'row-until-wide';
   detailsIcon?: ReactNode;
   actionIcon?: ReactNode;
   actionLabel?: string;
@@ -76,7 +76,7 @@ export function DoctorStatCard({
   const isStacked = valuePlacement === 'stacked';
   const shellClass = cn(
     tone === 'warning' ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
-    isStacked && 'flex items-center py-2.5 pr-1 pl-2.5',
+    isStacked && 'flex items-center p-2.5',
     (href || onClick) && doctorStatCardInteractiveClass,
     tone === 'neutral' && (href || onClick) && doctorStatCardInteractiveNeutralClass,
     selected &&
@@ -148,40 +148,47 @@ export function DoctorStatCard({
     </div>
   );
   const metricRow = metric;
-  const inner = valuePlacement === 'side-center' ? (
-    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
-      <div className="col-start-1 row-start-1">{label}</div>
-      <div className="col-start-2 row-span-2 row-start-1 flex self-center justify-end">
-        {metric}
-      </div>
-      {hint ? <div className="col-start-1 row-start-2">{hintNode}</div> : null}
-    </div>
-  ) : (
-    <div
-      className={cn(
-        'w-full min-w-0',
-        valuePlacement === 'responsive' &&
-          'grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-1.5 md:block',
-      )}
-    >
-      <div className={cn(valuePlacement === 'inline' ? 'flex items-baseline gap-2' : 'contents')}>
-        {label}
-        <div
-          className={cn(
-            valuePlacement === 'responsive' &&
-              'col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1',
-            isStacked && 'mt-0.5 flex justify-end',
-            isStacked && 'pr-5',
-          )}
-        >
-          {metricRow}
+  const inner =
+    valuePlacement === 'side-center' ? (
+      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
+        <div className="col-start-1 row-start-1">{label}</div>
+        <div className="col-start-2 row-span-2 row-start-1 flex self-center justify-end">
+          {metric}
         </div>
+        {hint ? <div className="col-start-1 row-start-2">{hintNode}</div> : null}
       </div>
-      {hint ? (
-        <div className={cn(valuePlacement === 'responsive' && 'col-span-full')}>{hintNode}</div>
-      ) : null}
-    </div>
-  );
+    ) : valuePlacement === 'row-until-wide' ? (
+      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5 xl:block">
+        <div className="col-start-1 row-start-1">{label}</div>
+        <div className="col-start-2 row-span-2 row-start-1 flex self-center justify-end xl:mt-0.5 xl:block">
+          {metric}
+        </div>
+        {hint ? <div className="col-start-1 row-start-2">{hintNode}</div> : null}
+      </div>
+    ) : (
+      <div
+        className={cn(
+          'w-full min-w-0',
+          valuePlacement === 'responsive' &&
+            'grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-1.5 md:block',
+        )}
+      >
+        <div className={cn(valuePlacement === 'inline' ? 'flex items-baseline gap-2' : 'contents')}>
+          {label}
+          <div
+            className={cn(
+              valuePlacement === 'responsive' &&
+                'col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1',
+            )}
+          >
+            {metricRow}
+          </div>
+        </div>
+        {hint ? (
+          <div className={cn(valuePlacement === 'responsive' && 'col-span-full')}>{hintNode}</div>
+        ) : null}
+      </div>
+    );
   const detailsIndicator = detailsIcon ? (
     <span className={doctorStatCardChevronClass} aria-hidden>
       {detailsIcon}
@@ -199,20 +206,16 @@ export function DoctorStatCard({
     <div className="relative w-full min-w-0">
       {inner}
       {opensDetails ? (
-        <span className="absolute right-0 top-1/2 -translate-y-1/2">
-          {detailsIndicator}
-        </span>
+        <span className="absolute -right-1.5 top-1/2 -translate-y-1/2">{detailsIndicator}</span>
       ) : null}
     </div>
-  ) : (
-    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
+  ) : opensDetails ? (
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
       <div className="min-w-0">{inner}</div>
-      {opensDetails ? (
-        detailsIndicator
-      ) : (
-        <span className={doctorStatCardChevronClass} aria-hidden />
-      )}
+      <span className="translate-x-3 md:translate-x-1.5">{detailsIndicator}</span>
     </div>
+  ) : (
+    inner
   );
 
   if (actionIcon && actionLabel && onActionClick) {
