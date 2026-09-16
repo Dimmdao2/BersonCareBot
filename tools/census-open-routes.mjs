@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -121,7 +120,6 @@ function selfTest() {
 if (process.argv.includes('--self-test')) selfTest();
 
 for (const f of files) {
-  const src = readFileSync(f, 'utf8');
   const rel = f.replace('apps/webapp/src/app/api/', '').replace('/route.ts', '');
   const analysis = analyzeNextRouteFile(path.resolve(f));
   if (analysis.issues.length > 0) {
