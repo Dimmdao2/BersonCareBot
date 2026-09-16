@@ -231,6 +231,14 @@ async function withFreshSessionEpoch(session: AppSession): Promise<AppSession> {
   return { ...session, user: { ...session.user, sessionEpoch: fresh.sessionEpoch } };
 }
 
+async function assertSessionAudience(role: UserRole): Promise<void> {
+  if (!arePlatformSurfaceHostsDistinct()) return;
+  const resolvedSurface = await getOptionalResolvedSurface();
+  if (resolvedSurface && !roleCanUseRequestSurface(role, resolvedSurface.surface)) {
+    throw new Error('auth_surface_role_mismatch');
+  }
+}
+
 async function persistNewAuthSession(
   cookieStore: Awaited<ReturnType<typeof cookies>>,
   session: AppSession,
@@ -239,12 +247,7 @@ async function persistNewAuthSession(
   // TEST/legacy may deliberately run staff and patient trees on one Host. Once deploy origins are
   // distinct, every browser login must match the product selected by proxy's trusted surface
   // header. This is the single mint-side gate shared by every session-producing path in this file.
-  if (arePlatformSurfaceHostsDistinct()) {
-    const resolvedSurface = await getOptionalResolvedSurface();
-    if (resolvedSurface && !roleCanUseRequestSurface(session.user.role, resolvedSurface.surface)) {
-      throw new Error('auth_surface_role_mismatch');
-    }
-  }
+  await assertSessionAudience(session.user.role);
   const stamped = await withFreshSessionEpoch(session);
   cookieStore.set(
     SESSION_COOKIE_NAME,
@@ -1041,6 +1044,50 @@ export async function setSessionFromUser(
   };
   const cookieStore = await cookies();
   await persistNewAuthSession(cookieStore, full, method);
+}
+
+/**
+ * Replaces the identity projection inside the already-authenticated browser session.
+ * Unlike setSessionFromUser(), this never mints a login: it preserves the original session age and
+ * does not write login history, fresh-login state or a device marker. Missing, expired or foreign
+ * sessions fail closed instead of silently becoming a new session.
+ */
+export async function updateCurrentSessionFromUser(
+  user: SessionUser,
+  opts?: {
+    postLoginHints?: AppSession['postLoginHints'];
+    staffSecurity?: AppSession['staffSecurity'];
+  },
+): Promise<void> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const current = raw ? decodeSessionCookie(raw) : null;
+  if (!current) {
+    throw new Error('session_update_requires_existing_session');
+  }
+  if (current.user.userId !== user.userId) {
+    throw new Error('session_update_identity_mismatch');
+  }
+
+  await assertSessionAudience(user.role);
+  const refreshed = await withFreshSessionEpoch({
+    ...current,
+    user,
+    expiresAt: Math.min(
+      current.expiresAt,
+      current.issuedAt + sessionTtlSecondsForRole(user.role),
+    ),
+    ...(opts?.postLoginHints ? { postLoginHints: opts.postLoginHints } : {}),
+    ...(opts?.staffSecurity ? { staffSecurity: opts.staffSecurity } : {}),
+  });
+  if (current.user.sessionEpoch !== refreshed.user.sessionEpoch) {
+    throw new Error('session_update_epoch_mismatch');
+  }
+  cookieStore.set(
+    SESSION_COOKIE_NAME,
+    encodeSessionCookie(refreshed),
+    buildSessionCookieOptions(refreshed),
+  );
 }
 
 export async function clearDiaryPurgeReauth(): Promise<void> {
