@@ -274,6 +274,23 @@ function valueTargetsOf(expression, scope, state) {
     return memberValuesOf(current.expression, propertyName, scope, nextState);
   }
 
+  // Круг 10 независимого аудита: тернарник возвращался ОДНИМ непрозрачным target, и следующий
+  // `memberValuesOf` не видел в нём ни объектного, ни массивного литерала. Поэтому локальный выбор
+  // источника с последующей деструктуризацией (`const { pull } = cond ? { pull } : { pull }`)
+  // обрывал путь на `unresolvedPotential`, и раннее клиническое чтение оставалось без finding.
+  // `resolveToFunctionBodies` тернарник разбирал всегда — здесь та же ветвь, чтобы обе половины
+  // разрешателя понимали одно и то же множество форм.
+  if (ts.isConditionalExpression(current)) {
+    const branches = [
+      valueTargetsOf(current.whenTrue, lexicalScopeOf(current.whenTrue), nextState),
+      valueTargetsOf(current.whenFalse, lexicalScopeOf(current.whenFalse), nextState),
+    ];
+    return {
+      targets: branches.flatMap((branch) => branch.targets),
+      unresolvedPotential: branches.some((branch) => branch.unresolvedPotential),
+    };
+  }
+
   if (!ts.isIdentifier(current)) {
     return { targets: [current], unresolvedPotential: false };
   }
@@ -969,6 +986,30 @@ function selfTest() {
       `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { ${guarded} const exposed = await buildAppDeps().treatmentProgram.getForPatient({}); return Response.json(exposed); } function unrelatedScope() { async function actualHandler() { ${guarded} return Response.json({ ok: true }); } return actualHandler; } export const GET = actualHandler;`,
     ],
     [
+      'круг 10: тернарный объектный контейнер не прячет чтение до двери',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET(request) { const source = request.method === 'GET' ? { pull: async () => buildAppDeps().treatmentProgram.getForPatient({}) } : { pull: async () => buildAppDeps().treatmentProgram.getForPatient({}) }; const { pull } = source; const exposed = await pull(); ${guarded} return Response.json(exposed); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET(request) { const source = request.method === 'GET' ? { pull: async () => buildAppDeps().treatmentProgram.getForPatient({}) } : { pull: async () => buildAppDeps().treatmentProgram.getForPatient({}) }; const { pull } = source; ${guarded} const exposed = await pull(); return Response.json(exposed); }`,
+    ],
+    [
+      'круг 10: тернарный массивный контейнер не прячет чтение до двери',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function POST(request) { const source = request.method === 'GET' ? [async () => buildAppDeps().materialRating.listForPatient({})] : [async () => buildAppDeps().materialRating.listForPatient({})]; const [pull] = source; const exposed = await Promise.all([pull()]); ${guarded} return Response.json(exposed); }`,
+      new Map(),
+      'reads data through `materialRating` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function POST(request) { const source = request.method === 'GET' ? [async () => buildAppDeps().materialRating.listForPatient({})] : [async () => buildAppDeps().materialRating.listForPatient({})]; const [pull] = source; ${guarded} const exposed = await Promise.all([pull()]); return Response.json(exposed); }`,
+    ],
+    [
+      'круг 10: небезопасна ОДНА ветвь тернарника — молчания быть не должно',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET(request) { const source = request.method === 'GET' ? { pull: async () => buildAppDeps().treatmentProgram.getForPatient({}) } : { pull: async () => ({}) }; const { pull } = source; const exposed = await pull(); ${guarded} return Response.json(exposed); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET(request) { const source = request.method === 'GET' ? { pull: async () => buildAppDeps().treatmentProgram.getForPatient({}) } : { pull: async () => ({}) }; const { pull } = source; ${guarded} const exposed = await pull(); return Response.json(exposed); }`,
+    ],
+    [
       'handler without the common door',
       'patient/x/route.ts',
       'export async function GET() { return Response.json({ ok: true }); }',
@@ -1042,6 +1083,12 @@ function selfTest() {
   }
 
   const canonical = [
+    [
+      'круг 10: безопасный handler из тернарного контейнера остаётся разрешён',
+      'patient/x/route.ts',
+      `${guardImport} const source = process.env.NODE_ENV === 'test' ? { pull: async () => { ${guarded} return Response.json({ ok: true }); } } : { pull: async () => { ${guarded} return Response.json({ ok: true }); } }; const { pull } = source; export const GET = pull;`,
+      new Map(),
+    ],
     [
       'круг 9: безопасный handler через объектную деструктуризацию остаётся разрешён',
       'patient/x/route.ts',
