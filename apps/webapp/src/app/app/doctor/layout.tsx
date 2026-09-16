@@ -62,7 +62,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     >
       {shell.accessWarnings.length > 0 ? (
         <div
-          className="m-3 space-y-1 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          className="m-3 space-y-1 rounded-[var(--doctor-page-block-radius,10px)] border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
           role="alert"
         >
           {shell.accessWarnings.map((warning) => (

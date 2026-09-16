@@ -13,7 +13,7 @@ export function BroadcastSentMessage({ preview }: Props) {
   return (
     <div
       id="broadcast-sent-message"
-      className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3"
+      className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-4 flex flex-col gap-3"
     >
       <p className="font-medium text-sm">Рассылка запущена. Журнал обновится автоматически.</p>
       <p className="text-xs text-muted-foreground">

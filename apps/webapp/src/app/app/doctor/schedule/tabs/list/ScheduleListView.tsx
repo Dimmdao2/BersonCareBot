@@ -69,7 +69,7 @@ function ListDayCard({
   return (
     // Владелец 14.09: «стандартный плоский список … заполнение так же как на мобиле, а
     // контейнер … как на десктопных клиентах / чатах» — раньше каждый день был своей
-    // скруглённой карточкой (md:rounded-xl md:border md:p-3), а КАЖДАЯ запись внутри неё —
+    // скруглённой карточкой (10px, border, padding), а КАЖДАЯ запись внутри неё —
     // ЕЩЁ одной вложенной карточкой (md:rounded-md md:border). Теперь и день, и запись
     // плоские на всех брейкпоинтах (мобильное оформление); цветовую палитру по филиалу/
     // статусу (R29, listRowClass/listRowStyle) не трогаем — она остаётся волосяной нижней
@@ -430,7 +430,7 @@ export function ListView({
         <DoctorPanelLoading className="p-6" />
       ) : dayGroups.length === 0 ? (
         <div
-          className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground"
+          className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-6 text-center text-sm text-muted-foreground"
           data-testid="list-empty"
         >
           Записей нет

@@ -528,7 +528,7 @@ export function ContentForm({
           {hasLegacyHtmlOnly && !legacyReplacementStarted ? (
             <>
               <input type="hidden" name="body_md" value="" readOnly />
-              <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/10 p-[18px]">
+              <div className="flex flex-col gap-3 rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-muted/10 p-[18px]">
                 <div className="flex flex-col gap-1">
                   <span className={fieldLabelClass}>Содержимое в старом формате</span>
                   <p className="m-0 text-sm text-muted-foreground">

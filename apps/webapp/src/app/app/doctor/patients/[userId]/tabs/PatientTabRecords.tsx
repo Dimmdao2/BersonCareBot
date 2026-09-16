@@ -989,7 +989,7 @@ export function PatientTabRecords({
                   <div
                     key={appt.id}
                     className={cn(
-                      'rounded-xl border bg-primary/5 p-3',
+                      'rounded-[var(--doctor-page-block-radius,10px)] border bg-primary/5 p-3',
                       highlightedPackageId && appt.patientPackageId === highlightedPackageId
                         ? 'border-violet-500/60'
                         : 'border-primary/30',

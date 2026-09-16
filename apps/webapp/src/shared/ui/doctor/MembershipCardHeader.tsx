@@ -64,7 +64,7 @@ export function MembershipCardHeader({
     : null;
 
   return (
-    <div className="rounded-xl border border-border bg-muted/10 p-3 flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5 rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-muted/10 p-3">
       {/* Title */}
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm font-semibold text-foreground">{title}</p>

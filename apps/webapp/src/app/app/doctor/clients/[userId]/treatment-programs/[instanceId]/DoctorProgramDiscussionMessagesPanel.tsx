@@ -602,8 +602,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           renderTextarea={(textareaProps) => (
             <Textarea
               {...textareaProps}
-              className="min-h-10 resize-none rounded-[18px] py-2 pr-10 pl-3 leading-5"
-              style={{ borderRadius: 18 }}
+              className="min-h-10 resize-none py-2 pr-10 pl-3 leading-5"
             />
           )}
           renderSubmit={(buttonProps) => (

@@ -2674,7 +2674,7 @@ export function ScheduleCalendarTab({
             <div className="relative -mx-3 h-full min-h-0 md:mx-0">
               <div
                 className={cn(
-                  'relative h-full min-h-0 w-full flex-1 touch-pan-y overscroll-contain border-0 bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:w-full md:rounded-xl md:border md:border-border',
+                  'relative h-full min-h-0 w-full flex-1 touch-pan-y overscroll-contain border-0 bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:w-full md:rounded-[var(--doctor-page-block-radius,10px)] md:border md:border-border',
                   view === 'month' && isMobileViewport
                     ? 'overflow-x-hidden overflow-y-auto'
                     : 'overflow-hidden',

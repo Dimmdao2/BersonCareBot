@@ -277,7 +277,7 @@ export function MarkdownEditor({
       </div>
       <div
         className={cn(
-          'overflow-hidden rounded-xl border border-border bg-white',
+          'overflow-hidden rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-white',
           'focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15',
           disabled && 'bg-muted/30 opacity-70',
         )}

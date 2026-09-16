@@ -151,7 +151,7 @@ export function DiagnosisAutocomplete({
           onChange={(event) => handleChange(event.target.value)}
           placeholder="Начните вводить — поиск по справочнику..."
           autoComplete="off"
-          className="flex-1 rounded-t-lg"
+          className="flex-1 rounded-t-[var(--doctor-control-radius,7px)]"
         />
         <Button
           type="button"
@@ -167,7 +167,7 @@ export function DiagnosisAutocomplete({
         </Button>
       </div>
       {showDropdown ? (
-        <div className="mx-[19px] overflow-hidden rounded-b-lg border border-t-0 border-primary bg-background text-sm">
+        <div className="mx-[19px] overflow-hidden rounded-b-[var(--doctor-control-radius,7px)] border border-t-0 border-primary bg-background text-sm">
           {loading ? <DoctorPanelLoading className="px-2.5 py-2" /> : null}
           {!loading
             ? suggestions.map((suggestion, index) => (

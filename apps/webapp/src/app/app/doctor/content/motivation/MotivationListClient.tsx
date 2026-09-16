@@ -106,7 +106,7 @@ function SortableQuoteRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex flex-col gap-2 rounded-xl border border-border/80 bg-card px-2 py-2"
+      className="flex flex-col gap-2 rounded-[var(--doctor-page-block-radius,10px)] border border-border/80 bg-card px-2 py-2"
     >
       <div className="flex items-start gap-2">
         <DragHandle listeners={listeners as never} attributes={attributes as never} />
@@ -262,7 +262,7 @@ export function MotivationListClient({ quoteRows }: { quoteRows: QuoteRow[] }) {
       {showAdd ? (
         <form
           action={quoteAction}
-          className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4"
+          className="flex flex-col gap-2 rounded-[var(--doctor-page-block-radius,10px)] border border-dashed border-border p-4"
         >
           <strong className="text-sm">Новая цитата</strong>
           <Textarea name="body_text" className="text-sm" rows={2} placeholder="Текст" required />

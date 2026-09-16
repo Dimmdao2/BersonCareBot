@@ -32,7 +32,7 @@ export function DataLoadFailureNotice({
   return (
     <div
       role="alert"
-      className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-foreground"
+      className="rounded-[var(--doctor-page-block-radius,10px)] border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-foreground"
     >
       <p className="m-0 font-medium">{title}</p>
       <p className="mt-2 text-xs text-muted-foreground">

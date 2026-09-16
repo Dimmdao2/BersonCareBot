@@ -705,7 +705,7 @@ function PrepaymentControl({
               <button
                 type="button"
                 className={cn(
-                  'h-8 min-w-8 rounded-[8px] border px-2 text-sm transition-colors',
+                  'h-8 min-w-8 rounded-[var(--doctor-button-radius,7px)] border px-2 text-sm transition-colors',
                   value.unit === 'rubles'
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-border bg-white text-foreground',
@@ -719,7 +719,7 @@ function PrepaymentControl({
               <button
                 type="button"
                 className={cn(
-                  'h-8 min-w-8 rounded-[8px] border px-2 text-sm transition-colors',
+                  'h-8 min-w-8 rounded-[var(--doctor-button-radius,7px)] border px-2 text-sm transition-colors',
                   value.unit === 'percent'
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-border bg-white text-foreground',
