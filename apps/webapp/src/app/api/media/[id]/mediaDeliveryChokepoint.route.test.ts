@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   recordEvent: vi.fn(),
   resolvePatientOrganization: vi.fn(),
   withPatientPrincipal: vi.fn(),
+  patientGate: vi.fn(),
 }));
 
 vi.mock('@/config/env', () => ({
@@ -34,7 +35,7 @@ vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (_context: unknown, operation: () => unknown) => operation(),
 }));
 vi.mock('@/app-layer/guards/requireRole', () => ({
-  requirePatientApiBusinessAccess: async () => ({ ok: true, session: await mocks.getSession() }),
+  requirePatientApiBusinessAccess: mocks.patientGate,
   requireDoctorWorkspaceApiContext: vi.fn(),
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
@@ -100,6 +101,7 @@ describe('media delivery routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getSession.mockResolvedValue(appSession);
+    mocks.patientGate.mockResolvedValue({ ok: true, session: appSession });
     mocks.authorize.mockResolvedValue(allowed);
     mocks.ttl.mockResolvedValue(900);
     mocks.getS3Key.mockResolvedValue({ key: 'media/file.mp4', target: 'patient' });
@@ -132,6 +134,20 @@ describe('media delivery routes', () => {
 
     expect(response.status).toBe(404);
     expect(mocks.getS3Key).not.toHaveBeenCalled();
+  });
+
+  it('does not reach media authorization when the patient email door refuses', async () => {
+    mocks.patientGate.mockResolvedValue({
+      ok: false,
+      response: Response.json({ ok: false, error: 'patient_email_required' }, { status: 403 }),
+    });
+
+    const response = await getMedia(new Request(`https://app.test/api/media/${mediaId}`), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(mocks.authorize).not.toHaveBeenCalled();
   });
 
   it('preserves the base route forbidden status without reaching S3', async () => {
