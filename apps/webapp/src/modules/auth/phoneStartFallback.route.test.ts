@@ -273,44 +273,13 @@ describe('direct phone OTP boundary', () => {
     expect(fakes.startPhoneAuth).not.toHaveBeenCalled();
   });
 
-  it('keeps authenticated profile binding through phone/start alive', async () => {
-    const response = await startPhone(
-      startRequest({
-        phone: '+79991234567',
-        purpose: 'profile_bind',
-        deliveryChannel: 'telegram',
-      }),
-    );
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      ok: true,
-      challengeId: 'profile-bind-challenge',
-      retryAfterSeconds: 60,
-      deliveryChannel: 'telegram',
-    });
-  });
 
-  it('keeps the branded clinic sender scope for direct profile binding', async () => {
-    fakes.surface.current = 'patient_branded';
-
-    const response = await startPhone(
-      startRequest({
-        phone: '+79991234567',
-        purpose: 'profile_bind',
-        deliveryChannel: 'telegram',
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    // §10a: держим ОДНО свойство, у которого нет другого наблюдаемого выхода, — код брендированной
-    // поверхности уходит ботом своей клиники, а не чужой. Остальной состав вызова не проверяем:
-    // честное переименование поля не должно красить набор.
-    expect(fakes.startPhoneAuth.mock.calls.at(-1)?.[2]?.delivery?.clinicRequiredOrganizationId).toBe(
-      BRANDED_ORGANIZATION_ID,
-    );
-  });
-
+  /* §10b: положительные ожидания прямой привязки номера через `phone/start` сняты. У этого пути нет
+     ни одного продуктового клиента — живая привязка идёт `PhoneMessengerAuthFlow` →
+     `phone/messenger-bind/*`, — а owner-оракул С7 говорит только о ВХОДЕ. Ожидания были взяты из
+     самого кода и не видели разрыв цепочки: удаление `profileBindUserId` оставляло набор зелёным.
+     Остаётся матрица отказов: она держит решение владельца, а не устройство снятого пути. */
   it('rejects phone/confirm challenges that were not issued for profile binding', async () => {
     fakes.getPhoneChallenge.mockResolvedValue({
       phone: '+79991234567',
