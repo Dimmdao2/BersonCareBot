@@ -312,6 +312,31 @@ describe('email/password login HTTP boundary', () => {
     });
   });
 
+  /**
+   * Владелец 16.09: «надо не пропускать». Отказ резолвера членства — ошибка базы или неоднозначное
+   * членство — раньше был неотличим от «клиника фактора не требует», и вход продолжался паролем без
+   * обязательного второго фактора. Теперь отказ заканчивается отказом входа, а не пропуском фактора.
+   */
+  it('отказ резолвера клиники не пропускает вход без второго фактора', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue(user);
+    fakes.getSecurityStatus.mockResolvedValue({
+      enrolled: false,
+      recoveryConfirmed: false,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 1,
+    });
+    fakes.resolveOrganizationForUser.mockRejectedValue(
+      new Error('multiple_active_staff_memberships'),
+    );
+
+    const response = await login(request());
+
+    expect(response.status).toBe(500);
+    expect(fakes.setSession).not.toHaveBeenCalled();
+  });
+
   it('allows a correct password on its matching explicit staff portal', async () => {
     fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
     fakes.findUser.mockResolvedValue(user);
