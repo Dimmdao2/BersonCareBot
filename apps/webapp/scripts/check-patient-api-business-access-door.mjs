@@ -81,6 +81,21 @@ function importedGuardLocals(sourceFile) {
   return locals;
 }
 
+/**
+ * Ratchet: a route that already entered through the shared guard may never quietly drop it, even
+ * when it lives outside `api/patient/**` and `api/booking/**` (media delivery is such a place).
+ */
+function importsAcceptedGuard(source) {
+  const sourceFile = ts.createSourceFile(
+    'scope-probe.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  return importedGuardLocals(sourceFile).size > 0;
+}
+
 function exportedHandlers(sourceFile) {
   const handlers = [];
   for (const statement of sourceFile.statements) {
@@ -188,7 +203,8 @@ function handlerPassesDoor(body, guardLocals) {
 }
 
 export function checkSource(relativePath, source, exceptions = routeExceptions) {
-  if (!isGuardedRoute(relativePath)) return [];
+  const inScope = isGuardedRoute(relativePath) || importsAcceptedGuard(source);
+  if (!inScope) return [];
 
   const reason = exceptions.get(relativePath);
   if (reason !== undefined) {
@@ -225,15 +241,13 @@ function checkTree() {
   let exceptionCount = 0;
   const seen = new Set();
 
-  for (const area of ['patient', 'booking']) {
-    const root = path.join(apiRoot, area);
-    if (!fs.existsSync(root)) continue;
-    for (const file of collectRouteFiles(root)) {
+  for (const file of collectRouteFiles(apiRoot)) {
+    {
       const relativePath = path.relative(apiRoot, file).split(path.sep).join('/');
-      if (!isGuardedRoute(relativePath)) continue;
+      const source = fs.readFileSync(file, 'utf8');
+      if (!isGuardedRoute(relativePath) && !importsAcceptedGuard(source)) continue;
       seen.add(relativePath);
       routeCount += 1;
-      const source = fs.readFileSync(file, 'utf8');
       const sourceFile = ts.createSourceFile(
         relativePath,
         source,
@@ -290,6 +304,12 @@ function selfTest() {
       new Map(),
     ],
     [
+      'a route outside the two areas may not drop the guard it already entered through',
+      'media/[id]/route.ts',
+      `${guardImport} export async function GET() { await requirePatientApiBusinessAccess(); return Response.json({ ok: true }); }`,
+      new Map(),
+    ],
+    [
       'exception without a reason',
       'patient/x/route.ts',
       'export async function GET() { return Response.json({ ok: true }); }',
@@ -321,6 +341,12 @@ function selfTest() {
       'patient/support/route.ts',
       'export async function POST() { return Response.json({ ok: true }); }',
       new Map([['patient/support/route.ts', 'support remains reachable from the gate']]),
+    ],
+    [
+      'a route outside the two areas that never entered through the guard stays out of scope',
+      'media/[id]/route.ts',
+      'export async function GET() { return Response.json({ ok: true }); }',
+      new Map(),
     ],
     [
       'public booking is outside the protected route scope',
