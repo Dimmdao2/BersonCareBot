@@ -14,7 +14,7 @@ import {
 import { confirmPublicEmailOtpChallenge } from '@/modules/auth/emailOtpPublic';
 import { setSessionFromUser } from '@/modules/auth/service';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
-import { isVerifiedEmailGlobalAdminAsync } from '@/modules/auth/envRole';
+import { isVerifiedEmailGlobalAdminAsync } from '@/modules/auth/emailAuth';
 import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,

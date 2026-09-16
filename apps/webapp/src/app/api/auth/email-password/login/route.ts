@@ -7,7 +7,6 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { normalizeEmail } from '@/modules/auth/emailAuth';
 import { resolveLoginAttemptOrigin } from '@/modules/auth/loginAttemptOrigin';
-import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { setSessionFromUser } from '@/modules/auth/service';
 import {
@@ -209,7 +208,7 @@ export async function POST(request: Request) {
 
     enterStaffSecuritySelfPrincipal(pwd.userId, 'api/auth/email-password/login:primary-verified');
 
-    let sessionUser = await deps.userByPhone.findByUserId(pwd.userId);
+    const sessionUser = await deps.userByPhone.findByUserId(pwd.userId);
     if (!sessionUser) {
       return NextResponse.json(
         {
@@ -219,17 +218,6 @@ export async function POST(request: Request) {
         },
         { status: 401 },
       );
-    }
-
-    const envRole = resolveRoleFromEnv({
-      phone: sessionUser.phone,
-      telegramId: sessionUser.bindings.telegramId,
-      maxId: sessionUser.bindings.maxId,
-    });
-    const effectiveRole = reconcileDbRoleWithEnvRole(sessionUser.role, envRole);
-    if (sessionUser.role !== effectiveRole) {
-      await deps.userProjection.updateRole(sessionUser.userId, effectiveRole);
-      sessionUser = { ...sessionUser, role: effectiveRole };
     }
 
     if (!isPasswordEligibleRole(sessionUser.role)) {

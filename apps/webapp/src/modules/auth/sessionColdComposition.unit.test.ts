@@ -73,11 +73,8 @@ vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
   ensureCorrelationId: vi.fn(),
   ensureDbPrincipalContext: vi.fn(),
 }));
-vi.mock('@/modules/auth/envRole', () => ({
+vi.mock('@/modules/auth/emailAuth', () => ({
   isVerifiedEmailGlobalAdminAsync: vi.fn(async () => false),
-  reconcileDbRoleWithEnvRole: vi.fn(),
-  resolveRoleAsync: vi.fn(),
-  isWhitelistedAsync: vi.fn(),
 }));
 vi.mock('@/modules/system-settings/integrationRuntime', () => ({
   getIntegratorWebappEntrySecret: vi.fn(),

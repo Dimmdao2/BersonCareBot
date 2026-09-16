@@ -43,7 +43,6 @@ describe('public identity cutover: bot entry is resolve-only', () => {
       channelCode: 'telegram',
       externalId: 'unbound-chat',
       displayName: 'Unregistered person',
-      role: 'client',
     });
 
     expect(result).toBeNull();

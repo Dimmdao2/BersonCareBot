@@ -371,7 +371,6 @@ import {
   isS3MediaEnabled,
   webappReposAreInMemory,
 } from '@/config/env';
-import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { getDeliveryTargetsForIntegrator } from '@/modules/integrator/deliveryTargetsApi';
 import { getDeliveryTargetsForUser } from '@/modules/channel-preferences/deliveryTargets';
@@ -1862,11 +1861,11 @@ function _buildAppDeps() {
     auth: {
       getCurrentSession,
       exchangeIntegratorToken: (token: string) =>
-        exchangeIntegratorToken(token, identityResolutionPort, userProjectionPort.updateRole),
+        exchangeIntegratorToken(token, identityResolutionPort),
       exchangeTelegramInitData: (initData: string) =>
-        exchangeTelegramInitData(initData, identityResolutionPort, userProjectionPort.updateRole),
+        exchangeTelegramInitData(initData, identityResolutionPort),
       exchangeMaxInitData: (initData: string) =>
-        exchangeMaxInitData(initData, identityResolutionPort, userProjectionPort.updateRole),
+        exchangeMaxInitData(initData, identityResolutionPort),
       exchangeTelegramLoginWidget: (
         payload: TelegramLoginWidgetPayload,
         webappEntryToken?: string | null,
@@ -1874,7 +1873,6 @@ function _buildAppDeps() {
         exchangeTelegramLoginWidget(
           payload,
           identityResolutionPort,
-          userProjectionPort.updateRole,
           webappEntryToken,
         ),
       clearSession,
@@ -1890,30 +1888,18 @@ function _buildAppDeps() {
         const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps, options);
         if (!result.ok) return result;
         if ('mergeRequired' in result && result.mergeRequired) return result;
-        const envRole = resolveRoleFromEnv({
-          phone: result.user.phone,
-          telegramId: result.user.bindings?.telegramId,
-          maxId: result.user.bindings?.maxId,
-        });
-        const effectiveRole = reconcileDbRoleWithEnvRole(result.user.role, envRole);
         try {
           await markPhoneMessengerBindConsumedByChallenge(challengeId, phoneMessengerBindPort);
-          if (result.user.role !== effectiveRole) {
-            await userProjectionPort.updateRole(result.user.userId, effectiveRole);
-          }
           await consumePhoneOtpChallenge(challengeId, phoneAuthDeps);
         } catch {
           return { ok: false as const, code: 'server_error' };
         }
-        const user =
-          result.user.role === effectiveRole
-            ? result.user
-            : { ...result.user, role: effectiveRole };
+        const user = result.user;
         return {
           ok: true as const,
           mergeRequired: false as const,
           user,
-          redirectTo: getRedirectPathForRole(effectiveRole),
+          redirectTo: getRedirectPathForRole(user.role),
           deliveryChannel: result.deliveryChannel,
           wasCreated: result.wasCreated,
           mergedAccountId: result.mergedAccountId,

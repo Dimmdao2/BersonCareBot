@@ -138,7 +138,7 @@ const envSchema = z.object({
    * C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): the ONE identity pinned as the
    * platform owner, in an environment variable — outside the application's own settings, the same
    * way Django's `createsuperuser`, AWS root, and Auth0's provider console are provisioned. Both
-   * `envRole.ts:isVerifiedEmailGlobalAdminAsync` (the fresh, per-session admin elevation check) and
+   * `emailAuth.ts:isVerifiedEmailGlobalAdminAsync` (the fresh, per-session admin elevation check) and
    * `instrumentation.ts:ensurePlatformOwnerAdminRole` (the idempotent `platform_users.role='admin'`
    * assertion that replaces the literal address migration `0233_global_admin_hard_role.sql` hardcoded)
    * read only this value — never the DB-resident `admin_emails` allowlist.

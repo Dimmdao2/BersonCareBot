@@ -30,7 +30,6 @@ export const channelBindingLookupParamsSchema = z.object({
 
 export const resolveByChannelBindingParamsSchema = channelBindingLookupParamsSchema.extend({
   displayName: z.string().optional(),
-  role: userRoleSchema.optional(),
 });
 
 export const channelContextSchema = z.object({

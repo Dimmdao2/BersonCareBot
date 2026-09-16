@@ -5,8 +5,6 @@ import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
 const fakes = vi.hoisted(() => ({
   setSessionFromUser: vi.fn(),
   recordAuthLogin: vi.fn(),
-  resolveRoleAsync: vi.fn(),
-  reconcileDbRoleWithEnvRole: vi.fn(),
   getPostAuthRedirectTarget: vi.fn(),
 }));
 
@@ -19,10 +17,6 @@ vi.mock('@/config/env', () => ({
 vi.mock('@/modules/auth/service', () => ({ setSessionFromUser: fakes.setSessionFromUser }));
 vi.mock('@/app-layer/product-analytics/recordAuthLogin', () => ({
   recordAuthLogin: fakes.recordAuthLogin,
-}));
-vi.mock('@/modules/auth/envRole', () => ({
-  resolveRoleAsync: fakes.resolveRoleAsync,
-  reconcileDbRoleWithEnvRole: fakes.reconcileDbRoleWithEnvRole,
 }));
 vi.mock('@/modules/auth/redirectPolicy', () => ({
   getPostAuthRedirectTarget: fakes.getPostAuthRedirectTarget,
@@ -56,8 +50,6 @@ function userPort(user: SessionUser): UserByPhonePort {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fakes.resolveRoleAsync.mockResolvedValue('client');
-  fakes.reconcileDbRoleWithEnvRole.mockImplementation((role: SessionUser['role']) => role);
   fakes.getPostAuthRedirectTarget.mockReturnValue('/app/patient');
   fakes.setSessionFromUser.mockResolvedValue(undefined);
   fakes.recordAuthLogin.mockResolvedValue(undefined);

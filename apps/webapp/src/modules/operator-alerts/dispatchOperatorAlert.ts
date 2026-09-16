@@ -48,8 +48,8 @@ async function loadConfig(): Promise<OperatorHealthAlertConfig> {
  * C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): recipients are resolved from WHO
  * ACTUALLY HOLDS THE ADMIN ROLE right now (`platform_users.role='admin'` joined to their bound
  * channels), never from the `admin_telegram_ids`/`admin_max_ids`/`admin_phones` DB-resident address
- * lists — those no longer confer any role either (envRole.ts) and are not read here anymore. A
- * A failed DB read is returned separately from a genuinely empty audience: provider/read failure
+ * lists — those no longer confer any role and are not read here anymore. A failed DB read is
+ * returned separately from a genuinely empty audience: provider/read failure
  * must not increment the "no recipients" counter.
  */
 type AdminRelayTargets = {

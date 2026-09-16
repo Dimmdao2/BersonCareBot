@@ -2,7 +2,6 @@ import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
 import { env } from '@/config/env';
 import { setSessionFromUser } from '@/modules/auth/service';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
-import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from '@/modules/auth/envRole';
 import { roleCanUsePortal, type RoleLoginPortal } from '@/modules/auth/roleLogin';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
@@ -39,18 +38,7 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
     return { ok: false, reason: 'session_failed' };
   }
 
-  // C-4 (2026-07-26): `resolveRoleAsync` never promotes anyone anymore (envRole.ts) — reconciled
-  // against the just-read DB role so this can never demote an existing staff account (it used to
-  // overwrite `sessionUser.role` outright here, which — once the lists stopped granting anything —
-  // would have logged every doctor/admin out of their own role on every Yandex/OAuth login).
-  const role = reconcileDbRoleWithEnvRole(
-    sessionUser.role,
-    await resolveRoleAsync({
-      phone: sessionUser.phone,
-      telegramId: sessionUser.bindings.telegramId,
-      maxId: sessionUser.bindings.maxId,
-    }),
-  );
+  const role = sessionUser.role;
 
   // This is the single OAuth session-mint boundary. The signed door is authoritative even on the
   // shared DEV/TEST Host, where Host-derived surfaces intentionally collapse to `staff`.
