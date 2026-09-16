@@ -2,10 +2,15 @@ import { NextResponse } from 'next/server';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
-import { isOnDemandTlsHostnameAuthorized } from '@/app-layer/surface/onDemandTlsAuthorization';
+import { isOnDemandTlsHostnameAuthorized } from './onDemandTlsAuthorization';
 
 /**
- * GET — Caddy `on_demand_tls` `ask` authorization (C5a, B7 без wildcard).
+ * Обработчик Caddy `on_demand_tls` `ask` (C5a, B7 без wildcard). Живёт МОДУЛЕМ, а не маршрутом:
+ * адрес у этой двери ровно один — `/api/public/domains/ask`. Раньше тот же обработчик был выставлен
+ * ещё и под `/api/internal/domains/ask`, то есть наружу без входа смотрели два адреса вместо одного
+ * (перепись открытых дверей 16.09.2026). Строка источника принципала оставлена прежней намеренно:
+ * по ней `WEBAPP_LOCKED_INFRA_CRON_SOURCES` выбирает пул и роль БД, и её переименование меняет
+ * роль в бою.
  * Caddy's built-in permission request is headerless. Authorization is the exact normalized host
  * lookup; this route intentionally reveals no tenant state.
  *
@@ -18,7 +23,7 @@ import { isOnDemandTlsHostnameAuthorized } from '@/app-layer/surface/onDemandTls
  * readiness verifier owns those checks, not this request path.
  *
  */
-export async function GET(request: Request) {
+export async function handleOnDemandTlsAskRequest(request: Request) {
   const domain = new URL(request.url).searchParams.get('domain');
   if (!domain) {
     return NextResponse.json({ ok: false, error: 'missing_domain' }, { status: 400 });
