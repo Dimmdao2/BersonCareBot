@@ -31,10 +31,9 @@ business semantics from unrelated files.
 [`protectedActionRegistry.ts`](../../../apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts:37).
 Their code-search evidence is the S4 execution log scope: no route was created solely to give them a flag.
 
-### 2026-07-19 owner correction — disabled patient card/files block every write
+### Disabled patient card/files block every write
 
-The owner ruling for #888 makes `patient_card` and `files` write capabilities rather than representative rollout
-samples. The registry therefore maps every active mutation in those two sections, including both branches of the
+`patient_card` and `files` are write capabilities. The registry maps every active mutation in those two sections, including both branches of the
 comorbidity PATCH handler and its recoverable soft-remove DELETE, plus both file-item PATCH branches. A single
 handler-level guard protects branches that share the same resolved workspace/patient boundary.
 
