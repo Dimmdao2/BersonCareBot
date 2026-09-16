@@ -11,29 +11,8 @@
  * (`api/auth/email/{start,confirm}/route.ts`) and logout (`api/auth/logout/route.ts`). They are not
  * exceptions to a patient/booking route scan.
  *
- * ГРАНИЦА ЭТОГО ГЕЙТА — читать до того, как объявлять его доказательством.
- *
- * Правило ловит ФОРМЫ ЗАПИСИ, а не поток данных. Независимый аудит круга 5 (16.09.2026,
- * `docs/_TODO/AUDIT_E5A_ROUND5_2026-09-16.md`) перечислил формы, на которых оно молчит: чтение
- * через прямой репозиторий или `getDrizzle()` мимо `buildAppDeps()`; чтение внутри вызванного до
- * двери helper'а; промис, начатый до двери и дождавшийся `await` после неё; переприсваивание
- * результата двери между объявлением и проверкой. Два ЛОЖНЫХ срабатывания того же круга — на
- * объявлении inline-helper и на обработчике в обёртке — закрыты.
- *
- * Круг 6 (`docs/_TODO/AUDIT_E5A_GATE_FALSE_POSITIVES_2026-09-16.md`) показал, что снятие обеих
- * ложных тревог создало два НОВЫХ обхода, и оба закрыты здесь же:
- *   — граница функции перестала видеть чтение через ВЫЗОВ локального helper'а; теперь вызов идёт
- *     по имени в тело — один переход, не анализ потока. Граница сузилась: молчание осталось только
- *     на helper'ах, объявленных ВНЕ файла маршрута;
- *   — разбор обёртки брал ПЕРВОЕ найденное тело, и настоящий обработчик можно было спрятать первым
- *     аргументом за callback'ом с дверью; теперь дверь обязана быть в КАЖДОМ теле-кандидате, а
- *     пустой список кандидатов — отказ.
- *
- * Оставшиеся четыре формы сознательно НЕ преследуются: за ними начинается анализ потока данных, а
- * это уже не гейт, а вторая система. Правило владельца (запрет аудит-разгона): два круга подряд,
- * закрывшие только машинерию гейта и ни одного пункта плана, — стоп. Гейт здесь — сито от
- * повторения найденного класса, а не доказательство отсутствия дыр; доказательство — живой прогон
- * и обзор дифа.
+ * Граница: гейт следует только по локальным объявлениям и литералам этого route-файла; он не
+ * разрешает импортированные/межмодульные фабрики и не доказывает отсутствие обхода общим data-flow.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -132,69 +111,271 @@ function importsAcceptedGuard(source) {
   return importedGuardLocals(sourceFile).size > 0;
 }
 
-/**
- * Тело обработчика из инициализатора экспорта.
- *
- * Круг 5, MUST FIX-6: обработчик, завёрнутый в обёртку (`export const GET = makeHandler(async () =>
- * {...})`), раньше отдавал `body: undefined`, и правило краснело на НЁМ САМОМ — то есть запрещало
- * форму записи целиком, вместо того чтобы смотреть порядок внутри неё. Обёртка — законная форма;
- * разбираем её и берём тело первого функционального аргумента.
- */
-function localFunctionBodies(sourceFile) {
-  const map = new Map();
-  const add = (name, node) => {
-    if (!name || !node) return;
-    /* Тело может быть и блоком, и одним выражением (`async () => await ...`) — обе формы читают
-       одинаково, поэтому сохраняем как есть; кому нужен именно блок, проверяет это у себя. */
-    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) map.set(name, node.body);
+const MAX_LOCAL_RESOLUTION_DEPTH = 32;
+
+function lexicalScopeOf(node) {
+  let current = node;
+  while (current) {
+    if (ts.isSourceFile(current) || ts.isBlock(current) || ts.isModuleBlock(current)) return current;
+    current = current.parent;
+  }
+  return undefined;
+}
+
+function parentLexicalScope(scope) {
+  return lexicalScopeOf(scope?.parent);
+}
+
+function importBindsName(statement, name) {
+  if (!ts.isImportDeclaration(statement) || !statement.importClause) return false;
+  if (statement.importClause.name?.text === name) return true;
+  const bindings = statement.importClause.namedBindings;
+  if (bindings && ts.isNamespaceImport(bindings)) return bindings.name.text === name;
+  return Boolean(bindings?.elements.some((element) => element.name.text === name));
+}
+
+function directBindingInScope(scope, name) {
+  if (!scope) return undefined;
+
+  if (ts.isBlock(scope) && ts.isFunctionLike(scope.parent)) {
+    const parameter = scope.parent.parameters.find(
+      (candidate) => ts.isIdentifier(candidate.name) && candidate.name.text === name,
+    );
+    if (parameter) return { kind: 'unresolved', node: parameter };
+  }
+
+  const statements = scope.statements ?? [];
+  for (const statement of statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name?.text === name) {
+      return { kind: 'function', node: statement };
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.name.text === name) {
+          return { kind: 'variable', node: declaration };
+        }
+      }
+    }
+    if (
+      importBindsName(statement, name) ||
+      ((ts.isClassDeclaration(statement) || ts.isEnumDeclaration(statement)) &&
+        statement.name?.text === name)
+    ) {
+      return { kind: 'unresolved', node: statement };
+    }
+  }
+  return undefined;
+}
+
+function bindingForIdentifier(identifier, startingScope) {
+  for (let scope = startingScope; scope; scope = parentLexicalScope(scope)) {
+    const binding = directBindingInScope(scope, identifier.text);
+    if (binding) return binding;
+  }
+  return undefined;
+}
+
+function unwrapExpression(expression) {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isNonNullExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function propertyNameOf(name) {
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
+    return name.text;
+  }
+  return undefined;
+}
+
+function valueTargetsOf(expression, scope, state) {
+  const current = unwrapExpression(expression);
+  if (state.depth > MAX_LOCAL_RESOLUTION_DEPTH || state.seen.has(current)) {
+    return { targets: [], unresolvedPotential: true };
+  }
+  const nextState = { depth: state.depth + 1, seen: new Set(state.seen).add(current) };
+
+  if (!ts.isIdentifier(current)) {
+    return { targets: [current], unresolvedPotential: false };
+  }
+
+  const binding = bindingForIdentifier(current, scope);
+  if (!binding || binding.kind === 'unresolved') {
+    return { targets: [], unresolvedPotential: true };
+  }
+  if (binding.kind === 'function') {
+    return { targets: [binding.node], unresolvedPotential: false };
+  }
+  if (!binding.node.initializer) {
+    return { targets: [], unresolvedPotential: true };
+  }
+  return valueTargetsOf(binding.node.initializer, lexicalScopeOf(binding.node), nextState);
+}
+
+function memberValuesOf(receiver, propertyName, scope, state) {
+  const resolvedReceivers = valueTargetsOf(receiver, scope, state);
+  const targets = [];
+  let unresolvedPotential = resolvedReceivers.unresolvedPotential;
+
+  for (const target of resolvedReceivers.targets) {
+    if (ts.isObjectLiteralExpression(target)) {
+      let matched = false;
+      for (const property of target.properties) {
+        if (ts.isSpreadAssignment(property)) {
+          unresolvedPotential = true;
+          continue;
+        }
+        if (propertyNameOf(property.name) !== propertyName) continue;
+        matched = true;
+        if (ts.isPropertyAssignment(property)) targets.push(property.initializer);
+        else if (ts.isShorthandPropertyAssignment(property)) targets.push(property.name);
+        else if (ts.isMethodDeclaration(property)) targets.push(property);
+        else unresolvedPotential = true;
+      }
+      if (!matched) unresolvedPotential = true;
+      continue;
+    }
+    if (ts.isArrayLiteralExpression(target) && /^\d+$/.test(propertyName)) {
+      const element = target.elements[Number(propertyName)];
+      if (element && !ts.isOmittedExpression(element)) targets.push(element);
+      else unresolvedPotential = true;
+      continue;
+    }
+    unresolvedPotential = true;
+  }
+
+  return { targets, unresolvedPotential };
+}
+
+function mergeResolutions(resolutions) {
+  return {
+    bodies: resolutions.flatMap((resolution) => resolution.bodies),
+    unresolvedPotential: resolutions.some((resolution) => resolution.unresolvedPotential),
   };
-  const walk = (n) => {
-    if (ts.isFunctionDeclaration(n) && n.name && n.body) map.set(n.name.text, n.body);
-    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name)) add(n.name.text, n.initializer);
-    ts.forEachChild(n, walk);
-  };
-  walk(sourceFile);
-  return map;
 }
 
 /**
- * ВСЕ тела-кандидаты обработчика из инициализатора экспорта.
- *
- * Круг 5, MUST FIX-6: обработчик, завёрнутый в обёртку (`export const GET = makeHandler(async () =>
- * {...})`), раньше отдавал `body: undefined`, и правило краснело на НЁМ САМОМ — то есть запрещало
- * форму записи целиком, вместо того чтобы смотреть порядок внутри неё.
- *
- * Круг 6, MUST FIX-2: разбор обёртки брал ПЕРВОЕ найденное тело — и настоящий обработчик, переданный
- * первым аргументом по имени, можно было спрятать за вторым callback'ом с дверью. Поэтому теперь
- * возвращаются ВСЕ кандидаты (включая тела, найденные по имени локальной функции), и дверь обязана
- * быть в КАЖДОМ: обёртка не место, где часть путей остаётся без прохода.
+ * Resolves an expression to every locally declared function body it may denote. Resolution is
+ * lexical (nearest binding wins), bounded, cycle-safe, and intentionally stops at module imports.
  */
-function handlerBodiesOf(initializer, locals, seen = new Set()) {
-  if (!initializer) return [];
+function resolveToFunctionBodies(expression, scope = lexicalScopeOf(expression), state = undefined) {
+  if (!expression) return { bodies: [], unresolvedPotential: false };
+  const current = unwrapExpression(expression);
+  const resolutionState = state ?? { depth: 0, seen: new Set() };
   if (
-    (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) &&
-    ts.isBlock(initializer.body)
+    resolutionState.depth > MAX_LOCAL_RESOLUTION_DEPTH ||
+    resolutionState.seen.has(current)
   ) {
-    return [initializer.body];
+    return { bodies: [], unresolvedPotential: true };
   }
-  if (ts.isIdentifier(initializer) && locals.has(initializer.text) && !seen.has(initializer.text)) {
-    seen.add(initializer.text);
-    const body = locals.get(initializer.text);
-    return ts.isBlock(body) ? [body] : [];
+  const nextState = {
+    depth: resolutionState.depth + 1,
+    seen: new Set(resolutionState.seen).add(current),
+  };
+
+  if (
+    ts.isArrowFunction(current) ||
+    ts.isFunctionExpression(current) ||
+    ts.isFunctionDeclaration(current) ||
+    ts.isMethodDeclaration(current)
+  ) {
+    return current.body
+      ? { bodies: [current.body], unresolvedPotential: false }
+      : { bodies: [], unresolvedPotential: true };
   }
-  if (ts.isCallExpression(initializer)) {
-    const out = [];
-    for (const argument of initializer.arguments) {
-      out.push(...handlerBodiesOf(argument, locals, seen));
+
+  if (ts.isIdentifier(current)) {
+    const binding = bindingForIdentifier(current, scope);
+    if (!binding || binding.kind === 'unresolved') {
+      return { bodies: [], unresolvedPotential: true };
     }
-    return out;
+    if (binding.kind === 'function') {
+      return resolveToFunctionBodies(binding.node, lexicalScopeOf(binding.node), nextState);
+    }
+    if (!binding.node.initializer) return { bodies: [], unresolvedPotential: true };
+    return resolveToFunctionBodies(
+      binding.node.initializer,
+      lexicalScopeOf(binding.node),
+      nextState,
+    );
   }
-  return [];
+
+  if (ts.isArrayLiteralExpression(current)) {
+    return mergeResolutions(
+      current.elements
+        .filter((element) => !ts.isOmittedExpression(element))
+        .map((element) => resolveToFunctionBodies(element, lexicalScopeOf(element), nextState)),
+    );
+  }
+
+  if (ts.isConditionalExpression(current)) {
+    return mergeResolutions([
+      resolveToFunctionBodies(current.whenTrue, lexicalScopeOf(current.whenTrue), nextState),
+      resolveToFunctionBodies(current.whenFalse, lexicalScopeOf(current.whenFalse), nextState),
+    ]);
+  }
+
+  if (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+    const propertyName = ts.isPropertyAccessExpression(current)
+      ? current.name.text
+      : current.argumentExpression && propertyNameOf(unwrapExpression(current.argumentExpression));
+    if (propertyName === undefined) return { bodies: [], unresolvedPotential: true };
+    if (
+      ts.isPropertyAccessExpression(current) &&
+      (propertyName === 'call' || propertyName === 'apply' || propertyName === 'bind')
+    ) {
+      return resolveToFunctionBodies(current.expression, scope, nextState);
+    }
+    const members = memberValuesOf(current.expression, propertyName, scope, nextState);
+    const resolved = mergeResolutions(
+      members.targets.map((target) =>
+        resolveToFunctionBodies(target, lexicalScopeOf(target), nextState),
+      ),
+    );
+    return {
+      bodies: resolved.bodies,
+      unresolvedPotential: members.unresolvedPotential || resolved.unresolvedPotential,
+    };
+  }
+
+  if (ts.isCallExpression(current)) {
+    if (
+      ts.isPropertyAccessExpression(current.expression) &&
+      (current.expression.name.text === 'call' ||
+        current.expression.name.text === 'apply' ||
+        current.expression.name.text === 'bind')
+    ) {
+      return resolveToFunctionBodies(current.expression.expression, scope, nextState);
+    }
+    const argumentsResolution = mergeResolutions(
+      current.arguments.map((argument) =>
+        resolveToFunctionBodies(argument, lexicalScopeOf(argument), nextState),
+      ),
+    );
+    return {
+      bodies: argumentsResolution.bodies,
+      unresolvedPotential:
+        argumentsResolution.unresolvedPotential || argumentsResolution.bodies.length === 0,
+    };
+  }
+
+  return { bodies: [], unresolvedPotential: false };
+}
+
+function handlerBodiesOf(initializer) {
+  return resolveToFunctionBodies(initializer);
 }
 
 function exportedHandlers(sourceFile) {
   const handlers = [];
-  const locals = localFunctionBodies(sourceFile);
   for (const statement of sourceFile.statements) {
     if (
       ts.isFunctionDeclaration(statement) &&
@@ -202,7 +383,10 @@ function exportedHandlers(sourceFile) {
       statement.name &&
       httpMethods.has(statement.name.text)
     ) {
-      handlers.push({ method: statement.name.text, bodies: [statement.body] });
+      handlers.push({
+        method: statement.name.text,
+        ...resolveToFunctionBodies(statement, sourceFile),
+      });
       continue;
     }
     if (ts.isVariableStatement(statement) && isExported(statement)) {
@@ -210,8 +394,7 @@ function exportedHandlers(sourceFile) {
         if (!ts.isIdentifier(declaration.name) || !httpMethods.has(declaration.name.text)) {
           continue;
         }
-        const bodies = handlerBodiesOf(declaration.initializer, locals);
-        handlers.push({ method: declaration.name.text, bodies });
+        handlers.push({ method: declaration.name.text, ...handlerBodiesOf(declaration.initializer) });
       }
       continue;
     }
@@ -222,7 +405,7 @@ function exportedHandlers(sourceFile) {
     ) {
       for (const element of statement.exportClause.elements) {
         if (httpMethods.has(element.name.text)) {
-          handlers.push({ method: element.name.text, bodies: [] });
+          handlers.push({ method: element.name.text, bodies: [], unresolvedPotential: true });
         }
       }
     }
@@ -341,7 +524,7 @@ function dataReadPortOf(expression, depsVars) {
 }
 
 /** Первый порт данных, прочитанный внутри узла, в порядке появления. */
-function firstDataReadPortIn(node, depsVars, locals = new Map(), seen = new Set()) {
+function firstDataReadPortIn(node, depsVars, seenBodies = new Set()) {
   let found;
   const visit = (n) => {
     if (found !== undefined) return;
@@ -364,13 +547,12 @@ function firstDataReadPortIn(node, depsVars, locals = new Map(), seen = new Set(
         found = port;
         return;
       }
-      /* Круг 6, MUST FIX-1: ВЫЗОВ локально объявленной функции читает ровно то, что читает её тело.
-         Граница функции (круг 5) снимала ложную тревогу на ОБЪЯВЛЕНИИ — и заодно перестала видеть
-         чтение через вызов. Здесь она возвращается по имени: один переход, не анализ потока. */
       const callee = ts.isCallExpression(n.expression) ? n.expression.expression : undefined;
-      if (callee && ts.isIdentifier(callee) && locals.has(callee.text) && !seen.has(callee.text)) {
-        seen.add(callee.text);
-        const nested = firstDataReadPortIn(locals.get(callee.text), depsVars, locals, seen);
+      const resolved = resolveToFunctionBodies(callee, lexicalScopeOf(callee));
+      for (const body of resolved.bodies) {
+        if (seenBodies.has(body)) continue;
+        const nestedSeen = new Set(seenBodies).add(body);
+        const nested = firstDataReadPortIn(body, depsVars, nestedSeen);
         if (nested !== undefined) {
           found = nested;
           return;
@@ -383,7 +565,8 @@ function firstDataReadPortIn(node, depsVars, locals = new Map(), seen = new Set(
   return found;
 }
 
-function handlerPassesDoor(body, guardLocals, locals = new Map()) {
+function handlerPassesDoor(body, guardLocals) {
+  if (!ts.isBlock(body)) return { ok: false };
   for (let index = 0; index < body.statements.length; index += 1) {
     const binding = guardBindingFromStatement(body.statements[index], guardLocals);
     if (!binding) continue;
@@ -396,7 +579,7 @@ function handlerPassesDoor(body, guardLocals, locals = new Map()) {
         // Порядок (круг 4, MUST FIX-1): дверь обязана стоять ВЫШЕ любого чтения данных.
         const depsVars = depsLocals(body);
         for (const earlier of body.statements.slice(0, index)) {
-          const port = firstDataReadPortIn(earlier, depsVars, locals);
+          const port = firstDataReadPortIn(earlier, depsVars);
           if (port !== undefined) return { ok: false, early: port };
         }
         return { ok: true };
@@ -426,15 +609,14 @@ export function checkSource(relativePath, source, exceptions = routeExceptions) 
     ts.ScriptKind.TS,
   );
   const guardLocals = importedGuardLocals(sourceFile);
-  const sourceLocals = localFunctionBodies(sourceFile);
   const findings = [];
   for (const handler of exportedHandlers(sourceFile)) {
-    /* Круг 6, MF2: дверь обязана быть в КАЖДОМ теле-кандидате; пустой список — тоже отказ. */
-    const verdicts = (handler.bodies ?? []).map((body) =>
-      handlerPassesDoor(body, guardLocals, sourceLocals),
-    );
+    /* Every candidate must pass; a possibly-functional unresolved wrapper argument fails closed. */
+    const verdicts = (handler.bodies ?? []).map((body) => handlerPassesDoor(body, guardLocals));
     const verdict =
-      verdicts.length === 0 ? { ok: false } : (verdicts.find((v) => !v.ok) ?? { ok: true });
+      verdicts.length === 0 || handler.unresolvedPotential
+        ? { ok: false }
+        : (verdicts.find((v) => !v.ok) ?? { ok: true });
     if (verdict.ok) continue;
     if (verdict.early) {
       findings.push(
@@ -503,10 +685,74 @@ function selfTest() {
       new Map(),
     ],
     [
+      'круг 7, MF1: alias локального helper не скрывает чтение до двери',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const loadPlan = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const f = loadPlan; const exposed = await f(); ${guarded} return Response.json(exposed); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const loadPlan = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const f = loadPlan; ${guarded} const exposed = await f(); return Response.json(exposed); }`,
+    ],
+    [
+      'круг 7, MF1: .call локального helper не скрывает чтение до двери',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const loadPlan = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const exposed = await loadPlan.call(null); ${guarded} return Response.json(exposed); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const loadPlan = async () => await buildAppDeps().treatmentProgram.getForPatient({}); ${guarded} const exposed = await loadPlan.call(null); return Response.json(exposed); }`,
+    ],
+    [
+      'круг 7, MF1: метод объектного литерала не скрывает чтение до двери',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const loadPlan = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const loaders = { loadPlan }; const exposed = await loaders.loadPlan(); ${guarded} return Response.json(exposed); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const loadPlan = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const loaders = { loadPlan }; ${guarded} const exposed = await loaders.loadPlan(); return Response.json(exposed); }`,
+    ],
+    [
+      'круг 7, MF1: элемент массива не скрывает чтение до двери',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const loadPlan = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const exposed = await [loadPlan][0](); ${guarded} return Response.json(exposed); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const loadPlan = async () => await buildAppDeps().treatmentProgram.getForPatient({}); ${guarded} const exposed = await [loadPlan][0](); return Response.json(exposed); }`,
+    ],
+    [
       'круг 6, MF2: настоящий обработчик спрятан первым аргументом обёртки, дверь — во втором callback',
       'patient/x/route.ts',
       `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { return Response.json(await buildAppDeps().treatmentProgram.getForPatient({})); } export const GET = wrap(actualHandler, async () => { ${guarded} return Response.json({ settled: true }); });`,
       new Map(),
+    ],
+    [
+      'круг 7, MF2: alias обработчика не маскируется защищённым callback',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { return Response.json(await buildAppDeps().treatmentProgram.getForPatient({})); } const f = actualHandler; export const GET = compose(f, async () => { ${guarded} return Response.json({ settled: true }); });`,
+      new Map(),
+      'exported GET must fail closed',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { ${guarded} return Response.json(await buildAppDeps().treatmentProgram.getForPatient({})); } const f = actualHandler; export const GET = compose(f, async () => { ${guarded} return Response.json({ settled: true }); });`,
+    ],
+    [
+      'круг 7, MF2: обработчик в массиве не маскируется защищённым callback',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { return Response.json(await buildAppDeps().treatmentProgram.getForPatient({})); } export const GET = compose([actualHandler], async () => { ${guarded} return Response.json({ settled: true }); });`,
+      new Map(),
+      'exported GET must fail closed',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { ${guarded} return Response.json(await buildAppDeps().treatmentProgram.getForPatient({})); } export const GET = compose([actualHandler], async () => { ${guarded} return Response.json({ settled: true }); });`,
+    ],
+    [
+      'неразрешимый аргумент обёртки не маскируется защищённым callback',
+      'patient/x/route.ts',
+      `${guardImport} import { externalHandler } from './external-handler'; export const GET = compose(externalHandler, async () => { ${guarded} return Response.json({ settled: true }); });`,
+      new Map(),
+      'exported GET must fail closed',
+      `${guardImport} const localHandler = async () => { ${guarded} return Response.json({ ok: true }); }; export const GET = compose(localHandler, async () => { ${guarded} return Response.json({ settled: true }); });`,
+    ],
+    [
+      'круг 7, MF3: вложенное одноимённое объявление не скрывает небезопасный top-level handler',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { const exposed = await buildAppDeps().treatmentProgram.getForPatient({}); ${guarded} return Response.json(exposed); } function unrelatedScope() { async function actualHandler() { ${guarded} return Response.json({ ok: true }); } return actualHandler; } export const GET = actualHandler;`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { ${guarded} const exposed = await buildAppDeps().treatmentProgram.getForPatient({}); return Response.json(exposed); } function unrelatedScope() { async function actualHandler() { ${guarded} return Response.json({ ok: true }); } return actualHandler; } export const GET = actualHandler;`,
     ],
     [
       'handler without the common door',
@@ -558,9 +804,26 @@ function selfTest() {
     ],
   ];
 
-  for (const [name, relativePath, source, exceptions] of bypasses) {
-    if (checkSource(relativePath, source, exceptions).length === 0) {
+  for (const [name, relativePath, source, exceptions, expectedFinding, fixedSource] of bypasses) {
+    const findings = checkSource(relativePath, source, exceptions);
+    if (findings.length === 0) {
       throw new Error(`self-test stayed green: ${name}`);
+    }
+    if (
+      expectedFinding &&
+      (findings.length !== 1 || !findings[0].includes(expectedFinding))
+    ) {
+      throw new Error(
+        `self-test failed for the wrong reason: ${name}\n${findings.join('\n')}`,
+      );
+    }
+    if (fixedSource) {
+      const fixedFindings = checkSource(relativePath, fixedSource, exceptions);
+      if (fixedFindings.length > 0) {
+        throw new Error(
+          `self-test mutation stayed red: ${name}\n${fixedFindings.join('\n')}`,
+        );
+      }
     }
   }
 
@@ -611,6 +874,12 @@ function selfTest() {
       'обработчик в обёртке с дверью первой — законная форма (круг 5, MF6)',
       'patient/x/route.ts',
       `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export const GET = makeHandler(async () => { ${guarded} const deps = buildAppDeps(); return Response.json(await deps.materialRating.getForPatient({})); });`,
+      new Map(),
+    ],
+    [
+      'круг 7, MF3: вложенное одноимённое небезопасное объявление не портит защищённый top-level handler',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; async function actualHandler() { ${guarded} return Response.json(await buildAppDeps().treatmentProgram.getForPatient({})); } function unrelatedScope() { async function actualHandler() { return Response.json(await buildAppDeps().treatmentProgram.getForPatient({})); } return actualHandler; } export const GET = actualHandler;`,
       new Map(),
     ],
   ];
