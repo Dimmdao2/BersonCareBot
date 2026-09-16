@@ -8,14 +8,12 @@ import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
 
 type Props = {
-  supportContactHref: string;
   nextPath?: string | null;
   hint?: ReactNode;
   channelPolicy: AuthChannelUiPolicy;
 };
 
 export function PatientBindPhoneBrowser({
-  supportContactHref,
   nextPath,
   hint,
   channelPolicy,
@@ -29,7 +27,6 @@ export function PatientBindPhoneBrowser({
         channelPolicy={channelPolicy}
         purpose="profile_bind"
         title="Привязать номер"
-        supportContactHref={supportContactHref}
         hideBackOnPhoneStep
         onBack={() => router.push(routePaths.patient)}
         onProfileComplete={() => {

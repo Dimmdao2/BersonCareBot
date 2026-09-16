@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Публичный поток входа (browser): OAuth, email и телефон с server-selected SMS/email delivery.
- * Apple — только если нет Яндекса/Google. Messenger Mini App keeps its separate phone step.
+ * Публичный поток входа (browser): OAuth, email и подтверждение телефона в мессенджере.
+ * Apple — только если нет Яндекса/Google. Вход по номеру всегда делегирован общему
+ * PhoneMessengerAuthFlow, включая Messenger Mini App.
  */
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -13,13 +14,8 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { Input } from '@/shared/ui/patient/primitives/input';
 import { cn } from '@/lib/utils';
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
-import type { AuthMethodsPayload } from '@/modules/auth/checkPhoneMethods';
 import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
-  filterAuthMethodsByChannelPolicy,
-  isOtpChannelAvailablePublic,
-  OTP_PUBLIC_OTHER_CHANNELS_ORDER,
-  pickPrimaryOtpChannelPublic,
   type AuthChannelUiPolicy,
 } from '@/modules/auth/otpChannelUi';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
@@ -33,18 +29,11 @@ import {
   type OAuthProviderFlags,
 } from '@/modules/auth/oauthProviderRegistry';
 import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage';
-import { ChannelPicker } from '@/shared/ui/patient/auth/ChannelPicker';
-import { OtpCodeForm, type OtpResendOutcome } from '@/shared/ui/patient/auth/OtpCodeForm';
-import {
-  buildPublicPhoneOtpAlternatives,
-  otpCodeDescription,
-} from '@/shared/ui/patient/auth/otpDoor';
-import { InternationalPhoneInput } from '@/shared/ui/patient/auth/InternationalPhoneInput';
+import { OtpCodeForm } from '@/shared/ui/patient/auth/OtpCodeForm';
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
   AUTH_LOGIN_ENTRY_SHELL_PADDING_CLASS,
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
-  AUTH_LOGIN_OUTLINE_BUTTON_CLASS,
   AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
   AUTH_LOGIN_SHELL_CLASS,
 } from '@/shared/ui/patient/auth/loginChrome';
@@ -83,11 +72,8 @@ import {
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 import { notificationText } from '@/shared/notifications/notificationText';
 
-const WEB_CHAT_ID_KEY = 'bersoncare_web_chat_id';
-
 // Local aliases, not copy: both texts live in the dictionary (a hoisted const holding the
 // literal itself used to be invisible to the coverage gate — final-audit MAJOR, 13.09).
-const SMS_DISABLED_WEB_MESSAGE = notificationText.authSmsDisabledOnWeb;
 const AUTH_NETWORK_ERROR_MESSAGE = notificationText.commonNoServerConnection;
 
 function specialistSignupSlugErrorMessage(
@@ -140,35 +126,7 @@ const authLinkButtonClass = cn(
 const authFormFieldLabelClass = patientFormLabelClass;
 const authEmailInputClass = 'w-full bg-white';
 
-function getWebChatId(): string {
-  if (typeof window === 'undefined') return '';
-  let id = sessionStorage.getItem(WEB_CHAT_ID_KEY);
-  if (!id) {
-    id = crypto.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    sessionStorage.setItem(WEB_CHAT_ID_KEY, id);
-  }
-  return id;
-}
-
-export type AuthFlowStep =
-  | 'entry_loading'
-  | 'oauth_first'
-  | 'phone_login'
-  | 'phone'
-  | 'email_password'
-  | 'foreign_no_otp_channel'
-  | 'choose_channel'
-  | 'code';
-
-type OtpChannel = 'sms' | 'telegram' | 'max' | 'email';
-
-function hasPublicWebOtpChannel(methods: AuthMethodsPayload): boolean {
-  return (
-    isOtpChannelAvailablePublic(methods, 'telegram') ||
-    isOtpChannelAvailablePublic(methods, 'max') ||
-    isOtpChannelAvailablePublic(methods, 'email')
-  );
-}
+export type AuthFlowStep = 'entry_loading' | 'oauth_first' | 'phone_login' | 'email_password';
 
 function withContactSupportReturn(
   supportHref: string | undefined,
@@ -236,15 +194,6 @@ export function AuthFlowV2({
     EMPTY_OAUTH_PROVIDER_FLAGS,
   );
   const [loading, setLoading] = useState(false);
-  const [phone, setPhone] = useState<string | null>(null);
-  const [methods, setMethods] = useState<AuthMethodsPayload | null>(null);
-  const [challengeId, setChallengeId] = useState<string | null>(null);
-  const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
-  const [smsStartCooldownSec, setSmsStartCooldownSec] = useState(0);
-  const [otpChannel, setOtpChannel] = useState<OtpChannel>('telegram');
-  const [otpEntrySource, setOtpEntrySource] = useState<'registration' | 'channel' | 'auto' | null>(
-    null,
-  );
   const [emailLoginEmail, setEmailLoginEmail] = useState('');
   const [emailLoginPassword, setEmailLoginPassword] = useState('');
   const [passwordAltchaRequired, setPasswordAltchaRequired] = useState(false);
@@ -267,9 +216,9 @@ export function AuthFlowV2({
   >('patient_registration');
   const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
   const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
-  const [emailPasswordReturn, setEmailPasswordReturn] = useState<
-    'oauth_first' | 'phone' | 'email_password'
-  >('oauth_first');
+  const [emailPasswordReturn, setEmailPasswordReturn] = useState<'oauth_first' | 'email_password'>(
+    'oauth_first',
+  );
   const [emailRegLastName, setEmailRegLastName] = useState('');
   const [emailRegFirstName, setEmailRegFirstName] = useState('');
   const [emailRegPatronymic, setEmailRegPatronymic] = useState('');
@@ -313,24 +262,16 @@ export function AuthFlowV2({
   const passwordLoginEnabled = surfaceAllows('password');
   const emailOtpEnabled = surfaceAllows('email_code') && authChannelPolicy.email;
   const messengerPhoneEnabled = authChannelPolicy.telegram || authChannelPolicy.max;
-  const phoneLoginEnabled =
-    surfaceAllows('phone_bot') &&
-    (messengerPhoneEnabled || authChannelPolicy.sms || authChannelPolicy.email);
+  const phoneLoginEnabled = surfaceAllows('phone_bot') && messengerPhoneEnabled;
   const passkeyEnabled = surfaceAllows('passkey') && prefetchedAuthConfig?.passkeyEnabled === true;
   const patientRegistrationEnabled = roleLoginPortal !== 'doctor' && roleLoginPortal !== 'admin';
   const specialistSignupEntryEnabled = roleLoginPortal !== 'patient' && roleLoginPortal !== 'admin';
 
   useEffect(() => {
-    if (smsStartCooldownSec <= 0) return;
-    const t = window.setTimeout(() => setSmsStartCooldownSec((s) => Math.max(0, s - 1)), 1000);
-    return () => window.clearTimeout(t);
-  }, [smsStartCooldownSec]);
-
-  useEffect(() => {
     if (isMessengerMiniAppHost()) {
       setOauthProviders(EMPTY_OAUTH_PROVIDER_FLAGS);
       if (surfaceAllows('phone_bot') && messengerPhoneEnabled) {
-        setStep('phone');
+        setStep('phone_login');
       } else if (passwordLoginEnabled) {
         setEmailAuthMode('password_login');
         setStep('email_password');
@@ -534,36 +475,28 @@ export function AuthFlowV2({
   };
 
   const goBackToEntry = () => {
-    setSmsStartCooldownSec(0);
     resetEmailAuthFields();
     pendingHydratedRef.current = false;
     clearAuthFlowPending();
     if (!isMessengerMiniAppHost()) {
       setStep(hasWebOauthAlternatives ? 'oauth_first' : 'email_password');
     } else {
-      setStep('phone');
+      setStep('phone_login');
     }
-    setPhone(null);
-    setMethods(null);
   };
 
   const resetToOtherMethods = () => {
     pendingHydratedRef.current = false;
     clearAuthFlowPending();
-    setSmsStartCooldownSec(0);
     resetEmailAuthFields();
     if (!isMessengerMiniAppHost()) {
       setStep(hasWebOauthAlternatives ? 'oauth_first' : 'email_password');
-      setPhone(null);
-      setMethods(null);
     } else {
-      setStep('phone');
-      setPhone(null);
-      setMethods(null);
+      setStep('phone_login');
     }
   };
 
-  const openEmailPasswordLogin = (returnTo: 'oauth_first' | 'phone' | 'email_password') => {
+  const openEmailPasswordLogin = (returnTo: 'oauth_first' | 'email_password') => {
     if (!emailOtpEnabled && !passwordLoginEnabled) return;
     engageInteractive();
     setEmailPasswordReturn(returnTo);
@@ -1175,97 +1108,6 @@ export function AuthFlowV2({
     }
   };
 
-  const startPhoneOtp = async (
-    deliveryChannel: OtpChannel,
-    entry: 'registration' | 'channel' | 'auto',
-    phoneForRequest?: string | null,
-  ): Promise<OtpResendOutcome> => {
-    const effectivePhone = phoneForRequest ?? phone;
-    if (!effectivePhone) return { kind: 'error', message: 'Нет номера телефона' };
-    if (deliveryChannel === 'sms') {
-      toast.error(SMS_DISABLED_WEB_MESSAGE);
-      return { kind: 'error', message: SMS_DISABLED_WEB_MESSAGE };
-    }
-    engageInteractive();
-    setLoading(true);
-    try {
-      const chatId = getWebChatId();
-      const startOtpResult = await fetchJsonSafe<{
-        ok?: boolean;
-        challengeId?: string;
-        retryAfterSeconds?: number;
-        message?: string;
-        error?: string;
-      }>('/api/auth/phone/start', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone: effectivePhone, channel: 'web', chatId, deliveryChannel }),
-      });
-      if (!startOtpResult.ok) {
-        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-        return { kind: 'error', message: AUTH_NETWORK_ERROR_MESSAGE };
-      }
-      const { response: res, data } = startOtpResult;
-      if (!res.ok || !data.ok || !data.challengeId) {
-        if (res.status === 429 || data.error === 'rate_limited') {
-          const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
-          setSmsStartCooldownSec(sec);
-          return { kind: 'rate_limited', retryAfterSeconds: sec };
-        }
-        const message = data.message ?? 'Не удалось отправить код';
-        toast.error(message);
-        return { kind: 'error', message };
-      }
-      setSmsStartCooldownSec(0);
-      setChallengeId(data.challengeId);
-      setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
-      setOtpChannel(deliveryChannel);
-      setOtpEntrySource(entry);
-      setStep('code');
-      return { kind: 'ok' };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const runCheckPhone = async (normalized: string) => {
-    engageInteractive();
-    setLoading(true);
-    try {
-      const checkPhoneResult = await fetchJsonSafe<{
-        ok?: boolean;
-        methods?: AuthMethodsPayload;
-      }>('/api/auth/check-phone', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone: normalized }),
-      });
-      if (!checkPhoneResult.ok) {
-        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
-        return;
-      }
-      const { response: res, data } = checkPhoneResult;
-      if (!res.ok || !data.ok || !data.methods) {
-        toast.error(notificationText.messagingPhoneCheckFailed);
-        return;
-      }
-      setPhone(normalized);
-      const allowedMethods = filterAuthMethodsByChannelPolicy(data.methods, authChannelPolicy);
-      setMethods(allowedMethods);
-      const primary = pickPrimaryOtpChannelPublic(allowedMethods);
-      if (primary == null) {
-        setStep('foreign_no_otp_channel');
-      } else {
-        const outcome = await startPhoneOtp(primary, 'auto', normalized);
-        if (outcome.kind !== 'ok') {
-          setStep('choose_channel');
-        }
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (step === 'entry_loading') {
     return (
       <div id="auth-flow-v2-entry-loading" className={authFlowShellClass}>
@@ -1283,10 +1125,7 @@ export function AuthFlowV2({
       !doctorEmailFirst && emailPasswordReturn === 'oauth_first' && hasWebOauthAlternatives;
 
     const showEmailChromeBack =
-      pwRecoveryPhase !== 'none' ||
-      emailAuthMode === 'verify' ||
-      canReturnToOauthFirst ||
-      emailPasswordReturn === 'phone';
+      pwRecoveryPhase !== 'none' || emailAuthMode === 'verify' || canReturnToOauthFirst;
 
     const topBackLabel =
       pwRecoveryPhase !== 'none'
@@ -2542,244 +2381,7 @@ export function AuthFlowV2({
             openStaffFactorMode();
             setStep('email_password');
           }}
-          supportContactHref={supportContactHref}
           nextParam={nextParam}
-        />
-      </div>
-    );
-  }
-
-  if (step === 'phone') {
-    const showPhoneSmsNotice = !isMessengerMiniAppHost();
-    const showPhoneBack = !isMessengerMiniAppHost();
-
-    return (
-      <div id="auth-flow-v2-phone" className={cn(authFlowShellClass, 'items-center text-center')}>
-        {showPhoneBack ? (
-          <Button
-            type="button"
-            variant="link"
-            className={authLinkButtonClass}
-            disabled={loading}
-            onClick={() => goBackToEntry()}
-          >
-            Войти без номера
-          </Button>
-        ) : null}
-        {showPhoneSmsNotice ? (
-          <p className={cn(authStepMutedParagraphClass, 'text-center')}>
-            Подтверждение телефона по SMS временно недоступно. Вы можете войти или
-            зарегистрироваться с номером телефона при помощи мессенджеров Telegram или Макс.
-          </p>
-        ) : null}
-        <InternationalPhoneInput
-          disabled={loading}
-          onSubmit={runCheckPhone}
-          submitLabel="Продолжить"
-        />
-      </div>
-    );
-  }
-
-  if (step === 'foreign_no_otp_channel' && methods) {
-    return (
-      <div id="auth-flow-v2-foreign-no-otp" className={cn(authFlowShellClass, 'text-left')}>
-        <p className={authStepMutedParagraphClass}>
-          Сейчас нет доступного способа отправить код. Откройте сайт и войдите по email или OAuth.
-        </p>
-        {hasWebOauthAlternatives ? (
-          <div className="flex w-full flex-col items-center gap-2">
-            {mainRowOauthProviders.map((meta) => (
-              <Button
-                key={meta.provider}
-                type="button"
-                variant="outline"
-                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                disabled={loading}
-                onClick={() => void startOauth(meta.provider)}
-              >
-                {meta.shortLabel}
-              </Button>
-            ))}
-            {showAppleFallback ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                disabled={loading}
-                onClick={() => void startOauth('apple')}
-              >
-                Apple
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-        {supportContactHref ? (
-          <SupportContactLink
-            href={supportContactHref}
-            className={cn(
-              AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
-              'inline-flex items-center justify-center',
-            )}
-          >
-            Связаться с поддержкой
-          </SupportContactLink>
-        ) : null}
-        <Button
-          type="button"
-          variant="link"
-          className={authLinkButtonClass}
-          onClick={() => {
-            goBackToEntry();
-          }}
-        >
-          Другой номер
-        </Button>
-      </div>
-    );
-  }
-
-  if (step === 'choose_channel' && methods) {
-    return (
-      <div id="auth-flow-v2-channel" className={cn(authFlowShellClass, 'text-left')}>
-        {smsStartCooldownSec > 0 ? (
-          <p className={patientMutedTextClass} role="status">
-            Повторная отправка возможна через {smsStartCooldownSec} сек
-          </p>
-        ) : null}
-        <ChannelPicker
-          methods={methods}
-          disabled={loading}
-          onChoose={(ch) => void startPhoneOtp(ch, 'channel')}
-        />
-        <Button
-          type="button"
-          variant="link"
-          className={authLinkButtonClass}
-          onClick={() => {
-            goBackToEntry();
-          }}
-        >
-          Другой номер
-        </Button>
-      </div>
-    );
-  }
-
-  if (step === 'code' && challengeId && methods) {
-    const alternatives = buildPublicPhoneOtpAlternatives(
-      methods,
-      otpChannel,
-      (ch) => startPhoneOtp(ch, 'channel'),
-      emailOtpEnabled || passwordLoginEnabled ? () => openEmailPasswordLogin('phone') : null,
-    );
-
-    return (
-      <div id="auth-flow-v2-code" className={cn(authFlowShellClass, 'text-left')}>
-        <OtpCodeForm
-          challengeId={challengeId}
-          retryAfterSeconds={retryAfterSeconds}
-          supportContactHref={supportContactHref}
-          submitLabel="Войти"
-          description={otpCodeDescription(otpChannel)}
-          alternatives={alternatives}
-          onConfirm={async (code) => {
-            engageInteractive();
-            const chatId = getWebChatId();
-            const confirmPhoneResult = await fetchJsonSafe<{
-              ok?: boolean;
-              redirectTo?: string;
-              role?: 'client' | 'doctor' | 'admin';
-              factorRequired?: boolean;
-              message?: string;
-              error?: string;
-              retryAfterSeconds?: number;
-            }>('/api/auth/phone/confirm', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                challengeId,
-                code,
-                channel: 'web',
-                chatId,
-                browserCalendarIana: getBrowserCalendarIanaForAuth(),
-              }),
-            });
-            if (!confirmPhoneResult.ok) {
-              return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
-            }
-            const { data } = confirmPhoneResult;
-            if (data.ok && data.factorRequired) {
-              openStaffFactorMode();
-              setStep('email_password');
-              return { ok: true as const };
-            }
-            if (data.ok && data.redirectTo) {
-              redirectOk(data.redirectTo, data.role);
-              return { ok: true as const, redirectTo: data.redirectTo };
-            }
-            if (data.error === 'rate_limited' && data.retryAfterSeconds != null) {
-              return {
-                ok: false as const,
-                message: data.message ?? '',
-                code: 'rate_limited',
-                retryAfterSeconds: data.retryAfterSeconds,
-              };
-            }
-            if (data.error === 'server_error') {
-              return {
-                ok: false as const,
-                message: data.message ?? 'Не удалось завершить вход. Повторите ввод того же кода.',
-                code: 'server_error',
-              };
-            }
-            return { ok: false as const, message: data.message ?? 'Ошибка входа' };
-          }}
-          onResend={async () => {
-            if (!phone) return { kind: 'error' as const, message: 'Нет номера' };
-            if (otpChannel === 'sms') {
-              return { kind: 'error' as const, message: SMS_DISABLED_WEB_MESSAGE };
-            }
-            const chatId = getWebChatId();
-            const resendOtpResult = await fetchJsonSafe<{
-              ok?: boolean;
-              challengeId?: string;
-              retryAfterSeconds?: number;
-              error?: string;
-              message?: string;
-            }>('/api/auth/phone/start', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                phone,
-                channel: 'web',
-                chatId,
-                deliveryChannel: otpChannel,
-              }),
-            });
-            if (!resendOtpResult.ok) {
-              return { kind: 'error' as const, message: AUTH_NETWORK_ERROR_MESSAGE };
-            }
-            const { response: res, data } = resendOtpResult;
-            if (data.ok && data.challengeId) {
-              setChallengeId(data.challengeId);
-              setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
-              return { kind: 'ok' as const };
-            }
-            if (res.status === 429 || data.error === 'rate_limited') {
-              const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
-              setRetryAfterSeconds(sec);
-              return { kind: 'rate_limited' as const, retryAfterSeconds: sec };
-            }
-            return { kind: 'error' as const, message: data.message ?? 'Не удалось отправить код' };
-          }}
-          onBack={() => {
-            if (hasPublicWebOtpChannel(methods)) {
-              setStep('choose_channel');
-            } else {
-              setStep('foreign_no_otp_channel');
-            }
-          }}
         />
       </div>
     );
