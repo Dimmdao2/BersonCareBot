@@ -16,7 +16,7 @@ export function Card({ className, size = 'default', ...props }: ComponentProps<t
       size={size}
       className={cn(
         size === 'default' &&
-          'gap-3 rounded-[var(--doctor-page-block-radius,12px)] border border-[var(--doctor-block-border)] py-[var(--doctor-block-padding,18px)] ring-0',
+          'gap-3 rounded-[var(--doctor-page-block-radius,10px)] border border-[var(--doctor-block-border)] py-[var(--doctor-block-padding,18px)] ring-0',
         className,
       )}
       {...props}

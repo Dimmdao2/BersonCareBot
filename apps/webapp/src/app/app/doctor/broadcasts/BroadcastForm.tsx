@@ -18,7 +18,7 @@ import { BROADCAST_FORM_CATEGORIES, isAudienceEstimateApproximate } from './labe
 import { BroadcastAudienceSelect } from './BroadcastAudienceSelect';
 import { BroadcastConfirmStep } from './BroadcastConfirmStep';
 import { BroadcastSentMessage } from './BroadcastSentMessage';
-import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
+import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
@@ -449,8 +449,8 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
 
       {/* Body */}
       <div className={`px-3 py-2.5${isFormLocked ? ' pointer-events-none opacity-50' : ''}`}>
-        {/* body is stored as Markdown; markdownToTelegramHtml converts it for Telegram/MAX at delivery time */}
-        <MarkdownEditor
+        {/* One Tiptap document is adapted to each delivery channel at send time. */}
+        <TiptapEditor
           name="broadcast-body"
           value={body}
           onChange={setBody}

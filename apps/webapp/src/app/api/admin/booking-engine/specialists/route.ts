@@ -9,6 +9,10 @@ import {
   isCyrillicFioInput,
   isFioLatinRejection,
 } from '@/shared/lib/fio';
+import {
+  RICH_TEXT_SERIALIZED_MAX_LENGTH,
+  richTextWithinCharacterLimit,
+} from '@/shared/lib/richText';
 
 const PostSchema = z.object({
   // §20 канона идентичности: ФИО сотрудника клиники — только кириллица. Поле подписано «ФИО» и
@@ -22,7 +26,12 @@ const PostSchema = z.object({
   /** Короткое описание обычным текстом — оно же строка превью на визитке (#926 §17.H). */
   description: z.string().max(2000).nullable().optional(),
   avatarMediaId: z.string().uuid().nullable().optional(),
-  fullDescriptionMarkdown: z.string().max(50_000).nullable().optional(),
+  fullDescriptionMarkdown: z
+    .string()
+    .max(RICH_TEXT_SERIALIZED_MAX_LENGTH)
+    .refine((value) => richTextWithinCharacterLimit(value, 50_000))
+    .nullable()
+    .optional(),
   cardIsPublished: z.boolean().optional().default(false),
   isActive: z.boolean().optional().default(true),
   sortOrder: z.number().int().optional().default(0),

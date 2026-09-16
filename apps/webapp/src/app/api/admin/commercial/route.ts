@@ -12,6 +12,7 @@ import {
   type TrialPolicy,
   type PaidPeriodPolicy,
 } from '@/modules/org-entitlements/types';
+import { isTiptapRichTextStorageValue } from '@/shared/lib/richText';
 
 /**
  * Closed allowlist of the commercial constructor's own validation codes — the exact literals
@@ -105,7 +106,7 @@ const mailingTemplateSchema = z.object({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1),
   subject: z.string(),
-  body: z.string(),
+  body: z.string().refine(isTiptapRichTextStorageValue),
 });
 
 // §5a item 2.6a — уведомления лестницы: список строк «срок · условие · шаблон», без ограничения

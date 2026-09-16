@@ -20,7 +20,7 @@ export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: P
   const { patientSingularLabel } = useDoctorPatientTerms();
   const hostedVideo = videoUrl ? parseHostedVideoLink(videoUrl) : null;
   return (
-    <section className="rounded-xl border border-border bg-muted/10 p-4">
+    <section className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-muted/10 p-4">
       <h3 className={`m-0 ${doctorSectionTitleClass}`}>
         Предпросмотр для {patientSingularLabel.toLowerCase()}
       </h3>

@@ -11,8 +11,7 @@ type Props = {
 };
 
 /**
- * Patient-facing content: Markdown from CMS (`body_md`) or sanitized legacy HTML from `body_html`.
- * Does not enable raw HTML inside Markdown (no `rehype-raw`).
+ * Patient-facing rich content: Tiptap JSON, plus sanitized legacy HTML from the retired CMS field.
  */
 export function MarkdownContent({ text, bodyFormat, className }: Props) {
   const wrap = className ?? 'markdown-preview';

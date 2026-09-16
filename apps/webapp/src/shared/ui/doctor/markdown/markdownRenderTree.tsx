@@ -1,12 +1,23 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { MarkdownBodyTree as SharedMarkdownBodyTree } from '@/shared/ui/markdown/markdownRenderTree';
+import { parseTiptapRichText } from '@/shared/lib/richText';
+import {
+  RichTextDocumentTree,
+  type RichTextLinkRenderProps,
+} from '@/shared/ui/rich-text/RichTextDocumentTree';
 import { MarkdownEmbeddedLink } from './MarkdownEmbeddedLink';
 
-const components = { a: MarkdownEmbeddedLink };
+function renderRichTextLink(props: RichTextLinkRenderProps): ReactNode {
+  return <MarkdownEmbeddedLink {...props} />;
+}
 
 /** Привязка общего дерева к зоне: дерево одно, ссылка зоны своя (§17). */
 export function MarkdownBodyTree({ children }: { children: string }): ReactNode {
-  return <SharedMarkdownBodyTree components={components}>{children}</SharedMarkdownBodyTree>;
+  const document = parseTiptapRichText(children);
+  return document ? (
+    <RichTextDocumentTree document={document} renderLink={renderRichTextLink} />
+  ) : (
+    <span className="whitespace-pre-wrap">{children}</span>
+  );
 }

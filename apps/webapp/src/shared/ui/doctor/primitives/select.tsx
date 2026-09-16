@@ -15,12 +15,12 @@ import {
 } from '@/shared/ui/primitives/select';
 import { cn } from '@/lib/utils';
 
-/** Doctor select radius matches doctor buttons (8px). Explicit caller radii remain authoritative. */
+/** Doctor select radius matches doctor buttons (7px). Explicit caller radii remain authoritative. */
 export function SelectTrigger({ className, ...props }: ComponentProps<typeof SharedSelectTrigger>) {
   return (
     <SharedSelectTrigger
       className={cn(
-        'w-full rounded-[var(--doctor-button-radius,8px)] bg-white text-base md:text-sm',
+        'w-full rounded-[var(--doctor-button-radius,7px)] bg-white text-base md:text-sm',
         className,
       )}
       {...props}
@@ -40,7 +40,7 @@ export function SelectContent({
       align={align}
       alignItemWithTrigger={alignItemWithTrigger}
       className={cn(
-        'rounded-[var(--doctor-button-radius,8px)] [&_[data-slot=select-item]]:pl-3',
+        'rounded-[var(--doctor-button-radius,7px)] [&_[data-slot=select-item]]:pl-3',
         className,
       )}
       {...props}

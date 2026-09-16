@@ -7,9 +7,15 @@ export type PlatformAccessCanonRow = {
   has_web_oauth_binding: boolean;
 };
 
+export type PatientEmailGateState = {
+  emailVerified: boolean;
+  emailFirstRequestedAt: string | null;
+};
+
 export type PlatformAccessPort = {
   resolveCanonicalUserId(userId: string): Promise<string | null>;
   loadCanonRow(canonicalUserId: string): Promise<PlatformAccessCanonRow | null>;
+  loadPatientEmailGateState(markFirstRequest: boolean): Promise<PatientEmailGateState>;
 };
 
 let boundPlatformAccessPort: PlatformAccessPort | null = null;

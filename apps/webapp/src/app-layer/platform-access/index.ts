@@ -4,12 +4,17 @@ import type { EntitlementsService } from '@/modules/entitlements/service';
 import {
   canViewPatientAuthOnlySection as canViewPatientAuthOnlySectionModule,
   filterPatientSectionPages as filterPatientSectionPagesModule,
+  evaluatePatientEmailGateForCabinetEntry as evaluatePatientEmailGateForCabinetEntryModule,
+  evaluatePatientEmailGateForProtectedData as evaluatePatientEmailGateForProtectedDataModule,
   patientClientBusinessGate as patientClientBusinessGateModule,
   resolvePatientCanViewAuthOnlyContent as resolvePatientCanViewAuthOnlyContentModule,
   resolvePatientCanViewContent as resolvePatientCanViewContentModule,
   resolvePlatformAccessContext as resolvePlatformAccessContextModule,
   type ResolvePlatformAccessContextInput,
 } from '@/modules/platform-access';
+import { getPlatformAccessPort } from '@/modules/platform-access/ports';
+import type { UserRole } from '@/shared/types/session';
+import { webappRuntimeDatabaseIsConfigured } from '@/config/env';
 
 export type { PatientBusinessGate } from '@/modules/platform-access';
 export type { PlatformAccessContext } from '@/modules/platform-access';
@@ -24,6 +29,51 @@ export async function resolvePlatformAccessContext(input: ResolvePlatformAccessC
 export async function patientClientBusinessGate(session: AppSession) {
   ensurePlatformAccessPortsBound();
   return patientClientBusinessGateModule(session);
+}
+
+export async function loadPatientEmailGateState(markFirstRequest: boolean) {
+  ensurePlatformAccessPortsBound();
+  return getPlatformAccessPort().loadPatientEmailGateState(markFirstRequest);
+}
+
+type PatientEmailGateRequest = {
+  sessionRole: UserRole;
+  pathname: string;
+  now?: Date;
+};
+
+const EMAIL_GATE_DISABLED = {
+  decision: 'none',
+  shouldMarkFirstRequest: false,
+  blocksProtectedData: false,
+  emailVerified: false,
+  shouldPromptNow: false,
+} as const;
+
+function patientEmailGateInput(input: PatientEmailGateRequest) {
+  return {
+    sessionRole: input.sessionRole,
+    pathname: input.pathname,
+    now: input.now ?? new Date(),
+  };
+}
+
+export async function patientEmailGateForCabinetEntry(input: PatientEmailGateRequest) {
+  if (!webappRuntimeDatabaseIsConfigured()) return EMAIL_GATE_DISABLED;
+  ensurePlatformAccessPortsBound();
+  return evaluatePatientEmailGateForCabinetEntryModule(
+    patientEmailGateInput(input),
+    (markFirstRequest) => getPlatformAccessPort().loadPatientEmailGateState(markFirstRequest),
+  );
+}
+
+export async function patientEmailGateForProtectedData(input: PatientEmailGateRequest) {
+  if (!webappRuntimeDatabaseIsConfigured()) return EMAIL_GATE_DISABLED;
+  ensurePlatformAccessPortsBound();
+  return evaluatePatientEmailGateForProtectedDataModule(
+    patientEmailGateInput(input),
+    (markFirstRequest) => getPlatformAccessPort().loadPatientEmailGateState(markFirstRequest),
+  );
 }
 
 export async function resolvePatientCanViewAuthOnlyContent(

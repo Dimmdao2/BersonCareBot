@@ -325,7 +325,7 @@ function MediaFolderTreePane({
   return (
     <aside
       className={cn(
-        'flex min-h-0 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card',
+        'flex min-h-0 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card',
         className,
       )}
     >

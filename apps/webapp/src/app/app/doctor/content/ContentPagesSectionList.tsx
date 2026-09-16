@@ -113,7 +113,7 @@ function SortablePageRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2',
+        'flex items-center gap-2 rounded-[var(--doctor-page-block-radius,10px)] border border-border/80 bg-card px-2 py-2',
         isSelected &&
           'border-primary/40 bg-primary/5 ring-1 ring-primary/30 ring-offset-1 ring-offset-background',
       )}

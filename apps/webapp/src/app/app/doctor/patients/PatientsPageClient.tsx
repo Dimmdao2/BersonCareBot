@@ -725,7 +725,7 @@ function PatientsContent({
         left={
           <section
             data-doctor-flat-list-surface
-            className="flex h-full min-h-0 flex-col overflow-hidden rounded-none bg-card md:rounded-[var(--doctor-page-block-radius,12px)]"
+            className="flex h-full min-h-0 flex-col overflow-hidden rounded-none bg-card md:rounded-[var(--doctor-page-block-radius,10px)]"
           >
             <div className="hidden md:block">{renderListControls(false)}</div>
 
@@ -818,7 +818,7 @@ function PatientsContent({
             contentClassName="gap-3 p-0"
           >
             {/* Filter panel (right pane holds filters only) */}
-            <section className="rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)]">
+            <section className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-[var(--doctor-block-padding,18px)]">
               {/* Factual filters in the desktop right panel. */}
               {renderFilters('doctor-patients')}
 

@@ -545,7 +545,7 @@ export function PatientCardClient({
           Displaying patient identity; all edits live in «Учётка» tab.
           Tab navigation lives in DoctorPageHeader's tabs slot above.
       ================================================================ */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card">
           {/* Main header body */}
           <div className="px-4 pt-3.5 pb-2.5 flex flex-wrap gap-3.5 items-start">
             {/* LEFT: identity */}
@@ -638,7 +638,7 @@ export function PatientCardClient({
         </div>
 
         {activeTab === 'overview' ? (
-          <div className="rounded-xl border border-border bg-card px-4 py-2.5">
+          <div className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card px-4 py-2.5">
             <PatientContactActions
               identity={identity}
               hasTelegram={hasTelegram}

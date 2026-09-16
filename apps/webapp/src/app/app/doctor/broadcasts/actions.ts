@@ -17,6 +17,7 @@ import type {
 } from '@/modules/doctor-broadcasts/ports';
 import type { BroadcastChannelCounts, BroadcastDraft } from '@/modules/doctor-broadcasts/draftPort';
 import { normalizeBroadcastChannels } from '@/modules/doctor-broadcasts/broadcastChannels';
+import { isTiptapRichTextStorageValue, richTextCharacterCount } from '@/shared/lib/richText';
 
 /**
  * Zod-схема для входящего черновика рассылки.
@@ -63,7 +64,11 @@ const draftSchema = z.object({
     )
     .max(10),
   title: z.string().max(200),
-  body: z.string().max(4000),
+  body: z
+    .string()
+    .max(100_000)
+    .refine(isTiptapRichTextStorageValue)
+    .refine((value) => richTextCharacterCount(value) <= 4000),
   // RASSL-06 phase 1: опц. прикреплённая картинка (round-trip черновика).
   mediaUrl: z.string().url().nullable().optional(),
   mediaType: z.string().nullable().optional(),

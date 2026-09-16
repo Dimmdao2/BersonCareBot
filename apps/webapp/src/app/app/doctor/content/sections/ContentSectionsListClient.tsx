@@ -142,7 +142,7 @@ function SortableSectionRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2"
+      className="flex items-center gap-2 rounded-[var(--doctor-page-block-radius,10px)] border border-border/80 bg-card px-2 py-2"
     >
       {canManageCms ? (
         <DragHandle listeners={listeners as never} attributes={attributes as never} />

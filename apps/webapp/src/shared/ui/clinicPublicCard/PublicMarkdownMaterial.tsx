@@ -1,10 +1,13 @@
 'use client';
 
-import { MarkdownBodyTree } from '@/shared/ui/markdown/markdownRenderTree';
-import type { Components } from 'react-markdown';
-import { useMemo } from 'react';
-import { cn } from '@/lib/utils';
+import { useCallback, useMemo } from 'react';
 import { toHostedVideoEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
+import { parseTiptapRichText } from '@/shared/lib/richText';
+import {
+  RichTextDocumentTree,
+  type RichTextImageRenderProps,
+  type RichTextLinkRenderProps,
+} from '@/shared/ui/rich-text/RichTextDocumentTree';
 
 /**
  * Один файл, который ОПУБЛИКОВАННЫЙ материал имеет право показать анониму.
@@ -19,11 +22,10 @@ export type PublicMarkdownAsset = {
 };
 
 /**
- * Markdown-материал на ПУБЛИЧНОЙ странице (#926 §17.H).
+ * Форматированный материал на ПУБЛИЧНОЙ странице: versioned Tiptap JSON.
  *
- * Стек тот же, что у обеих зон кабинета и пациента: react-markdown + remarkGfm + rehypeSanitize,
- * сырой HTML запрещён. Отдельный компонент нужен не ради другой разметки, а потому что оба
- * существующих рендера разрешают медиа через `/api/media/{uuid}` и `/api/media/{uuid}/playback` —
+ * Отдельный компонент нужен потому, что рендеры кабинета разрешают медиа через
+ * `/api/media/{uuid}` и `/api/media/{uuid}/playback` —
  * дверь, которая анонима не пускает и не должна начать. Здесь источник прав ровно один: набор
  * медиа, который вернула сама дверь визитки. Ссылки, которой в наборе нет, соответствует НИЧЕГО —
  * подставить чужой uuid в опубликованный текст бессмысленно.
@@ -51,143 +53,109 @@ function mediaIdFromHref(href: string): string | null {
 }
 
 export function PublicMarkdownMaterial({ markdown, media }: Props) {
-  const components = useMemo<Components>(() => {
-    const assets = new Map(media.map((asset) => [asset.id.toLowerCase(), asset]));
+  const assets = useMemo(() => new Map(media.map((asset) => [asset.id.toLowerCase(), asset])), [media]);
 
-    function assetForHref(href: string | undefined): PublicMarkdownAsset | null {
+  const assetForHref = useCallback(
+    (href: string | undefined): PublicMarkdownAsset | null => {
       if (!href) return null;
       const id = mediaIdFromHref(href);
       return id ? (assets.get(id.toLowerCase()) ?? null) : null;
-    }
+    },
+    [assets],
+  );
 
-    return {
-      // Типографика материала. Preflight снимает вид у заголовков, списков и цитат, поэтому без
-      // этих правил лендинг специалиста рисуется сплошным текстом: заголовок неотличим от абзаца,
-      // у списка нет маркеров, цитата не выделена. Найдено живым взглядом после приземления этапа
-      // 2a — ни один тест такого не видит. Классы держим здесь, а не в таблице стилей зоны: файл
-      // намеренно зоно-нейтральный и не должен зависеть от пациентского или докторского CSS.
-      h1: ({ children }) => (
-        <h2 className="mt-4 mb-1 text-lg leading-snug font-semibold first:mt-0">{children}</h2>
-      ),
-      h2: ({ children }) => (
-        <h2 className="mt-4 mb-1 text-base leading-snug font-semibold first:mt-0">{children}</h2>
-      ),
-      h3: ({ children }) => (
-        <h3 className="mt-3 mb-1 text-sm leading-snug font-semibold first:mt-0">{children}</h3>
-      ),
-      h4: ({ children }) => <h4 className="mt-3 mb-1 text-sm font-semibold">{children}</h4>,
-      p: ({ children }) => <p className="my-0">{children}</p>,
-      ul: ({ children }) => <ul className="my-1 list-disc space-y-1 pl-5">{children}</ul>,
-      ol: ({ children }) => <ol className="my-1 list-decimal space-y-1 pl-5">{children}</ol>,
-      li: ({ children }) => <li className="pl-0.5">{children}</li>,
-      blockquote: ({ children }) => (
-        <blockquote className="border-border text-muted-foreground my-2 border-l-2 pl-3 italic">
-          {children}
-        </blockquote>
-      ),
-      hr: () => <hr className="border-border my-4" />,
-      code: ({ children }) => (
-        <code className="bg-muted rounded px-1 py-0.5 font-mono text-[0.9em]">{children}</code>
-      ),
-      table: ({ children }) => (
-        <div className="my-2 w-full overflow-x-auto">
-          <table className="w-full border-collapse text-[0.95em]">{children}</table>
-        </div>
-      ),
-      th: ({ children }) => (
-        <th className="border-border border px-2 py-1 text-left font-semibold">{children}</th>
-      ),
-      td: ({ children }) => <td className="border-border border px-2 py-1">{children}</td>,
-      img({ src, alt, className }) {
-        const href = typeof src === 'string' ? src : undefined;
-        const asset = assetForHref(href);
-        // Ссылка на библиотеку, которой нет в опубликованном наборе, не превращается в битую
-        // картинку и не уходит на сессионный чокпоинт: её просто нет на странице.
-        if (!asset && href && mediaIdFromHref(href)) return null;
-        if (!href) return null;
+  const document = parseTiptapRichText(markdown);
+
+  function renderRichTextImage({ src, alt, title }: RichTextImageRenderProps) {
+    const asset = assetForHref(src);
+    if (!asset && mediaIdFromHref(src)) return null;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={asset ? asset.src : src}
+        alt={alt}
+        title={title}
+        className="my-3 h-auto w-full max-w-full rounded-md"
+      />
+    );
+  }
+
+  function renderRichTextLink({ href, children, title }: RichTextLinkRenderProps) {
+    const asset = assetForHref(href);
+    if (asset) {
+      const mime = asset.mimeType.toLowerCase();
+      if (mime.startsWith('video/')) {
+        return (
+          <span className="my-3 block w-full max-w-full">
+            <video controls preload="metadata" className="w-full rounded-md" src={asset.src} />
+          </span>
+        );
+      }
+      if (mime.startsWith('audio/')) {
+        return (
+          <span className="my-3 block w-full max-w-full">
+            <audio controls preload="metadata" className="w-full" src={asset.src} />
+          </span>
+        );
+      }
+      if (mime.startsWith('image/')) {
         return (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={asset ? asset.src : href}
-            alt={alt ?? ''}
-            className={cn('my-3 h-auto w-full max-w-full rounded-md', className)}
+            src={asset.src}
+            alt={typeof children === 'string' ? children : ''}
+            className="my-3 h-auto w-full max-w-full rounded-md"
           />
         );
-      },
-      a({ href, children, className, node: _node, ...rest }) {
-        const asset = assetForHref(href);
-        if (asset) {
-          const mime = asset.mimeType.toLowerCase();
-          if (mime.startsWith('video/')) {
-            return (
-              <span className={cn('my-3 block w-full max-w-full', className)}>
-                <video controls preload="metadata" className="w-full rounded-md" src={asset.src} />
-              </span>
-            );
-          }
-          if (mime.startsWith('audio/')) {
-            return (
-              <span className={cn('my-3 block w-full max-w-full', className)}>
-                <audio controls preload="metadata" className="w-full" src={asset.src} />
-              </span>
-            );
-          }
-          if (mime.startsWith('image/')) {
-            return (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={asset.src}
-                alt={typeof children === 'string' ? children : ''}
-                className={cn('my-3 h-auto w-full max-w-full rounded-md', className)}
-              />
-            );
-          }
-          return (
-            <a className={cn('underline underline-offset-2', className)} href={asset.src} {...rest}>
-              {children}
-            </a>
-          );
-        }
+      }
+      return (
+        <a className="underline underline-offset-2" href={asset.src} title={title}>
+          {children}
+        </a>
+      );
+    }
 
-        if (href && mediaIdFromHref(href)) {
-          // Файл клиники, который она не опубликовала: показываем текст ссылки без адреса, а не
-          // приглашение постучаться в сессионную дверь.
-          return <span className={className}>{children}</span>;
-        }
+    if (mediaIdFromHref(href)) return <span>{children}</span>;
 
-        const hostedEmbed = href ? toHostedVideoEmbedSrc(href) : null;
-        if (hostedEmbed) {
-          return (
-            <span className={cn('my-3 block w-full max-w-full', className)}>
-              <iframe
-                src={hostedEmbed}
-                title={typeof children === 'string' ? children : 'Видео'}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="aspect-video w-full rounded-md border-0"
-              />
-            </span>
-          );
-        }
+    const hostedEmbed = toHostedVideoEmbedSrc(href);
+    if (hostedEmbed) {
+      return (
+        <span className="my-3 block w-full max-w-full">
+          <iframe
+            src={hostedEmbed}
+            title={typeof children === 'string' ? children : 'Видео'}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="aspect-video w-full rounded-md border-0"
+          />
+        </span>
+      );
+    }
 
-        return (
-          <a
-            className={cn('underline underline-offset-2', className)}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            {...rest}
-          >
-            {children}
-          </a>
-        );
-      },
-    };
-  }, [media]);
+    return (
+      <a
+        className="underline underline-offset-2"
+        href={href}
+        title={title}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+      >
+        {children}
+      </a>
+    );
+  }
 
   return (
-    <div className="clinic-public-markdown flex flex-col gap-2 text-sm leading-relaxed">
-      <MarkdownBodyTree components={components}>{markdown}</MarkdownBodyTree>
+    <div className="clinic-public-markdown flex flex-col gap-2 text-sm leading-relaxed [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_h1]:mt-4 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:font-semibold [&_img]:max-w-full [&_li]:pl-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3 [&_table]:w-full [&_ul]:list-disc [&_ul]:pl-5">
+      {document ? (
+        <RichTextDocumentTree
+          document={document}
+          renderLink={renderRichTextLink}
+          renderImage={renderRichTextImage}
+        />
+      ) : (
+        <span className="whitespace-pre-wrap">{markdown}</span>
+      )}
     </div>
   );
 }

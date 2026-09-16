@@ -7,10 +7,17 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
 import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
 import { respondWithSafeApiError } from '@/app-layer/errors/safeUserError';
+import {
+  RICH_TEXT_SERIALIZED_MAX_LENGTH,
+  richTextWithinCharacterLimit,
+} from '@/shared/lib/richText';
 
 const postBodySchema = z.object({
   title: z.string().min(1).max(2000),
-  bodyMd: z.string().max(100000),
+  bodyMd: z
+    .string()
+    .max(RICH_TEXT_SERIALIZED_MAX_LENGTH)
+    .refine((value) => richTextWithinCharacterLimit(value, 100_000)),
 });
 
 export async function POST(

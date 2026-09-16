@@ -46,9 +46,8 @@ master-detail. Оба контекста получают качественны
    всегда в зоне видимости; disabled когда нет изменений (dirty-state).
 3. **Dirty-state + защита от потери**: вычислять `isDirty` (initial vs current);
    `beforeunload` + подтверждение при `← к списку`/уходе с несохранённым.
-4. **Нейтрализовать кнопку картинки в тулбаре Toast UI** (`MarkdownEditorToastUiInner`):
-   скрыть нативную кнопку image (CSS `[data-type="image"]`) ИЛИ переопределить на
-   `MediaLibraryInsertDialog`. Сейчас она вставляет невалидируемые пути → битый markdown.
+4. **Медиа в едином `TiptapEditor`:** вставка image/link идёт только через
+   `MediaLibraryInsertDialog`; отдельной нативной загрузки и markdown-сниппета нет.
 5. **`useEffect([recordKey])`-сброс** всех `useState` (title/slug/image/video и пр.)
    при смене записи — паттерн `ExerciseForm` (готовит компонент к инлайн-переиспользованию).
 6. **a11y/полировка**: `Label`-примитивы вместо `<span>` (+ починить `id`/`htmlFor`

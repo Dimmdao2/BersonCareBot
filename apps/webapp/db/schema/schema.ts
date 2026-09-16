@@ -127,6 +127,11 @@ export const platformUsers = pgTable(
     calendarTimezone: text('calendar_timezone'),
     /** When set, reminder push dispatch is suppressed until this instant (user-level mute). */
     reminderMutedUntil: timestamp('reminder_muted_until', { withTimezone: true, mode: 'string' }),
+    /** First time the patient was shown the post-login request to confirm an email. */
+    emailFirstRequestedAt: timestamp('email_first_requested_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     /** Отчество пациента (patronymic). Nullable. */
     patronymic: text('patronymic'),
   },

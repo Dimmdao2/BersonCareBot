@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { usePatientOrganizationContext } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { ChatView } from '@/modules/messaging/components/ChatView';
@@ -23,7 +24,8 @@ import {
 import { PatientChatComposer } from '@/shared/ui/patient/PatientChatComposer';
 import { AppContentLoading } from '@/shared/ui/AppContentLoading';
 import { notificationText } from '@/shared/notifications/notificationText';
-import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
+import { readSafeApiErrorText, redirectIfPatientAccessRequired } from '@/shared/http/apiErrorCode';
+import { errorCodeText } from '@/shared/notifications/errorCodeText';
 
 /**
  * 1:1 обращение пациента на самостоятельной странице кабинета.
@@ -33,6 +35,7 @@ import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
  * выдумывается и не хардкодится.
  */
 export function PatientMessagesClient() {
+  const router = useRouter();
   const organizationContext = usePatientOrganizationContext();
   const organizationTitle = organizationContext?.organization.title.trim() || 'Организация';
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -58,7 +61,8 @@ export function PatientMessagesClient() {
       readOnly?: boolean;
     };
     if (!res.ok || !data.ok || !data.conversationId) {
-      setError(data.error ?? 'Ошибка загрузки');
+      if (redirectIfPatientAccessRequired(data, (path) => router.push(path))) return;
+      setError(errorCodeText(data.error, notificationText.commonGenericError));
       return;
     }
     setConversationId(data.conversationId);
@@ -70,7 +74,7 @@ export function PatientMessagesClient() {
       body: JSON.stringify({ conversationId: data.conversationId }),
     });
     if (readRes.ok) notifyPatientSupportUnreadCountChanged();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,10 +99,15 @@ export function PatientMessagesClient() {
       );
       const fullData = (await fullRes.json()) as {
         ok?: boolean;
+        error?: string;
+        redirectTo?: string;
         messages?: SerializedSupportMessage[];
         readOnly?: boolean;
       };
-      if (!fullRes.ok || !fullData.ok || !Array.isArray(fullData.messages)) return;
+      if (!fullRes.ok || !fullData.ok || !Array.isArray(fullData.messages)) {
+        redirectIfPatientAccessRequired(fullData, (path) => router.push(path));
+        return;
+      }
       const polledMessages = fullData.messages;
       setMessages((current) => reconcileSupportMessages(current, polledMessages));
       setReadOnly(fullData.readOnly === true);
@@ -111,7 +120,7 @@ export function PatientMessagesClient() {
     } catch {
       // Polling is best-effort.
     }
-  }, [conversationId]);
+  }, [conversationId, router]);
 
   useMessagePolling(poll, Boolean(conversationId), 8000, false);
 
@@ -128,9 +137,11 @@ export function PatientMessagesClient() {
       const data = (await res.json()) as {
         ok?: boolean;
         error?: string;
+        redirectTo?: string;
         message?: SerializedSupportMessage;
       };
       if (!res.ok || !data.ok) {
+        if (redirectIfPatientAccessRequired(data, (path) => router.push(path))) return;
         // Обращение закрыли, пока форма была открыта — убираем форму, а не показываем код ошибки.
         if (data.error === 'conversation_closed') {
           setReadOnly(true);

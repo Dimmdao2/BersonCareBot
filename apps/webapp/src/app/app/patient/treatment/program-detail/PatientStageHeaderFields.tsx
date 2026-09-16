@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
 import {
   patientBodyTextClass,
   patientCardNestedListSurfaceClass,
@@ -76,17 +77,21 @@ export function PatientStageHeaderFields(props: {
       {stage.goals?.trim() ? (
         <div>
           <h3 className={patientSectionTitleClass}>Цель</h3>
-          <p className={cn(patientBodyTextClass, 'mt-1 whitespace-pre-wrap')}>
-            {stage.goals.trim()}
-          </p>
+          <MarkdownContent
+            text={stage.goals.trim()}
+            bodyFormat="markdown"
+            className={cn('markdown-preview mt-1', patientBodyTextClass)}
+          />
         </div>
       ) : null}
       {stage.objectives?.trim() ? (
         <div>
           <h3 className={patientSectionTitleClass}>Задачи</h3>
-          <p className={cn(patientBodyTextClass, 'mt-1 whitespace-pre-wrap')}>
-            {stage.objectives.trim()}
-          </p>
+          <MarkdownContent
+            text={stage.objectives.trim()}
+            bodyFormat="markdown"
+            className={cn('markdown-preview mt-1', patientBodyTextClass)}
+          />
         </div>
       ) : null}
       {!planPreview && durationLine ? (

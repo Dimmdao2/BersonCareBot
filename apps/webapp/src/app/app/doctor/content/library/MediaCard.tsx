@@ -68,7 +68,7 @@ export function MediaCard({
   const thumbMedia = libraryMediaRowToPreviewUi(item);
 
   return (
-    <article className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-sm">
+    <article className="flex flex-col gap-2 rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-3 shadow-sm">
       <div className="overflow-hidden rounded-md border border-border/70 bg-muted/30">
         {renderInlineImage ? (
           <Button

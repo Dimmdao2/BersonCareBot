@@ -148,6 +148,7 @@ export const notificationText = {
   authUnauthorized: 'Сеанс входа истёк. Войдите снова и повторите действие.',
   authVerifiedEmailRequired:
     'Email не подтверждён. Подтвердите email и повторите настройку защиты.',
+  patientEmailRequired: 'Подтвердите email, чтобы продолжить.',
   authWeakNewPassword:
     'Новый пароль должен содержать от 8 до 128 символов. Измените пароль и повторите.',
   authWrongCurrentPassword: 'Текущий пароль указан неверно. Проверьте его и повторите попытку.',

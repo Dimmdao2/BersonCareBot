@@ -35,7 +35,7 @@ function SettingsTabsSidebar({ activeTab, visibleTabs }: Props) {
 
   return (
     <nav
-      className="hidden shrink-0 self-start rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-3 md:sticky md:top-[calc(var(--doctor-page-header-h,0px)+0.75rem)] md:block md:w-52 lg:w-60"
+      className="hidden shrink-0 self-start rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-3 md:sticky md:top-[calc(var(--doctor-page-header-h,0px)+0.75rem)] md:block md:w-52 lg:w-60"
       aria-label="Разделы настроек"
     >
       <ul className="flex flex-col gap-1">

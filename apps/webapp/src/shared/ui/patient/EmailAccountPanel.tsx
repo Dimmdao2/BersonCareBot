@@ -26,6 +26,8 @@ type Props = {
   embeddedInTitledSection?: boolean;
   /** Строка как телефон в объединённом hero профиля (градиентный блок). */
   layout?: 'default' | 'profileHero';
+  /** Dedicated bind screen opens the existing flow directly at the address field. */
+  startInEditMode?: boolean;
 };
 
 /**
@@ -38,12 +40,13 @@ export function EmailAccountPanel({
   supportContactHref,
   embeddedInTitledSection = false,
   layout = 'default',
+  startInEditMode = false,
 }: Props) {
   const router = useRouter();
   const [emailStep, setEmailStep] = useState<'view' | 'enter' | 'code' | 'adminCode' | 'merge'>(
-    'view',
+    startInEditMode ? 'enter' : 'view',
   );
-  const [emailDraft, setEmailDraft] = useState('');
+  const [emailDraft, setEmailDraft] = useState(startInEditMode ? (initialEmail ?? '') : '');
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
   const [emailRetrySec, setEmailRetrySec] = useState(60);
   const [emailStartError, setEmailStartError] = useState<string | null>(null);
@@ -80,7 +83,7 @@ export function EmailAccountPanel({
         setEmailRetrySec(data.retryAfterSeconds ?? 60);
         setEmailStep('code');
       } else {
-        setEmailStartError(data.message ?? 'Не удалось отправить код');
+        setEmailStartError(data.message ?? notificationText.authCodeSendFailed);
       }
     } finally {
       setEmailStartPending(false);
@@ -356,7 +359,7 @@ export function EmailAccountPanel({
               }
               return {
                 ok: false as const,
-                message: data.message ?? 'Ошибка',
+                message: data.message ?? notificationText.authConfirmationFailed,
                 code: data.error,
                 retryAfterSeconds: data.retryAfterSeconds,
               };
@@ -446,7 +449,7 @@ export function EmailAccountPanel({
               }
               return {
                 ok: false as const,
-                message: data.message ?? 'Ошибка',
+                message: data.message ?? notificationText.authConfirmationFailed,
                 code: data.error,
                 retryAfterSeconds: data.retryAfterSeconds,
               };

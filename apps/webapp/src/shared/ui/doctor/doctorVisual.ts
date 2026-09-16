@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 /** Page-level section container for doctor pages. */
 export const doctorSectionCardClass =
-  'rounded-[var(--doctor-page-block-radius,12px)] border border-[var(--doctor-block-border)] bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3';
+  'rounded-[var(--doctor-page-block-radius,10px)] border border-[var(--doctor-block-border)] bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3';
 
 /** Inner list row/card inside page-level sections. */
 export const doctorSectionItemClass =
@@ -43,7 +43,7 @@ export const doctorCatalogRowActiveClass =
 
 /** Standalone catalog editor page shell (new / [id] routes outside split-layout). */
 export const doctorCatalogEditorSectionClass =
-  'flex flex-col gap-3 rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] shadow-sm';
+  'flex flex-col gap-3 rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] shadow-sm';
 
 /** Compact history/event row inside panels. */
 export const doctorHistoryRowClass = 'rounded-md border border-border/60 bg-muted/10 px-2 py-1.5';

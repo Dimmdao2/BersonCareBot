@@ -13,11 +13,11 @@ type SharedButtonVariantsProps = NonNullable<Parameters<typeof sharedButtonVaria
 };
 
 const doctorButtonRadiusClassName =
-  'rounded-[var(--doctor-button-radius,8px)] in-data-[slot=button-group]:rounded-[var(--doctor-button-radius,8px)]';
+  'rounded-[var(--doctor-button-radius,7px)] in-data-[slot=button-group]:rounded-[var(--doctor-button-radius,7px)]';
 const doctorOutlineButtonSurfaceClassName =
   'bg-[var(--doctor-page-gap-background,var(--bc-canvas,#f2f2f0))]';
 
-/** Doctor button radius (8px). Explicit caller radii (`rounded-none`, icon circles) still win. */
+/** Doctor button radius (7px). Explicit caller radii (`rounded-none`, icon circles) still win. */
 export function Button({ className, size, ...props }: SharedButtonProps) {
   return (
     <SharedButton

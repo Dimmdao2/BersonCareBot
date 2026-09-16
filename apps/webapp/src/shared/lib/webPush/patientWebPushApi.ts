@@ -1,4 +1,9 @@
 import type { WebPushClientPlatform } from '@/shared/lib/webPush/pushPlatform';
+import { redirectIfPatientAccessRequired } from '@/shared/http/apiErrorCode';
+
+function redirectPatientAccess(body: unknown): boolean {
+  return redirectIfPatientAccessRequired(body, (path) => window.location.assign(path));
+}
 
 export type PatientWebPushStatusResponse = {
   ok?: boolean;
@@ -16,12 +21,14 @@ export async function unsubscribeAllPatientWebPush(): Promise<boolean> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ all: true }),
   });
+  if (!res.ok) redirectPatientAccess(await res.json().catch(() => null));
   return res.ok;
 }
 
 export async function fetchPatientWebPushStatus(): Promise<PatientWebPushStatusResponse> {
   const res = await fetch('/api/patient/web-push/status', { credentials: 'include' });
   if (!res.ok) {
+    redirectPatientAccess(await res.json().catch(() => null));
     return {
       ok: false,
       vapidConfigured: false,
@@ -46,6 +53,7 @@ export async function registerPatientWebPushSubscription(
       platform,
     }),
   });
+  if (!res.ok) redirectPatientAccess(await res.json().catch(() => null));
   return res.ok;
 }
 
