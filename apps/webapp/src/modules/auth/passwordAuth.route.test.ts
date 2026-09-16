@@ -5,6 +5,7 @@ import type { PasswordAltchaService } from '@/modules/auth/passwordAltcha';
 import type { PasswordChangeService } from '@/modules/auth/passwordChange';
 import type { StaffSecurityService } from '@/modules/staff-security/service';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
+import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import type { AppSession, SessionUser } from '@/shared/types/session';
 
 type CheckRateLimit =
@@ -327,8 +328,18 @@ describe('email/password login HTTP boundary', () => {
       lockedUntil: null,
       sessionVersion: 1,
     });
-    fakes.resolveOrganizationForUser.mockRejectedValue(
-      new Error('multiple_active_staff_memberships'),
+    // Резолвер берётся НАСТОЯЩИЙ, поверх порта, который падает: иначе проверка держалась бы на
+    // подменённом обещании и не заметила бы, что отказ зависимости превратили в штатное «членства
+    // нет» внутри самого резолвера — а это ровно тот путь, которым вход снова стал бы password-only.
+    const membershipOverRefusingPort = createOrganizationMembershipService({
+      membershipPort: {
+        listActiveForWorkspaceResolution: async () => {
+          throw new Error('membership_lookup_unavailable');
+        },
+      } as unknown as Parameters<typeof createOrganizationMembershipService>[0]['membershipPort'],
+    });
+    fakes.resolveOrganizationForUser.mockImplementation(
+      membershipOverRefusingPort.resolveOrganizationForUser,
     );
 
     const response = await login(request());
