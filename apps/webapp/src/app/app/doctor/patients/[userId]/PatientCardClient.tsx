@@ -593,18 +593,24 @@ export function PatientCardClient({
               ) : null}
 
               {workspaceModules?.encounters !== false || workspaceModules?.video_meetings ? (
-                <div className="mt-3 flex flex-nowrap gap-1 sm:gap-2">
+                <div className="mt-3 flex w-full flex-nowrap gap-1 sm:gap-2">
                   {workspaceModules?.encounters !== false ? (
                     <>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
+                        className="shrink-0"
                         onClick={() => setEncounterHistoryOpen(true)}
                       >
-                        История
+                        История визитов
                       </Button>
-                      <Button type="button" size="sm" onClick={() => openEncounterStart()}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => openEncounterStart()}
+                      >
                         Начать {appointmentAccusative}
                       </Button>
                     </>
@@ -612,7 +618,8 @@ export function PatientCardClient({
                   {workspaceModules?.video_meetings ? (
                     <Button
                       type="button"
-                      size="icon"
+                      size="sm"
+                      className="min-w-9 flex-1 px-2"
                       onClick={() =>
                         router.push(
                           activeCall?.returnUrl ??
