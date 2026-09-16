@@ -30,7 +30,6 @@ export type PhoneMessengerAuthFlowProps = {
   channelPolicy?: AuthChannelUiPolicy;
   purpose: 'login' | 'profile_bind';
   onBack: () => void;
-  supportContactHref?: string;
   /** Для login: безопасный next из URL `/app`. */
   nextParam?: string | null;
   /** После успешного подтверждения в профиле (без полного redirect login). */

@@ -279,32 +279,18 @@ export async function POST(request: Request) {
       };
     }
   } else {
-    const email = user || publicLogin ? primaryConfirmedContactValue(user, 'email') : null;
-    if (!user) {
-      if (!publicLogin) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'channel_unavailable',
-            message: notificationText.authConfirmEmailInProfileFirst,
-          },
-          { status: 400 },
-        );
-      }
-    } else if (!email) {
-      if (!publicLogin) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'channel_unavailable',
-            message: notificationText.authConfirmEmailInProfileFirst,
-          },
-          { status: 400 },
-        );
-      }
-    } else {
-      delivery = { channel: 'email', email };
+    const email = primaryConfirmedContactValue(user, 'email');
+    if (!user || !email) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'channel_unavailable',
+          message: notificationText.authConfirmEmailInProfileFirst,
+        },
+        { status: 400 },
+      );
     }
+    delivery = { channel: 'email', email };
   }
 
   const result = await deps.auth.startPhoneAuth(normalized, context, {
@@ -385,7 +371,7 @@ export async function POST(request: Request) {
   }
 
   if (publicLogin) {
-    return publicLoginAccepted(startedAt, result.challengeId, deliveryChannel);
+    return publicLoginAccepted(startedAt, result.challengeId);
   }
 
   return NextResponse.json({
@@ -400,7 +386,6 @@ export async function POST(request: Request) {
 async function publicLoginAccepted(
   startedAt: number,
   challengeId: string,
-  deliveryChannel: 'sms' | 'telegram' | 'max' | 'email',
 ): Promise<NextResponse> {
   const remainingMs = PUBLIC_LOGIN_START_MIN_RESPONSE_MS - (Date.now() - startedAt);
   if (remainingMs > 0) {
@@ -410,7 +395,6 @@ async function publicLoginAccepted(
     ok: true,
     challengeId,
     retryAfterSeconds: 60,
-    deliveryChannel,
   });
 }
 

@@ -358,8 +358,8 @@ describe('phone login surface and explicit delivery', () => {
     expect(unknownBody).toMatchObject({
       ok: true,
       retryAfterSeconds: 60,
-      deliveryChannel: 'telegram',
     });
+    expect(unknownBody).not.toHaveProperty('deliveryChannel');
     expect(String(unknownBody.challengeId)).toHaveLength(String(linkedBody.challengeId).length);
   });
 

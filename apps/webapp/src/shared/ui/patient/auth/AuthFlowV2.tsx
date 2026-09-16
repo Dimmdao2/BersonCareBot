@@ -2532,7 +2532,6 @@ export function AuthFlowV2({
             openStaffFactorMode();
             setStep('email_password');
           }}
-          supportContactHref={supportContactHref}
           nextParam={nextParam}
         />
       </div>

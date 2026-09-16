@@ -8,8 +8,8 @@
 2. Пользователь открывает бота (Telegram / Max), state `await_phoneauth:<token>`.
 3. Пользователь отправляет контакт → integrator `webapp.phoneMessengerBind.complete` → `POST /api/integrator/phone-messenger-bind/complete`.
 4. **После контакта (ветка по `purpose`):**
-   - **`login`** (вход по номеру в PWA, без сессии): webapp сначала пробует auto-merge через общий merge-engine, если мессенджер уже привязан к одной `platform_users`, а введённый телефон принадлежит другой. При успехе создаёт OTP-challenge, secret → `otp_ready`; PWA poll до `otp_ready` (интервал 2.5 s + **немедленный** poll при `visibilitychange` на шаге ожидания) → показывает форму ввода кода → **`POST /api/auth/phone/confirm`** → secret `consumed`. Бот подтверждает телефон средствами мессенджера и присылает **`phoneAuthLoginCode`** с кодом + главное меню; он не создаёт учётку. При наличии `facts.links.webappHomeUrl` приходит отдельное сообщение **`phoneAuthOpenAppPrompt`** с inline **browser URL** (`/app/tg?t=…` / `/app/max?t=…`, не `web_app`).
-   - **`profile_bind`** (привязка к уже залогиненному аккаунту): webapp создаёт OTP-challenge, secret → `otp_ready`; PWA poll вызывает browser `finish`, где телефон привязывается, а при другой карточке показывается общий account/FIO prompt. Integrator своего `user.phone.link` не делает (выведен из рантайма 2026-08-26).
+   - **`login`** (вход по номеру в PWA, без сессии): после подтверждения контакта создаётся OTP-challenge, secret → `otp_ready`; PWA poll до `otp_ready` (интервал 2.5 s + **немедленный** poll при `visibilitychange` на шаге ожидания) → **`POST /api/auth/phone/messenger-bind/finish`**, где сохранённый OTP подтверждается server-side, выполняются bind/merge и создаётся сессия. Отдельной формы кода в PWA нет.
+   - **`profile_bind`** (привязка к уже залогиненному аккаунту): тот же poll вызывает browser `finish`, где телефон привязывается, а при другой карточке показывается общий account/FIO prompt. Integrator своего `user.phone.link` не делает (выведен из рантайма 2026-08-26).
 5. Integrator complete API возвращает **`purpose`**; код в ответе только для `login`.
 
 ## Integrator
@@ -71,8 +71,8 @@
 1. Применить миграции webapp на хосте (`pnpm migrate` из корня репозитория на production — подхватывает `api.prod` + `webapp.prod`). Убедиться, что в логе Drizzle применилась **`0078_phone_messenger_bind_secrets`** (не путать с legacy `078_reference_items_deleted_at.sql`). Проверка: `SELECT to_regclass('public.phone_messenger_bind_secrets');` → не `NULL`.
 2. Задать `telegram_login_bot_username` / `max_login_bot_nickname` в admin Settings.
 3. Деплой webapp + integrator (scripts/templates).
-4. Smoke: PWA login (TG/Max) → контакт подтверждает телефон → бот присылает код → приложение показывает ввод
-   кода → вход + меню; ни webhook, ни команда бота не создают аккаунт; cancel без `confirmQuestion`;
+4. Smoke: PWA login (TG/Max) → контакт подтверждает телефон → приложение завершает `messenger-bind/finish`
+   без отдельной формы кода → вход + меню; ни webhook, ни команда бота не создают аккаунт; cancel без `confirmQuestion`;
    `profile_bind` без OTP.
 
 Контракт M2M: `apps/webapp/INTEGRATOR_CONTRACT.md`. Модуль: `apps/webapp/src/modules/auth/auth.md` (§ Phone messenger bind).
