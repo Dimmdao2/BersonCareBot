@@ -133,9 +133,9 @@ export const SURFACE_ROUTE_RULES: readonly SurfaceRouteRule[] = [
     why: 'Public specialist page of a clinic card (#926 §17.G).',
   },
   {
-    match: { kind: 'pattern', pattern: /^\/[^/]+(?:\/booking)?$/ },
+    match: { kind: 'pattern', pattern: /^\/[^/]+(?:\/booking|\/lead)?$/ },
     audience: 'patient',
-    why: 'Public clinic card and booking by clinic slug.',
+    why: 'Public clinic card, booking and lead form by clinic slug (Л3).',
   },
 ];
 
