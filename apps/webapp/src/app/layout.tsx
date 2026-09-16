@@ -13,6 +13,7 @@ import { ClientToaster } from '@/components/ClientToaster';
 import { TooltipProvider } from '@/shared/ui/patient/primitives/tooltip';
 import { getPlatformEntry } from '@/shared/lib/platformCookie.server';
 import { BUILD_ID_META_NAME } from '@/shared/lib/reloadConstants';
+import { resolvePublicBuildId } from '@/shared/lib/buildVersion.server';
 import { PlatformProvider } from '@/shared/ui/PlatformProvider';
 import { BuildVersionWatcher } from '@/shared/ui/BuildVersionWatcher';
 import { HorizontalOverflowProbe } from '@/shared/ui/dev/HorizontalOverflowProbe';
@@ -47,7 +48,7 @@ export const viewport: Viewport = {
 /** Рендерит общую обёртку страницы: тег html, тело и дочернее содержимое (конкретная страница). */
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const [platformEntry, surface] = await Promise.all([getPlatformEntry(), getResolvedSurface()]);
-  const buildId = (process.env.BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID || '').trim();
+  const buildId = resolvePublicBuildId();
   return (
     <html lang="ru" suppressHydrationWarning className="font-sans">
       <head>
