@@ -112,3 +112,27 @@ retryAfterSeconds }`, а `:259-262` показывает один countdown.
 
 Полный CI, DEV/TEST/PROD, миграции, БД и второй Next-сервер не запускались. Продуктовый код и тесты аудитор не
 исправлял; все временные мутации возвращены. Вердикт в `feat` не записывался.
+
+## Повторная независимая сверка точного кандидата
+
+При повторном входе ветка уже находилась на более позднем `c2de91cf266fc132326c243a98bb1fdb961e6208`, поэтому
+предмет аудита не подменялся текущим деревом: `d3bbddd586761c71b6538431af944c98a5dbf53e` был открыт detached,
+проверен и оставлен без изменений, после чего рабочая ветка возвращена на исходный HEAD.
+
+- `/home/dev/brain/host-orch/run-tests.sh "node apps/webapp/scripts/check-notification-text-coverage.mjs --self-test"`
+  на исходном кандидате: `65 leak fixtures red`, `31 safe shapes green`, `12 targeted mutations green`,
+  tree-check `OK`, `rc=0`.
+- После временной законной замены `commonUnknownValue: 'Неизвестно'` на `Значение неизвестно` та же команда
+  сохранила `65 / 31 / 12`, tree-check `OK`, `rc=0`; изменение возвращено.
+- `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run --project=route
+  src/app/api/auth/email/start/route.route.test.ts
+  src/app/api/admin/booking-engine/branches/route.route.test.ts"`: `2 passed` файла, `4 passed` теста.
+- После временной смыслосохраняющей редакции только фабрики лимита на
+  `Невозможно ${action}: лимит тарифа «${mechanicLabel}» исчерпан.` отдельный branches route-test дал
+  `1 failed | 2 passed`: красным было только дословно ожидаемое поле `message`; изменение возвращено.
+- `pnpm --dir apps/webapp run typecheck`: `tsc --noEmit`, `rc=0`.
+
+Повторная трассировка подтвердила все три MUST FIX без новых находок: два production caller-а лимита сохраняют
+те же `action` и `MECHANIC_REGISTRY.branches.label`; resend-путь `EmailAccountPanel` схлопывает любой HTTP 429 в
+`rate_limited` до `OtpCodeForm`; `OTP_RESEND_COOLDOWN_SEC = 60` и DB-проверка `interval '60 seconds'` опровергают
+комментарий нового ключа. DEV/TEST/PROD и миграции не затрагивались.
