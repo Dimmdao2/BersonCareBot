@@ -25,7 +25,11 @@ const fakes = vi.hoisted(() => ({
   syncCalendarTimezone: vi.fn(),
   checkConfirmRateLimit: vi.fn<() => Promise<{ limited: false }>>(),
   surface: {
-    current: 'patient_default' as 'patient_default' | 'patient_branded' | 'staff',
+    current: 'patient_default' as
+      | 'patient_default'
+      | 'patient_branded'
+      | 'staff'
+      | 'platform_admin',
     availableMethods: ['phone_bot'] as string[],
     brandedOrganizationId: '00000000-0000-4000-8000-000000002222',
   },
@@ -206,6 +210,65 @@ describe('direct phone OTP boundary', () => {
       ok: false,
       error: 'direct_phone_login_disabled',
     });
+    expect(fakes.findByPhone).not.toHaveBeenCalled();
+    expect(fakes.startPhoneAuth).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      surface: 'staff' as const,
+      availableMethods: ['password'],
+      body: { phone: '+79991234567', purpose: 'profile_bind', deliveryChannel: 'telegram' },
+      error: 'auth_method_disabled',
+    },
+    {
+      surface: 'platform_admin' as const,
+      availableMethods: ['password'],
+      body: { phone: '+79991234567', purpose: 'profile_bind', deliveryChannel: 'telegram' },
+      error: 'auth_method_disabled',
+    },
+    {
+      surface: 'patient_branded' as const,
+      availableMethods: ['phone_bot'],
+      body: { phone: '+79991234567', purpose: 'login', deliveryChannel: 'telegram' },
+      error: 'direct_phone_login_disabled',
+    },
+    {
+      surface: 'patient_branded' as const,
+      availableMethods: ['phone_bot'],
+      body: { phone: '+79991234567', deliveryChannel: 'telegram' },
+      error: 'direct_phone_login_disabled',
+    },
+  ])('keeps the $surface rejection before identity lookup', async ({
+    surface,
+    availableMethods,
+    body,
+    error,
+  }) => {
+    fakes.surface.current = surface;
+    fakes.surface.availableMethods = availableMethods;
+
+    const response = await startPhone(startRequest(body));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ ok: false, error });
+    expect(fakes.findByPhone).not.toHaveBeenCalled();
+    expect(fakes.startPhoneAuth).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unauthenticated profile bind before identity lookup', async () => {
+    fakes.getCurrentSession.mockResolvedValue(null);
+
+    const response = await startPhone(
+      startRequest({
+        phone: '+79991234567',
+        purpose: 'profile_bind',
+        deliveryChannel: 'telegram',
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'unauthorized' });
     expect(fakes.findByPhone).not.toHaveBeenCalled();
     expect(fakes.startPhoneAuth).not.toHaveBeenCalled();
   });
