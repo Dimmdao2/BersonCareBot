@@ -10,6 +10,22 @@
  * (`app/patient/bind-email/page.tsx`), email start/resend and confirmation
  * (`api/auth/email/{start,confirm}/route.ts`) and logout (`api/auth/logout/route.ts`). They are not
  * exceptions to a patient/booking route scan.
+ *
+ * ГРАНИЦА ЭТОГО ГЕЙТА — читать до того, как объявлять его доказательством.
+ *
+ * Правило ловит ФОРМЫ ЗАПИСИ, а не поток данных. Независимый аудит круга 5 (16.09.2026,
+ * `docs/_TODO/AUDIT_E5A_ROUND5_2026-09-16.md`) перечислил формы, на которых оно молчит: чтение
+ * через прямой репозиторий или `getDrizzle()` мимо `buildAppDeps()`; чтение внутри вызванного до
+ * двери helper'а; промис, начатый до двери и дождавшийся `await` после неё; переприсваивание
+ * результата двери между объявлением и проверкой. Два ЛОЖНЫХ срабатывания того же круга — на
+ * объявлении inline-helper и на обработчике в обёртке — закрыты, и обе формы стоят зелёными
+ * образцами в self-test.
+ *
+ * Оставшиеся четыре формы сознательно НЕ преследуются: за ними начинается анализ потока данных, а
+ * это уже не гейт, а вторая система. Правило владельца (запрет аудит-разгона): два круга подряд,
+ * закрывшие только машинерию гейта и ни одного пункта плана, — стоп. Гейт здесь — сито от
+ * повторения найденного класса, а не доказательство отсутствия дыр; доказательство — живой прогон
+ * и обзор дифа.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -108,6 +124,31 @@ function importsAcceptedGuard(source) {
   return importedGuardLocals(sourceFile).size > 0;
 }
 
+/**
+ * Тело обработчика из инициализатора экспорта.
+ *
+ * Круг 5, MUST FIX-6: обработчик, завёрнутый в обёртку (`export const GET = makeHandler(async () =>
+ * {...})`), раньше отдавал `body: undefined`, и правило краснело на НЁМ САМОМ — то есть запрещало
+ * форму записи целиком, вместо того чтобы смотреть порядок внутри неё. Обёртка — законная форма;
+ * разбираем её и берём тело первого функционального аргумента.
+ */
+function handlerBodyOf(initializer) {
+  if (!initializer) return undefined;
+  if (
+    (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) &&
+    ts.isBlock(initializer.body)
+  ) {
+    return initializer.body;
+  }
+  if (ts.isCallExpression(initializer)) {
+    for (const argument of initializer.arguments) {
+      const nested = handlerBodyOf(argument);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+}
+
 function exportedHandlers(sourceFile) {
   const handlers = [];
   for (const statement of sourceFile.statements) {
@@ -125,13 +166,7 @@ function exportedHandlers(sourceFile) {
         if (!ts.isIdentifier(declaration.name) || !httpMethods.has(declaration.name.text)) {
           continue;
         }
-        const initializer = declaration.initializer;
-        const body =
-          initializer &&
-          (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) &&
-          ts.isBlock(initializer.body)
-            ? initializer.body
-            : undefined;
+        const body = handlerBodyOf(declaration.initializer);
         handlers.push({ method: declaration.name.text, body });
       }
       continue;
@@ -266,6 +301,19 @@ function firstDataReadPortIn(node, depsVars) {
   let found;
   const visit = (n) => {
     if (found !== undefined) return;
+    /* Круг 5, MUST FIX-5: ОБЪЯВЛЕНИЕ функции ничего не читает — читает её ВЫЗОВ. Раньше обход
+       заходил в тело вложенной стрелки и находил там `await`, из-за чего законный handler, где
+       helper объявлен до двери, а вызван после, объявлялся нарушением. Границу функции не
+       пересекаем; сам узел, если он и есть тело обработчика, пропускаем в обход. */
+    if (
+      n !== node &&
+      (ts.isArrowFunction(n) ||
+        ts.isFunctionExpression(n) ||
+        ts.isFunctionDeclaration(n) ||
+        ts.isMethodDeclaration(n))
+    ) {
+      return;
+    }
     if (ts.isAwaitExpression(n)) {
       const port = dataReadPortOf(n.expression, depsVars);
       if (port !== undefined) {
@@ -477,6 +525,18 @@ function selfTest() {
       'public booking is outside the protected route scope',
       'booking/public/slots/route.ts',
       'export async function GET() { return Response.json({ ok: true }); }',
+      new Map(),
+    ],
+    [
+      'объявление helper до двери — не чтение; читает его вызов после двери (круг 5, MF5)',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const deps = buildAppDeps(); const read = async () => await deps.materialRating.getForPatient({}); ${guarded} return Response.json(await read()); }`,
+      new Map(),
+    ],
+    [
+      'обработчик в обёртке с дверью первой — законная форма (круг 5, MF6)',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export const GET = makeHandler(async () => { ${guarded} const deps = buildAppDeps(); return Response.json(await deps.materialRating.getForPatient({})); });`,
       new Map(),
     ],
   ];
