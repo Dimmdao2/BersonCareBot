@@ -11,8 +11,9 @@
  * (`api/auth/email/{start,confirm}/route.ts`) and logout (`api/auth/logout/route.ts`). They are not
  * exceptions to a patient/booking route scan.
  *
- * Граница: гейт следует только по локальным объявлениям и литералам этого route-файла; он не
- * разрешает импортированные/межмодульные фабрики и не доказывает отсутствие обхода общим data-flow.
+ * Граница: гейт не обещает разбирать межмодульные фабрики и импортированные обработчики,
+ * значения, пришедшие через spread, или выполнять общий анализ потока данных. Spread остаётся
+ * `unresolvedPotential`: путь обработчика закрывается, а путь раннего чтения может остаться без finding.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -134,12 +135,47 @@ function importBindsName(statement, name) {
   return Boolean(bindings?.elements.some((element) => element.name.text === name));
 }
 
+function bindingMatchInName(bindingName, name, path = []) {
+  if (ts.isIdentifier(bindingName)) {
+    return bindingName.text === name ? { path, unresolved: false } : undefined;
+  }
+
+  if (ts.isObjectBindingPattern(bindingName)) {
+    for (const element of bindingName.elements) {
+      const propertyName = element.propertyName
+        ? propertyNameOf(element.propertyName)
+        : ts.isIdentifier(element.name)
+          ? element.name.text
+          : undefined;
+      const nested = bindingMatchInName(
+        element.name,
+        name,
+        propertyName === undefined ? path : [...path, propertyName],
+      );
+      if (!nested) continue;
+      return element.dotDotDotToken || propertyName === undefined
+        ? { path: nested.path, unresolved: true }
+        : nested;
+    }
+    return undefined;
+  }
+
+  for (let index = 0; index < bindingName.elements.length; index += 1) {
+    const element = bindingName.elements[index];
+    if (ts.isOmittedExpression(element)) continue;
+    const nested = bindingMatchInName(element.name, name, [...path, String(index)]);
+    if (!nested) continue;
+    return element.dotDotDotToken ? { path: nested.path, unresolved: true } : nested;
+  }
+  return undefined;
+}
+
 function directBindingInScope(scope, name) {
   if (!scope) return undefined;
 
   if (ts.isBlock(scope) && ts.isFunctionLike(scope.parent)) {
-    const parameter = scope.parent.parameters.find(
-      (candidate) => ts.isIdentifier(candidate.name) && candidate.name.text === name,
+    const parameter = scope.parent.parameters.find((candidate) =>
+      bindingMatchInName(candidate.name, name),
     );
     if (parameter) return { kind: 'unresolved', node: parameter };
   }
@@ -151,9 +187,10 @@ function directBindingInScope(scope, name) {
     }
     if (ts.isVariableStatement(statement)) {
       for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name) && declaration.name.text === name) {
-          return { kind: 'variable', node: declaration };
-        }
+        const match = bindingMatchInName(declaration.name, name);
+        if (!match) continue;
+        if (match.unresolved) return { kind: 'unresolved', node: declaration };
+        return { kind: 'variable', node: declaration, path: match.path };
       }
     }
     if (
@@ -193,7 +230,30 @@ function propertyNameOf(name) {
   if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
     return name.text;
   }
+  if (ts.isComputedPropertyName(name)) return propertyNameOf(unwrapExpression(name.expression));
   return undefined;
+}
+
+function variableValueTargetsOf(binding, state) {
+  if (!binding.node.initializer) return { targets: [], unresolvedPotential: true };
+
+  let resolved = valueTargetsOf(
+    binding.node.initializer,
+    lexicalScopeOf(binding.node),
+    state,
+  );
+  for (const propertyName of binding.path) {
+    const members = resolved.targets.map((target) =>
+      memberValuesOf(target, propertyName, lexicalScopeOf(target), state),
+    );
+    resolved = {
+      targets: members.flatMap((member) => member.targets),
+      unresolvedPotential:
+        resolved.unresolvedPotential ||
+        members.some((member) => member.unresolvedPotential),
+    };
+  }
+  return resolved;
 }
 
 function valueTargetsOf(expression, scope, state) {
@@ -225,10 +285,7 @@ function valueTargetsOf(expression, scope, state) {
   if (binding.kind === 'function') {
     return { targets: [binding.node], unresolvedPotential: false };
   }
-  if (!binding.node.initializer) {
-    return { targets: [], unresolvedPotential: true };
-  }
-  return valueTargetsOf(binding.node.initializer, lexicalScopeOf(binding.node), nextState);
+  return variableValueTargetsOf(binding, nextState);
 }
 
 function memberValuesOf(receiver, propertyName, scope, state) {
@@ -311,12 +368,16 @@ function resolveToFunctionBodies(expression, scope = lexicalScopeOf(expression),
     if (binding.kind === 'function') {
       return resolveToFunctionBodies(binding.node, lexicalScopeOf(binding.node), nextState);
     }
-    if (!binding.node.initializer) return { bodies: [], unresolvedPotential: true };
-    return resolveToFunctionBodies(
-      binding.node.initializer,
-      lexicalScopeOf(binding.node),
-      nextState,
+    const values = variableValueTargetsOf(binding, nextState);
+    const resolved = mergeResolutions(
+      values.targets.map((target) =>
+        resolveToFunctionBodies(target, lexicalScopeOf(target), nextState),
+      ),
     );
+    return {
+      bodies: resolved.bodies,
+      unresolvedPotential: values.unresolvedPotential || resolved.unresolvedPotential,
+    };
   }
 
   // Проверка ведущего 16.09: объектный литерал в аргументе обёртки раньше давал ноль тел и ноль
@@ -543,6 +604,14 @@ function dataReadPortOf(expression, depsVars) {
       node = node.expression;
       continue;
     }
+    if (ts.isElementAccessExpression(node)) {
+      const propertyName =
+        node.argumentExpression && propertyNameOf(unwrapExpression(node.argumentExpression));
+      if (propertyName === undefined) return undefined;
+      segments.unshift(propertyName);
+      node = node.expression;
+      continue;
+    }
     if (ts.isCallExpression(node)) {
       node = node.expression;
       continue;
@@ -555,6 +624,49 @@ function dataReadPortOf(expression, depsVars) {
   const port = segments[0];
   if (port !== undefined && PRE_GATE_PORT_ALLOWLIST.has(port)) return undefined;
   return port ?? '<deps>';
+}
+
+/**
+ * Проверяет всё вычисляемое под `await`: прямые чтения в обёртках/агрегаторах и тела каждого
+ * локального helper, который реально вызывается в этом выражении. Литерал функции сам по себе не
+ * выполняется, поэтому в его тело заходим только через разрешённый CallExpression.
+ */
+function firstDataReadPortInAwaitedExpression(node, depsVars, seenBodies) {
+  let found;
+  const visit = (n) => {
+    if (found !== undefined) return;
+    if (
+      ts.isArrowFunction(n) ||
+      ts.isFunctionExpression(n) ||
+      ts.isFunctionDeclaration(n) ||
+      ts.isMethodDeclaration(n)
+    ) {
+      return;
+    }
+
+    const port = dataReadPortOf(n, depsVars);
+    if (port !== undefined) {
+      found = port;
+      return;
+    }
+
+    if (ts.isCallExpression(n)) {
+      const resolved = resolveToFunctionBodies(n.expression, lexicalScopeOf(n.expression));
+      for (const body of resolved.bodies) {
+        if (seenBodies.has(body)) continue;
+        const nestedSeen = new Set(seenBodies).add(body);
+        const nested = firstDataReadPortIn(body, depsVars, nestedSeen);
+        if (nested !== undefined) {
+          found = nested;
+          return;
+        }
+      }
+    }
+
+    ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return found;
 }
 
 /** Первый порт данных, прочитанный внутри узла, в порядке появления. */
@@ -576,22 +688,8 @@ function firstDataReadPortIn(node, depsVars, seenBodies = new Set()) {
       return;
     }
     if (ts.isAwaitExpression(n)) {
-      const port = dataReadPortOf(n.expression, depsVars);
-      if (port !== undefined) {
-        found = port;
-        return;
-      }
-      const callee = ts.isCallExpression(n.expression) ? n.expression.expression : undefined;
-      const resolved = resolveToFunctionBodies(callee, lexicalScopeOf(callee));
-      for (const body of resolved.bodies) {
-        if (seenBodies.has(body)) continue;
-        const nestedSeen = new Set(seenBodies).add(body);
-        const nested = firstDataReadPortIn(body, depsVars, nestedSeen);
-        if (nested !== undefined) {
-          found = nested;
-          return;
-        }
-      }
+      found = firstDataReadPortInAwaitedExpression(n.expression, depsVars, seenBodies);
+      return;
     }
     ts.forEachChild(n, visit);
   };
@@ -712,6 +810,54 @@ function selfTest() {
     "const gate = await requirePatientApiBusinessAccess(); if (!gate.ok) return gate.response;";
 
   const bypasses = [
+    [
+      'круг 9: агрегирующий await не скрывает прямое чтение данных',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const [plan] = await Promise.all([buildAppDeps().treatmentProgram.getForPatient({})]); ${guarded} return Response.json(plan); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { ${guarded} const [plan] = await Promise.all([buildAppDeps().treatmentProgram.getForPatient({})]); return Response.json(plan); }`,
+    ],
+    [
+      'круг 9: локальный helper внутри агрегирующего await не скрывает чтение данных',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const pull = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const [plan] = await Promise.all([pull()]); ${guarded} return Response.json(plan); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const pull = async () => await buildAppDeps().treatmentProgram.getForPatient({}); ${guarded} const [plan] = await Promise.all([pull()]); return Response.json(plan); }`,
+    ],
+    [
+      'круг 9: bracket-access в цепочке порта не скрывает прямое чтение данных',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const plan = await buildAppDeps()['treatmentProgram'].getForPatient({}); ${guarded} return Response.json(plan); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { ${guarded} const plan = await buildAppDeps()['treatmentProgram'].getForPatient({}); return Response.json(plan); }`,
+    ],
+    [
+      'круг 9: объектная деструктуризация helper не скрывает чтение данных',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = { pull: async () => await buildAppDeps().treatmentProgram.getForPatient({}) }; const { pull } = box; const plan = await pull(); ${guarded} return Response.json(plan); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = { pull: async () => await buildAppDeps().treatmentProgram.getForPatient({}) }; const { pull } = box; ${guarded} const plan = await pull(); return Response.json(plan); }`,
+    ],
+    [
+      'круг 9: массивная деструктуризация helper не скрывает чтение данных',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = [async () => await buildAppDeps().treatmentProgram.getForPatient({})]; const [pull] = box; const plan = await pull(); ${guarded} return Response.json(plan); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const box = [async () => await buildAppDeps().treatmentProgram.getForPatient({})]; const [pull] = box; ${guarded} const plan = await pull(); return Response.json(plan); }`,
+    ],
+    [
+      'круг 9: вычислимое строковое имя свойства не скрывает чтение данных',
+      'patient/x/route.ts',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const pull = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const box = { ['pull']: pull }; const plan = await box.pull(); ${guarded} return Response.json(plan); }`,
+      new Map(),
+      'reads data through `treatmentProgram` BEFORE',
+      `${guardImport} import { buildAppDeps } from '@/app-layer/di/buildAppDeps'; export async function GET() { const pull = async () => await buildAppDeps().treatmentProgram.getForPatient({}); const box = { ['pull']: pull }; ${guarded} const plan = await box.pull(); return Response.json(plan); }`,
+    ],
     [
       'круг 6, MF1: локальный helper ВЫЗВАН до двери — читает он, а не объявление',
       'patient/x/route.ts',
@@ -879,6 +1025,24 @@ function selfTest() {
 
   const canonical = [
     [
+      'круг 9: безопасный handler через объектную деструктуризацию остаётся разрешён',
+      'patient/x/route.ts',
+      `${guardImport} const box = { pull: async () => { ${guarded} return Response.json({ ok: true }); } }; const { pull } = box; export const GET = pull;`,
+      new Map(),
+    ],
+    [
+      'круг 9: безопасный handler через массивную деструктуризацию остаётся разрешён',
+      'patient/x/route.ts',
+      `${guardImport} const box = [async () => { ${guarded} return Response.json({ ok: true }); }]; const [pull] = box; export const GET = pull;`,
+      new Map(),
+    ],
+    [
+      'круг 9: безопасный handler в вычислимом строковом свойстве остаётся разрешён',
+      'patient/x/route.ts',
+      `${guardImport} const pull = async () => { ${guarded} return Response.json({ ok: true }); }; const box = { ['pull']: pull }; export const GET = box.pull;`,
+      new Map(),
+    ],
+    [
       'one guarded method',
       'patient/x/route.ts',
       `${guardImport} export async function GET() { ${guarded} return Response.json({ ok: true }); }`,
@@ -941,8 +1105,10 @@ function selfTest() {
     }
   }
 
+  const mutationCount = bypasses.filter((fixture) => fixture[5]).length;
   console.log(
-    `patient API business access door self-test: OK (${bypasses.length} bypass fixtures red, ${canonical.length} canonical fixtures green)`,
+    `patient API business access door self-test: OK (${bypasses.length} bypass fixtures red, ` +
+      `${mutationCount} safe mutations green, ${canonical.length} canonical fixtures green)`,
   );
 }
 
