@@ -25,10 +25,17 @@ export type SlidingWindowRateLimitConfig = {
   };
 };
 
+export type SlidingWindowRateLimiter = ((key: string) => Promise<boolean>) & {
+  checkProcessRequestCap(): boolean;
+  checkAfterProcessRequestCap(key: string): Promise<boolean>;
+};
+
 /**
  * Sliding-window rate limit with DB persistence and in-memory fallback when DB is unavailable.
  */
-export function createSlidingWindowRateLimit(config: SlidingWindowRateLimitConfig) {
+export function createSlidingWindowRateLimit(
+  config: SlidingWindowRateLimitConfig,
+): SlidingWindowRateLimiter {
   const buckets = new Map<string, number[]>();
   let dbUnavailable = false;
   let scopePruneInFlight = false;
@@ -113,11 +120,20 @@ export function createSlidingWindowRateLimit(config: SlidingWindowRateLimitConfi
     }
   }
 
-  return async function isRateLimited(key: string): Promise<boolean> {
-    if (isProcessRequestLimited()) return true;
+  async function checkAfterProcessRequestCap(key: string): Promise<boolean> {
     if (!webappRuntimeDatabaseIsConfigured() || dbUnavailable) {
       return isLimitedInMemory(key);
     }
     return isLimitedDb(key);
+  }
+
+  const isRateLimited = async (key: string): Promise<boolean> => {
+    if (isProcessRequestLimited()) return true;
+    return checkAfterProcessRequestCap(key);
   };
+
+  return Object.assign(isRateLimited, {
+    checkProcessRequestCap: isProcessRequestLimited,
+    checkAfterProcessRequestCap,
+  });
 }

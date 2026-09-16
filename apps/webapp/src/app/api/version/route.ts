@@ -1,9 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 
 export const dynamic = 'force-dynamic';
 
-const APP_STARTED_AT = Date.now();
+const PROCESS_BUILD_ID = randomUUID();
 
 function resolveBuildId(): string {
   const envBuildId = process.env.BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID;
@@ -11,7 +12,7 @@ function resolveBuildId(): string {
     return envBuildId.trim();
   }
 
-  return String(APP_STARTED_AT);
+  return PROCESS_BUILD_ID;
 }
 
 export async function GET(request: Request) {

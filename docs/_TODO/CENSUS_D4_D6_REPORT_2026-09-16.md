@@ -185,9 +185,69 @@ node tools/census-open-routes.mjs
   rc=0; 479 route-файлов; 596 методов; 45 без двери; 44 с меткой; 1 без метки; 0 нераспознанных
 ```
 
+## Коррекция круга 1
+
+Исправлены три `MUST FIX` из `AUDIT_CENSUS_D4_D6_2026-09-16.md`. Галочки D4/D6 не менялись.
+
+### 1. `/api/version` не кодирует время старта
+
+- Fallback `buildId` заменён с `String(Date.now())` на process-local `randomUUID()`. Явные `BUILD_ID` и
+  `NEXT_PUBLIC_BUILD_ID` по-прежнему имеют приоритет; Dockerfile и prod deploy plumbing не менялись.
+- Route-тест читает настоящий JSON-ответ при пустых build env: поля `startedAt` нет, `buildId` не равен
+  зафиксированному времени процесса, стабилен внутри одного module graph и меняется после нового process/module
+  graph. Это сохраняет семантику watcher: смена процесса остаётся видна по изменившемуся значению.
+- Инъекция: fallback временно возвращён к `String(Date.now())`. Команда
+  `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run src/app/api/version/version.route.test.ts"`
+  завершилась `rc=1`: `expected '1789553472345' not to be '1789553472345'`. После восстановления тест зелёный.
+
+### 2. Анонимный ответ media-route не зависит от S3
+
+- В девяти найденных аудитом upload-route существующая doctor/patient/multipart дверь перенесена перед
+  `isS3MediaEnabled(env)`. Для вошедших пользователей прежний `501 s3_not_configured` сохранён.
+- Существующий route acceptance-набор расширен публичной проверкой: те же настоящие handlers вызываются
+  анонимно при S3 on и off; весь наблюдаемый ответ (`status` + JSON) совпадает и остаётся `401`.
+- Инъекция: в `media/presign` S3-check временно возвращён перед дверью. Команда
+  `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run src/modules/media/uploadDoorAcceptance.route.test.ts -t 'returns the same anonymous rejection regardless of S3 configuration'"`
+  завершилась `rc=1`: выключенный S3 дал `501 s3_not_configured` вместо `401 unauthorized`. После восстановления
+  тест зелёный.
+- Повтор точной аудиторской команды порядка дал пустой stdout (`rc=0`): route с
+  `isS3MediaEnabled(env)` раньше первой применимой auth-door не осталось.
+
+### 3. Потолок `client-boot-report` стоит до всех DB-backed чтений
+
+- Существующий `createSlidingWindowRateLimit` раскрывает две фазы того же limiter: process-cap и persistent
+  per-key check. Единый `checkClientBootReportIngress` теперь выполняет process-cap, затем DB-backed feature flag,
+  затем persistent limiter. Route вызывает только этот общий ingress gate.
+- Route-тест отправляет 302 запроса через настоящий handler с наблюдаемыми fake-портами. На запросах 1–300 оба
+  DB-backed порта вызваны ровно 300 раз; запросы 301 и 302 вернули `429`, а оба счётчика остались равны 300.
+- Инъекция: чтение feature flag временно перенесено перед process-cap. Команда
+  `/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run src/app/api/patient-app/client-boot-report/clientBootReportIngress.route.test.ts"`
+  завершилась `rc=1`: flag DB-port был вызван 302 раза вместо 300. После восстановления тест зелёный.
+
+### Проверки коррекции
+
+```text
+/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp exec vitest --run \
+  src/app/api/version/version.route.test.ts \
+  src/modules/media/uploadDoorAcceptance.route.test.ts \
+  src/app/api/patient-app/client-boot-report/clientBootReportIngress.route.test.ts"
+  rc=0; 3 files, 34 tests
+
+pnpm --dir apps/webapp exec tsc --noEmit
+  rc=0
+
+pnpm --dir apps/webapp exec eslint <16 изменённых TS-файлов>
+  rc=0
+
+/home/dev/brain/host-orch/run-tests.sh "pnpm --dir apps/webapp build"
+  rc=0; Next compiled, TypeScript finished, 430/430 static pages generated
+```
+
 ## ВОПРОСЫ ВЛАДЕЛЬЦУ
 
-Нет. `health` оставлен по прямому решению владельца; адреса с возможными внешними потребителями не удалялись.
+1. Нужен ли один bounded structured event при первом срабатывании process cap за окно? После порога приложение
+   сейчас намеренно не пишет событие на каждый `429`; D6 такого сигнала не требует, поэтому коррекция его не
+   добавляла.
 
 ## НЕ СДЕЛАНО
 
@@ -195,4 +255,4 @@ node tools/census-open-routes.mjs
 - Полный CI не запускался — запрещён brief; его запускает ведущий после landing.
 - DEV/TEST/PROD, миграции, БД и общий Next-server не трогались.
 - Live UI/runtime не выполнялся: до landing worker не поднимает второй Next-server.
-- Независимый аудит и строка вердикта в `feat` не выполнялись автором работы.
+- Повторный независимый аудит и строка вердикта в `feat` не выполнялись автором коррекции.

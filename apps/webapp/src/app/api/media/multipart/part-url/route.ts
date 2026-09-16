@@ -15,12 +15,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const gate = await requireMediaMultipartApiContext();
+  if (!gate.ok) return gate.response;
   if (!isS3MediaEnabled(env)) {
     return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
   }
-
-  const gate = await requireMediaMultipartApiContext();
-  if (!gate.ok) return gate.response;
 
   let json: unknown;
   try {
