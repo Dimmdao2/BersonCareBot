@@ -28,11 +28,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request, context: { params: Promise<{ instanceId: string }> }) {
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
   if (!isS3MediaEnabled(env)) {
     return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
   }
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate.response;
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'exercise_catalog');
   if (!entitlement.ok) return entitlement.response;
   const { instanceId } = await context.params;

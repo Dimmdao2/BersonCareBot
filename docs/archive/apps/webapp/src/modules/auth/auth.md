@@ -133,8 +133,9 @@ Tier **`patient`** (доступ к основному пациентскому 
   timeout для настоящего no-module/hard-failure. Существующие `MESSENGER_*` таймауты остаются отдельным auth-flow и
   не считаются boot failure.
 - `POST /api/patient-app/client-boot-report` принимает только bounded/minimized strict payload, лимитируется по
-  доверенному `X-Real-IP` через DB sliding-window port и пишет только structured `info`/`warn` с
-  `scope=patient_client_env`, `event=unsupported_client_boot`. Raw UA/stack/body/tokens/account ids не принимаются;
+  доверенному `X-Real-IP` через DB sliding-window port (30/час) и общим process-local потолком 300 запросов/час
+  до обращения к БД. Принятый отчёт пишет один structured `info` с `scope=patient_client_env`,
+  `event=unsupported_client_boot`; отбитые запросы не создают отдельный лог. Raw UA/stack/body/tokens/account ids не принимаются;
   product analytics, registration failure, audit и operator-health не вызываются.
 - Raw `X-Real-IP` не передаётся в repository и не сохраняется: limiter получает purpose-separated HMAC-SHA256
   `patient-client-boot-rate-limit:v1` на существующем `SESSION_COOKIE_SECRET`. Ротация session secret меняет

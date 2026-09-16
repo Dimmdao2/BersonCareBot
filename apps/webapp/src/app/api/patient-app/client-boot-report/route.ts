@@ -5,8 +5,7 @@ import {
   CLIENT_BOOT_REPORT_MAX_BYTES,
   clientBootReportSchema,
 } from '@/modules/auth/clientBootReport';
-import { checkClientBootReportRateLimit } from '@/modules/auth/clientBootReportRateLimit';
-import { getUnsupportedClientFallbackEnabled } from '@/modules/auth/unsupportedClientFallback';
+import { checkClientBootReportIngress } from '@/modules/auth/clientBootReportRateLimit';
 import { logger } from '@/infra/logging/logger';
 
 function jsonError(
@@ -66,20 +65,10 @@ export async function POST(request: Request) {
     return jsonError('payload_too_large', 413);
   }
 
-  if (!(await getUnsupportedClientFallbackEnabled())) {
-    return NextResponse.json({ ok: false }, { status: 404 });
-  }
-
-  const rateLimit = await checkClientBootReportRateLimit(request);
-  if (rateLimit === 'configuration_error') return jsonError('proxy_configuration', 503);
-  if (rateLimit === 'rate_limited') {
-    logger.warn({
-      scope: 'patient_client_env',
-      event: 'unsupported_client_boot',
-      outcome: 'rate_limited',
-    });
-    return jsonError('rate_limited', 429);
-  }
+  const ingress = await checkClientBootReportIngress(request);
+  if (ingress === 'disabled') return NextResponse.json({ ok: false }, { status: 404 });
+  if (ingress === 'configuration_error') return jsonError('proxy_configuration', 503);
+  if (ingress === 'rate_limited') return jsonError('rate_limited', 429);
 
   const body = await readBoundedUtf8Body(request, CLIENT_BOOT_REPORT_MAX_BYTES);
   if (!body.ok) return jsonError(body.reason, body.reason === 'payload_too_large' ? 413 : 400);

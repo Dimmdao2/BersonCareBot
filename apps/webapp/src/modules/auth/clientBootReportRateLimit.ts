@@ -3,6 +3,7 @@ import { env } from '@/config/env';
 import { logger } from '@/infra/logging/logger';
 import { isClientBootReportRateLimitedByKey } from '@/modules/auth/authRateLimits';
 import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
+import { getUnsupportedClientFallbackEnabled } from '@/modules/auth/unsupportedClientFallback';
 
 const SCOPE = 'patient_client_env';
 export const CLIENT_BOOT_REPORT_FALLBACK_CLIENT_KEY = 'client_boot_report:missing_x_real_ip';
@@ -42,10 +43,15 @@ export function resolveClientBootReportRateLimitClientKey(request: Request) {
   return { ok: true as const, key };
 }
 
-export async function checkClientBootReportRateLimit(
+export async function checkClientBootReportIngress(
   request: Request,
-): Promise<'ok' | 'rate_limited' | 'configuration_error'> {
+): Promise<'ok' | 'disabled' | 'rate_limited' | 'configuration_error'> {
+  if (isClientBootReportRateLimitedByKey.checkProcessRequestCap()) return 'rate_limited';
+  if (!(await getUnsupportedClientFallbackEnabled())) return 'disabled';
+
   const identity = resolveClientBootReportRateLimitClientKey(request);
   if (!identity.ok) return 'configuration_error';
-  return (await isClientBootReportRateLimitedByKey(identity.key)) ? 'rate_limited' : 'ok';
+  return (await isClientBootReportRateLimitedByKey.checkAfterProcessRequestCap(identity.key))
+    ? 'rate_limited'
+    : 'ok';
 }

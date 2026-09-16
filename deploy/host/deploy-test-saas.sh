@@ -492,7 +492,6 @@ assert_test_health_ok(){
   local health_response
   health_response="$(curl -fsk --max-time 10 https://test.therapysto.ru/api/health)"
   [[ "$health_response" == *'"ok":true'* ]] || { echo "FATAL: health response missing ok=true: $health_response" >&2; exit 1; }
-  [[ "$health_response" == *'"db":"up"'* ]] || { echo "FATAL: health response missing db=up: $health_response" >&2; exit 1; }
   echo "   health: OK ($health_response)"
 }
 

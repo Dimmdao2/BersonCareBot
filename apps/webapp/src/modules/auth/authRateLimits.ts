@@ -53,6 +53,12 @@ export const isClientBootReportRateLimitedByKey = createSlidingWindowRateLimit({
   scope: 'patient.client_boot_report',
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 30,
+  // This diagnostic is optional and fail-open for the patient journey. Bound all ingress before
+  // the DB so rotating X-Real-IP values cannot grow rate-limit rows or accepted telemetry logs.
+  processRequestCap: {
+    windowMs: 60 * 60 * 1000,
+    maxPerWindow: 300,
+  },
   scopePrune: {
     retentionMs: 60 * 60 * 1000,
     intervalMs: 5 * 60 * 1000,

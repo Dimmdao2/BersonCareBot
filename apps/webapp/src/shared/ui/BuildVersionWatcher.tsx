@@ -75,8 +75,8 @@ export function BuildVersionWatcher() {
           restartLoop();
           return;
         }
-        // Dev/local: layout meta may be empty if BUILD_ID was not set at build time.
-        // First successful response establishes baseline — otherwise "" !== server id loops reload forever.
+        // An older/static document may not contain the build meta yet. The first successful response
+        // establishes a baseline — otherwise "" !== server id loops reload forever.
         if (!initialBuildIdRef.current) {
           initialBuildIdRef.current = serverBuildId;
           consecutiveErrorsRef.current = 0;

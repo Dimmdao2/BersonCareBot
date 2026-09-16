@@ -67,11 +67,12 @@ const fakes = vi.hoisted(() => ({
   maybeAutoEnqueueVideoTranscodeAfterUpload: vi.fn(),
   loggerError: vi.fn(),
   loggerWarn: vi.fn(),
+  isS3MediaEnabled: vi.fn(),
 }));
 
 vi.mock('@/config/env', () => ({
   env: { S3_PRIVATE_BUCKET: 'test-private', S3_ENDPOINT: 'http://s3.test' },
-  isS3MediaEnabled: () => true,
+  isS3MediaEnabled: fakes.isS3MediaEnabled,
 }));
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: fakes.requireDoctorWorkspaceApiContext,
@@ -172,6 +173,8 @@ vi.mock('@/app-layer/logging/logger', () => ({
 import { POST as proxyUpload } from '@/app/api/media/upload/route';
 import { POST as genericPresign } from '@/app/api/media/presign/route';
 import { POST as multipartInit } from '@/app/api/media/multipart/init/route';
+import { POST as multipartPartUrl } from '@/app/api/media/multipart/part-url/route';
+import { POST as multipartAbort } from '@/app/api/media/multipart/abort/route';
 import { POST as genericConfirm } from '@/app/api/media/confirm/route';
 import { POST as multipartComplete } from '@/app/api/media/multipart/complete/route';
 import { POST as individualPresign } from '@/app/api/doctor/treatment-program-instances/[instanceId]/media-presign/route';
@@ -245,6 +248,7 @@ function receivedHead(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fakes.isS3MediaEnabled.mockReturnValue(true);
   fakes.requireDoctorWorkspaceApiContext.mockResolvedValue({ ok: true, ctx: doctorContext });
   fakes.requirePatientApiBusinessAccess.mockResolvedValue({
     ok: true,
@@ -716,6 +720,53 @@ describe('Ч1 received object at real confirm handlers', () => {
 });
 
 describe('Ч1 preserved authorization and patient-file lifecycle boundaries', () => {
+  /** D4: an anonymous status difference silently exposes whether private media storage is configured. */
+  it('returns the same anonymous rejection regardless of S3 configuration', async () => {
+    const unauthorized = () =>
+      new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      });
+    fakes.requireDoctorWorkspaceApiContext.mockImplementation(async () => ({
+      ok: false,
+      response: unauthorized(),
+    }));
+    fakes.requirePatientApiBusinessAccess.mockImplementation(async () => ({
+      ok: false,
+      response: unauthorized(),
+    }));
+
+    const invokeAnonymousUploadDoors = async () => {
+      const responses = await Promise.all([
+        genericPresign(jsonRequest({})),
+        genericConfirm(jsonRequest({})),
+        multipartInit(jsonRequest({})),
+        multipartPartUrl(jsonRequest({})),
+        multipartComplete(jsonRequest({})),
+        multipartAbort(jsonRequest({})),
+        individualPresign(jsonRequest({}), {
+          params: Promise.resolve({ instanceId: ids.instance }),
+        }),
+        submissionPresign(jsonRequest({})),
+        submissionConfirm(jsonRequest({})),
+      ]);
+      return Promise.all(
+        responses.map(async (response) => ({
+          status: response.status,
+          body: await response.json(),
+        })),
+      );
+    };
+
+    fakes.isS3MediaEnabled.mockReturnValue(true);
+    const configured = await invokeAnonymousUploadDoors();
+    fakes.isS3MediaEnabled.mockReturnValue(false);
+    const unconfigured = await invokeAnonymousUploadDoors();
+
+    expect(unconfigured).toEqual(configured);
+    expect(configured.every((response) => response.status === 401)).toBe(true);
+  });
+
   it('denies doctor upload intents before any state/storage boundary', async () => {
     fakes.requireDoctorWorkspaceApiContext.mockResolvedValue({
       ok: false,
