@@ -23,7 +23,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { EllipsisVertical, Eye, EyeOff, Shield, ShieldOff } from 'lucide-react';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { ContentHeroImage } from '@/shared/ui/doctor/media/ContentHeroImage';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -115,28 +115,8 @@ function SortableSectionRow({
     opacity: isDragging ? 0.88 : 1,
   };
 
-  const coverPreview =
-    row.coverImageUrl && row.coverImageUrl.trim().length > 0
-      ? {
-          id: `${row.slug}-cover`,
-          kind: 'image' as const,
-          url: row.coverImageUrl,
-          previewStatus: 'ready' as const,
-          previewSmUrl: row.coverImageUrl,
-          previewMdUrl: row.coverImageUrl,
-        }
-      : null;
-  const iconPreview =
-    row.iconImageUrl && row.iconImageUrl.trim().length > 0
-      ? {
-          id: `${row.slug}-icon`,
-          kind: 'image' as const,
-          url: row.iconImageUrl,
-          previewStatus: 'ready' as const,
-          previewSmUrl: row.iconImageUrl,
-          previewMdUrl: row.iconImageUrl,
-        }
-      : null;
+  const hasCover = Boolean(row.coverImageUrl?.trim());
+  const hasIcon = Boolean(row.iconImageUrl?.trim());
 
   return (
     <li
@@ -186,22 +166,22 @@ function SortableSectionRow({
             </Badge>
           ) : null}
         </div>
-        {coverPreview || iconPreview ? (
+        {hasCover || hasIcon ? (
           <div className="mt-2 flex items-center gap-2">
-            {coverPreview ? (
-              <MediaThumb
-                media={coverPreview}
+            {hasCover ? (
+              <ContentHeroImage
+                imageUrl={row.coverImageUrl ?? undefined}
+                hydrateFromAdminApi
                 className="h-10 w-14 overflow-hidden rounded border border-border/50 bg-muted/20"
                 imgClassName="h-10 w-14 object-cover"
-                sizes="56px"
               />
             ) : null}
-            {iconPreview ? (
-              <MediaThumb
-                media={iconPreview}
+            {hasIcon ? (
+              <ContentHeroImage
+                imageUrl={row.iconImageUrl ?? undefined}
+                hydrateFromAdminApi
                 className="h-10 w-10 overflow-hidden rounded border border-border/50 bg-muted/20"
                 imgClassName="h-10 w-10 object-cover"
-                sizes="40px"
               />
             ) : null}
           </div>
@@ -335,7 +315,9 @@ export function ContentSectionsListClient({
         if (res.ok) {
           setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, isVisible: next } : r)));
         } else {
-          toast.error(readSafeActionErrorText(res, notificationText.doctorSectionVisibilityUpdateFailed));
+          toast.error(
+            readSafeActionErrorText(res, notificationText.doctorSectionVisibilityUpdateFailed),
+          );
         }
       } catch {
         toast.error(notificationText.doctorSectionVisibilityUpdateFailed);
@@ -350,7 +332,9 @@ export function ContentSectionsListClient({
         if (res.ok) {
           setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, requiresAuth: next } : r)));
         } else {
-          toast.error(readSafeActionErrorText(res, notificationText.doctorSectionAccessUpdateFailed));
+          toast.error(
+            readSafeActionErrorText(res, notificationText.doctorSectionAccessUpdateFailed),
+          );
         }
       } catch {
         toast.error(notificationText.doctorSectionAccessUpdateFailed);

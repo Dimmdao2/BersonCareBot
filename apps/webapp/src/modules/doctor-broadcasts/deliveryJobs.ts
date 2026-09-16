@@ -139,6 +139,7 @@ function buildEmailMessageSendIntent(input: {
   title: string;
   body: string;
   html: string;
+  inlineImage?: { url: string; mimeType: string; filename: string; cid: string };
 }): Record<string, unknown> {
   return {
     type: 'message.send',
@@ -156,6 +157,7 @@ function buildEmailMessageSendIntent(input: {
       subject: input.title,
       message: { text: input.body },
       html: input.html,
+      ...(input.inlineImage ? { inlineImage: input.inlineImage } : {}),
       delivery: {
         channels: ['email'],
         maxAttempts: 1,
@@ -176,8 +178,10 @@ export type DoctorBroadcastDeliveryJobsParams = {
   notificationPrefsByUserId?: ReadonlyMap<string, BroadcastNotificationPrefsFlags>;
   /** Копия на момент постановки в очередь; воркер читает из `payload_json`. */
   attachMenu?: boolean;
-  /** URL картинки рассылки — пробрасывается ТОЛЬКО в telegram-intent (sendPhoto). */
+  /** Provider-readable URL encoder rendition: Telegram photo and email CID attachment source. */
   imageUrl?: string | null;
+  /** MIME of the provider-readable encoder rendition behind `imageUrl`. */
+  imageMimeType?: string | null;
   /** Signed, recipient-specific topic-unsubscribe URL. Messenger channels only. */
   unsubscribeUrlByUserId?: ReadonlyMap<string, string>;
   /** Human title of the one notification topic covered by every unsubscribe URL. */
@@ -310,6 +314,7 @@ export function buildDoctorBroadcastDeliveryJobs(
     if (wantsEmail && email && unsubscribeUrl && input.unsubscribeTopicTitle) {
       const eventId = stableEventId(input.auditId, 'email', client.userId, 'email');
       const emailBody = `${broadcastTextToPlain(input.messageTitle)}\n\n${broadcastTextToPlain(input.messageBodyPlain)}\n\nОтписаться от «${input.unsubscribeTopicTitle}»: ${unsubscribeUrl}`;
+      const imageCid = input.imageUrl && input.imageMimeType ? 'broadcast-image' : null;
       jobs.push({
         eventId,
         kind: DOCTOR_BROADCAST_QUEUE_KIND,
@@ -328,10 +333,20 @@ export function buildDoctorBroadcastDeliveryJobs(
             html: buildBroadcastEmailHtml({
               title: input.messageTitle,
               body: broadcastTextToPlain(input.messageBodyPlain),
-              mediaUrl: input.imageUrl ?? null,
+              mediaCid: imageCid,
               unsubscribeUrl,
               unsubscribeTopicTitle: input.unsubscribeTopicTitle,
             }),
+            ...(imageCid && input.imageUrl && input.imageMimeType
+              ? {
+                  inlineImage: {
+                    url: input.imageUrl,
+                    mimeType: input.imageMimeType,
+                    filename: 'broadcast-image.webp',
+                    cid: imageCid,
+                  },
+                }
+              : {}),
           }),
         },
       });

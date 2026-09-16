@@ -10,6 +10,8 @@ import type {
   SystemSettingKey,
   SystemSettingScope,
 } from '@/modules/system-settings/types';
+import type { MediaRecord } from '@/modules/media/types';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 
 export type ResolvedWarmupPage = {
   /** `content_pages.id` — для проверок вроде cooldown после разминки на главной. */
@@ -18,6 +20,7 @@ export type ResolvedWarmupPage = {
   title: string;
   summary: string;
   imageUrl: string | null;
+  imageLibraryMedia: MediaRecord | null;
 };
 
 export type ResolvedPatientHomeBlockItem = {
@@ -49,6 +52,7 @@ export type PatientHomeTodayConfigDeps = {
   systemSettings: {
     getSetting(key: SystemSettingKey, scope: SystemSettingScope): Promise<SystemSetting | null>;
   };
+  loadMediaById?: (id: string) => Promise<MediaRecord | null>;
 };
 
 export type PatientHomeWarmupPickTier = 'guest' | 'no_tier' | 'patient';
@@ -104,7 +108,21 @@ function mapPage(row: {
     title: row.title,
     summary: row.summary,
     imageUrl: row.imageUrl,
+    imageLibraryMedia: null,
   };
+}
+
+async function attachWarmupImageLibraryMedia(
+  page: ResolvedWarmupPage,
+  deps: PatientHomeTodayConfigDeps,
+): Promise<ResolvedWarmupPage> {
+  const mediaId = page.imageUrl ? parseMediaFileIdFromAppUrl(page.imageUrl) : null;
+  if (!mediaId || !deps.loadMediaById) return page;
+  try {
+    return { ...page, imageLibraryMedia: await deps.loadMediaById(mediaId) };
+  } catch {
+    return page;
+  }
 }
 
 export type DailyWarmupListEntry = ResolvedWarmupPage & {
@@ -154,7 +172,8 @@ export async function listDailyWarmupPagesForHome(
     ) {
       continue;
     }
-    result.push({ ...mapPage(row), blockItem });
+    const page = await attachWarmupImageLibraryMedia(mapPage(row), deps);
+    result.push({ ...page, blockItem });
   }
   return result;
 }

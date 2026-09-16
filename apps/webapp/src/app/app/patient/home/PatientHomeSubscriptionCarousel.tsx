@@ -62,6 +62,7 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
               <div className={patientHomeCardMediaSlotClass}>
                 <PatientHomeSafeImage
                   src={c.imageUrl}
+                  imageLibraryMedia={c.imageLibraryMedia}
                   alt=""
                   className="size-full object-cover"
                   loading="lazy"

@@ -4,6 +4,8 @@ import {
   isPatientHomeContentPageCandidateForBlock,
   isPatientHomeContentSectionCandidateForBlock,
 } from './blocks';
+import type { MediaRecord } from '@/modules/media/types';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 
 export type PatientHomeResolverDeps = {
   contentSections: {
@@ -37,13 +39,33 @@ export type PatientHomeResolverDeps = {
       status: string;
     } | null>;
   };
+  loadMediaById?: (id: string) => Promise<MediaRecord | null>;
 };
+
+type ResolvedImagePresentation = {
+  imageUrl: string | null;
+  imageLibraryMedia: MediaRecord | null;
+};
+
+async function resolveImagePresentation(
+  imageUrl: string | null,
+  deps: PatientHomeResolverDeps,
+): Promise<ResolvedImagePresentation> {
+  const mediaId = imageUrl ? parseMediaFileIdFromAppUrl(imageUrl) : null;
+  if (!mediaId || !deps.loadMediaById) return { imageUrl, imageLibraryMedia: null };
+  try {
+    return { imageUrl, imageLibraryMedia: await deps.loadMediaById(mediaId) };
+  } catch {
+    return { imageUrl, imageLibraryMedia: null };
+  }
+}
 
 export type ResolvedSituationChip = {
   itemId: string;
   slug: string;
   title: string;
   imageUrl: string | null;
+  imageLibraryMedia: MediaRecord | null;
   href: string;
 };
 
@@ -52,6 +74,7 @@ export type ResolvedCarouselCard = {
   title: string;
   subtitle: string | null;
   imageUrl: string | null;
+  imageLibraryMedia: MediaRecord | null;
   badgeLabel: string;
   href: string;
 };
@@ -61,6 +84,7 @@ export type ResolvedSosCard = {
   title: string;
   subtitle: string | null;
   imageUrl: string | null;
+  imageLibraryMedia: MediaRecord | null;
   href: string;
 };
 
@@ -70,6 +94,7 @@ export type ResolvedUsefulPostCard = {
   title: string;
   showTitle: boolean;
   imageUrl: string | null;
+  imageLibraryMedia: MediaRecord | null;
   badgeLabel: string | null;
   href: string;
 };
@@ -109,11 +134,15 @@ export async function resolveSituationChips(
     ) {
       continue;
     }
+    const image = await resolveImagePresentation(
+      item.imageUrlOverride ?? row.iconImageUrl ?? row.coverImageUrl,
+      deps,
+    );
     out.push({
       itemId: item.id,
       slug: row.slug,
       title: item.titleOverride?.trim() || row.title,
-      imageUrl: item.imageUrlOverride ?? row.iconImageUrl ?? row.coverImageUrl,
+      ...image,
       href: `/app/patient/sections/${encodeURIComponent(row.slug)}`,
     });
   }
@@ -169,11 +198,15 @@ export async function resolveSubscriptionCarouselCards(
       ) {
         continue;
       }
+      const image = await resolveImagePresentation(
+        item.imageUrlOverride ?? row.coverImageUrl ?? row.iconImageUrl,
+        deps,
+      );
       out.push({
         itemId: item.id,
         title: item.titleOverride?.trim() || row.title,
         subtitle: item.subtitleOverride?.trim() || row.description || null,
-        imageUrl: item.imageUrlOverride ?? row.coverImageUrl ?? row.iconImageUrl,
+        ...image,
         badgeLabel: badge,
         href: `/app/patient/sections/${encodeURIComponent(row.slug)}`,
       });
@@ -207,11 +240,12 @@ export async function resolveSubscriptionCarouselCards(
       ) {
         continue;
       }
+      const image = await resolveImagePresentation(item.imageUrlOverride ?? row.imageUrl, deps);
       out.push({
         itemId: item.id,
         title: item.titleOverride?.trim() || row.title,
         subtitle: item.subtitleOverride?.trim() || row.summary || null,
-        imageUrl: item.imageUrlOverride ?? row.imageUrl,
+        ...image,
         badgeLabel: badge,
         href: `/app/patient/content/${encodeURIComponent(row.slug)}`,
       });
@@ -222,11 +256,12 @@ export async function resolveSubscriptionCarouselCards(
       if (!id) continue;
       const row = await deps.courses.getCourseForDoctor(id);
       if (!row || row.status !== 'published') continue;
+      const image = await resolveImagePresentation(item.imageUrlOverride, deps);
       out.push({
         itemId: item.id,
         title: item.titleOverride?.trim() || row.title,
         subtitle: item.subtitleOverride?.trim() || row.description || null,
-        imageUrl: item.imageUrlOverride,
+        ...image,
         badgeLabel: badge,
         href: `/app/patient/courses?highlight=${encodeURIComponent(row.id)}`,
       });
@@ -267,12 +302,13 @@ export async function resolveUsefulPostCard(
       continue;
     }
     const trimmedBadge = item.badgeLabel?.trim();
+    const image = await resolveImagePresentation(item.imageUrlOverride ?? row.imageUrl, deps);
     return {
       itemId: item.id,
       slug: row.slug,
       title: item.titleOverride?.trim() || row.title,
       showTitle: item.showTitle !== false,
-      imageUrl: item.imageUrlOverride ?? row.imageUrl,
+      ...image,
       badgeLabel: trimmedBadge && trimmedBadge.length > 0 ? trimmedBadge : null,
       href: `/app/patient/content/${encodeURIComponent(row.slug)}`,
     };
@@ -300,11 +336,15 @@ export async function resolveSosCard(
       ) {
         continue;
       }
+      const image = await resolveImagePresentation(
+        item.imageUrlOverride ?? row.coverImageUrl ?? row.iconImageUrl,
+        deps,
+      );
       return {
         itemId: item.id,
         title: item.titleOverride?.trim() || row.title,
         subtitle: item.subtitleOverride?.trim() || row.description || null,
-        imageUrl: item.imageUrlOverride ?? row.coverImageUrl ?? row.iconImageUrl,
+        ...image,
         href: `/app/patient/sections/${encodeURIComponent(row.slug)}`,
       };
     }
@@ -336,11 +376,12 @@ export async function resolveSosCard(
       ) {
         continue;
       }
+      const image = await resolveImagePresentation(item.imageUrlOverride ?? row.imageUrl, deps);
       return {
         itemId: item.id,
         title: item.titleOverride?.trim() || row.title,
         subtitle: item.subtitleOverride?.trim() || row.summary || null,
-        imageUrl: item.imageUrlOverride ?? row.imageUrl,
+        ...image,
         href: `/app/patient/content/${encodeURIComponent(row.slug)}`,
       };
     }

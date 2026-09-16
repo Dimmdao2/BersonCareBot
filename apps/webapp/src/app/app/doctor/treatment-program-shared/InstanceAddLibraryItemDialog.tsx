@@ -56,6 +56,7 @@ import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
 import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
+import { ContentHeroImage } from '@/shared/ui/doctor/media/ContentHeroImage';
 import type {
   TreatmentProgramLibraryPickers,
   TreatmentProgramLibraryRow,
@@ -115,11 +116,11 @@ function LibraryMediaThumb({
     );
   if (src?.trim()) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- превью каталога врача
-      <img
-        src={src.trim()}
-        alt=""
-        className="h-[135px] w-full shrink-0 rounded-[calc(var(--radius-md)*0.5)] border border-border/60 object-cover"
+      <ContentHeroImage
+        imageUrl={src.trim()}
+        hydrateFromAdminApi
+        className="h-[135px] w-full shrink-0 rounded-[calc(var(--radius-md)*0.5)] border border-border/60"
+        imgClassName="h-[135px] w-full object-cover"
       />
     );
   }
@@ -671,7 +672,7 @@ export function InstanceAddLibraryItemDialog(props: {
               />
             </div>
             <div className="flex flex-col gap-2">
-        <TiptapEditor
+              <TiptapEditor
                 name="freeform_body_md"
                 label="Текст"
                 value={freeformBody}

@@ -193,7 +193,11 @@ async function renderPatientContentSlugArticle({
               <div className="mt-1 min-h-8 shrink-0 md:mt-2 md:min-h-[3rem]" aria-hidden />
             )}
           </div>
-          <PatientDailyWarmupHeroCover imageUrl={item.imageUrl} anonymousGuest={anonymousGuest} />
+          <PatientDailyWarmupHeroCover
+            imageUrl={item.imageUrl}
+            imageLibraryMedia={item.imageLibraryMedia}
+            anonymousGuest={anonymousGuest}
+          />
         </div>
       ) : null}
       {showWarmupBadge && warmupNav ? <PatientDailyWarmupPager nav={warmupNav} /> : null}

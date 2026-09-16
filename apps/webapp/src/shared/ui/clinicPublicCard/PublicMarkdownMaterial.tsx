@@ -7,6 +7,7 @@ import {
   RichTextDocumentTree,
   type RichTextImageRenderProps,
   type RichTextLinkRenderProps,
+  type RichTextVideoRenderProps,
 } from '@/shared/ui/rich-text/RichTextDocumentTree';
 
 /**
@@ -53,7 +54,10 @@ function mediaIdFromHref(href: string): string | null {
 }
 
 export function PublicMarkdownMaterial({ markdown, media }: Props) {
-  const assets = useMemo(() => new Map(media.map((asset) => [asset.id.toLowerCase(), asset])), [media]);
+  const assets = useMemo(
+    () => new Map(media.map((asset) => [asset.id.toLowerCase(), asset])),
+    [media],
+  );
 
   const assetForHref = useCallback(
     (href: string | undefined): PublicMarkdownAsset | null => {
@@ -145,6 +149,10 @@ export function PublicMarkdownMaterial({ markdown, media }: Props) {
     );
   }
 
+  function renderRichTextVideo({ src, title }: RichTextVideoRenderProps) {
+    return renderRichTextLink({ href: src, title, children: title });
+  }
+
   return (
     <div className="clinic-public-markdown flex flex-col gap-2 text-sm leading-relaxed [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_h1]:mt-4 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:font-semibold [&_img]:max-w-full [&_li]:pl-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3 [&_table]:w-full [&_ul]:list-disc [&_ul]:pl-5">
       {document ? (
@@ -152,6 +160,7 @@ export function PublicMarkdownMaterial({ markdown, media }: Props) {
           document={document}
           renderLink={renderRichTextLink}
           renderImage={renderRichTextImage}
+          renderVideo={renderRichTextVideo}
         />
       ) : (
         <span className="whitespace-pre-wrap">{markdown}</span>

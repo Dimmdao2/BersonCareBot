@@ -59,6 +59,7 @@ import { TreatmentProgramTemplateStatusBadge } from '../TreatmentProgramTemplate
 import { TemplateReorderChevrons } from '@/shared/ui/doctor/TemplateReorderChevrons';
 import { cn } from '@/lib/utils';
 import { TiptapEditor } from '@/shared/ui/doctor/TiptapEditor';
+import { ContentHeroImage } from '@/shared/ui/doctor/media/ContentHeroImage';
 import {
   TreatmentProgramPipelineStagesDnd,
   TreatmentProgramSortablePipelineStage,
@@ -210,11 +211,11 @@ function LibraryMediaThumb({
     );
   if (src?.trim()) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- doctor library previews (/api/media or absolute)
-      <img
-        src={src.trim()}
-        alt=""
-        className={`${box} shrink-0 rounded-md border border-border/60 object-cover`}
+      <ContentHeroImage
+        imageUrl={src.trim()}
+        hydrateFromAdminApi
+        className={`${box} shrink-0 rounded-md border border-border/60`}
+        imgClassName={`${box} object-cover`}
       />
     );
   }
@@ -588,7 +589,9 @@ export function TreatmentProgramConstructorClient({
         error?: string;
       };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramTitleDescriptionSaveFailed));
+        toast.error(
+          readSafeApiErrorText(json, notificationText.treatmentProgramTitleDescriptionSaveFailed),
+        );
         return;
       }
       await reload();
@@ -676,7 +679,9 @@ export function TreatmentProgramConstructorClient({
         });
         const json = (await res.json()) as { ok?: boolean; error?: string };
         if (!res.ok || !json.ok) {
-          toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramTemplateStatusUpdateFailed));
+          toast.error(
+            readSafeApiErrorText(json, notificationText.treatmentProgramTemplateStatusUpdateFailed),
+          );
           return;
         }
         await reload();
@@ -925,7 +930,9 @@ export function TreatmentProgramConstructorClient({
     );
     const json = (await res.json()) as { ok?: boolean; error?: string };
     if (!res.ok || !json.ok) {
-      toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramStageOrderUpdateFailed));
+      toast.error(
+        readSafeApiErrorText(json, notificationText.treatmentProgramStageOrderUpdateFailed),
+      );
       return false;
     }
     return true;
@@ -1144,7 +1151,9 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramGroupOrderUpdateFailed));
+        toast.error(
+          readSafeApiErrorText(json, notificationText.treatmentProgramGroupOrderUpdateFailed),
+        );
         return;
       }
       await reload();
@@ -1345,7 +1354,9 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramTestsFromSetAddFailed));
+        toast.error(
+          readSafeApiErrorText(json, notificationText.treatmentProgramTestsFromSetAddFailed),
+        );
         return;
       }
       setItemDialogOpen(false);
@@ -1404,7 +1415,12 @@ export function TreatmentProgramConstructorClient({
       );
       const json = (await res.json()) as { ok?: boolean; error?: string; code?: string };
       if (!res.ok || !json.ok) {
-        toast.error(readSafeApiErrorText(json, notificationText.treatmentProgramExercisesFromComplexAddFailed));
+        toast.error(
+          readSafeApiErrorText(
+            json,
+            notificationText.treatmentProgramExercisesFromComplexAddFailed,
+          ),
+        );
         return;
       }
       setItemDialogOpen(false);
@@ -1935,7 +1951,7 @@ export function TreatmentProgramConstructorClient({
               />
             </div>
             <div className="flex flex-col gap-1.5">
-        <TiptapEditor
+              <TiptapEditor
                 name="stage_goals_md"
                 label="Цель этапа"
                 helpText={null}
@@ -2071,9 +2087,7 @@ export function TreatmentProgramConstructorClient({
                           itemSettingsContext.item.itemType !== 'recommendation' &&
                           itemSettingsContext.item.itemType !== 'clinical_test'
                         ) {
-                          toast.error(
-                            notificationText.treatmentProgramNoGroupRestrictedElements,
-                          );
+                          toast.error(notificationText.treatmentProgramNoGroupRestrictedElements);
                           return;
                         }
                         setBusy(true);

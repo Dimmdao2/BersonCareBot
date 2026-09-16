@@ -11,6 +11,7 @@ import {
   isAudienceEstimateApproximate,
 } from './labels';
 import { BroadcastRecipientsPreviewBlock } from './BroadcastRecipientsPreview';
+import { ContentHeroImage } from '@/shared/ui/doctor/media/ContentHeroImage';
 
 type Props = {
   preview: BroadcastPreviewResult;
@@ -51,13 +52,14 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
           {command.message.title}
         </p>
         {command.message.mediaUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            id="broadcast-preview-image"
-            src={command.message.mediaUrl}
-            alt="Прикреплённая картинка"
-            className="max-h-40 rounded-md border border-border object-contain"
-          />
+          <div id="broadcast-preview-image">
+            <ContentHeroImage
+              imageUrl={command.message.mediaUrl}
+              hydrateFromAdminApi
+              className="h-40 max-w-full rounded-md border border-border"
+              imgClassName="h-40 max-w-full object-contain"
+            />
+          </div>
         ) : null}
         <MarkdownPreview
           markdown={command.message.body}

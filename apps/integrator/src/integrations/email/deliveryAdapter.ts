@@ -57,6 +57,12 @@ type EmailDeliveryPayload = {
    * Optional filename for the .ics attachment (default: `booking.ics`).
    */
   icsFilename?: unknown;
+  inlineImage?: {
+    url?: unknown;
+    mimeType?: unknown;
+    filename?: unknown;
+    cid?: unknown;
+  };
 } & Record<string, unknown>;
 
 function asString(value: unknown): string | undefined {
@@ -65,6 +71,19 @@ function asString(value: unknown): string | undefined {
 
 function isLoopbackSmtpHost(host: string): boolean {
   return host === '127.0.0.1' || host === '::1' || host.toLowerCase() === 'localhost';
+}
+
+function safeHttpUrl(value: unknown): string | undefined {
+  const raw = asString(value);
+  if (!raw) return undefined;
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+      ? parsed.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): DeliveryAdapter {
@@ -121,6 +140,17 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
             },
           ]
         : [];
+      const inlineImageUrl = safeHttpUrl(payload.inlineImage?.url);
+      const inlineImageMimeType = asString(payload.inlineImage?.mimeType);
+      const inlineImageCid = asString(payload.inlineImage?.cid);
+      if (inlineImageUrl && inlineImageMimeType && inlineImageCid) {
+        attachments.push({
+          filename: asString(payload.inlineImage?.filename) ?? 'broadcast-image.webp',
+          path: inlineImageUrl,
+          contentType: inlineImageMimeType,
+          cid: inlineImageCid,
+        });
+      }
 
       const clinicSmtp =
         payload.delivery?.clinicCredential?.channel === 'email'

@@ -61,4 +61,47 @@ describe('email auth-code delivery sender identity', () => {
       }),
     );
   });
+
+  it('passes a broadcast image as a CID attachment instead of leaving a remote URL in HTML', async () => {
+    const adapter = createEmailDeliveryAdapter({ getDb: () => ({}) as never });
+
+    await adapter.send({
+      type: 'message.send',
+      meta: {
+        eventId: 'broadcast:email:image',
+        occurredAt: '2026-09-16T00:00:00.000Z',
+        source: 'email',
+        outboundMessageClass: 'broadcast_event',
+        outboundCapability: 'clinic_delivery',
+      },
+      payload: {
+        recipient: { email: 'recipient@example.test' },
+        subject: 'Рассылка',
+        message: { text: 'Текст' },
+        html: '<img src="cid:broadcast-image" alt="" />',
+        delivery: { channels: ['email'] },
+        inlineImage: {
+          url: 'https://storage.example.test/signed-image',
+          mimeType: 'image/webp',
+          filename: 'broadcast-image.webp',
+          cid: 'broadcast-image',
+        },
+      },
+    });
+
+    expect(fakes.sendMail).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        html: '<img src="cid:broadcast-image" alt="" />',
+        attachments: [
+          {
+            filename: 'broadcast-image.webp',
+            path: 'https://storage.example.test/signed-image',
+            contentType: 'image/webp',
+            cid: 'broadcast-image',
+          },
+        ],
+      }),
+    );
+  });
 });

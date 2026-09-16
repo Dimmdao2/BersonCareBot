@@ -10,10 +10,6 @@ import {
   patientHomeTodayCardScrollRowBleedClass,
 } from './patientHomeCardStyles';
 import { PatientHomeSafeImage } from './PatientHomeSafeImage';
-import {
-  patientHomeChipFallbackImageSrc,
-  patientHomeChipImageSrc,
-} from './patientHomeChipImageSrc';
 import { cn } from '@/lib/utils';
 
 type Props = { chips: ResolvedSituationChip[] };
@@ -61,8 +57,8 @@ export function PatientHomeSituationsRow({ chips }: Props) {
               >
                 <div className={patientHomeSituationTileMediaClass}>
                   <PatientHomeSafeImage
-                    src={patientHomeChipImageSrc(c.imageUrl)}
-                    fallbackSrc={patientHomeChipFallbackImageSrc(c.imageUrl)}
+                    src={c.imageUrl}
+                    imageLibraryMedia={c.imageLibraryMedia}
                     alt=""
                     width={64}
                     height={64}
@@ -70,9 +66,7 @@ export function PatientHomeSituationsRow({ chips }: Props) {
                     loading="lazy"
                     decoding="async"
                     fallback={
-                      <span className="patient-type-home-caption">
-                        {initials(c.title)}
-                      </span>
+                      <span className="patient-type-home-caption">{initials(c.title)}</span>
                     }
                   />
                 </div>

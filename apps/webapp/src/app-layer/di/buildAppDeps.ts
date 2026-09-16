@@ -159,6 +159,7 @@ import { createChannelPreferencesService } from '@/modules/channel-preferences/s
 import { createContentCatalogResolver } from '@/modules/content-catalog/service';
 import { mockMediaStoragePort } from '@/infra/repos/mockMediaStorage';
 import { createS3MediaStoragePort, listMediaDeleteErrors } from '@/infra/repos/s3MediaStorage';
+import { resolveInlineMediaDeliveryUrl } from '@/app-layer/media/resolveInlineMediaDeliveryUrl';
 import { createPgPlaybackUserVideoFirstResolvePort } from '@/infra/repos/pgPlaybackUserVideoFirstResolve';
 import { inMemorySymptomDiaryPort } from '@/infra/repos/symptomDiary';
 import { inMemoryLfkDiaryPort } from '@/infra/repos/lfkDiary';
@@ -1024,13 +1025,19 @@ const videoMeetingsService = !inMemoryRepos
       resolveDisplayName: async ({ meeting, role }) => {
         try {
           if (role === 'specialist') {
-            const specialist = await bookingEngineService?.catalog.getSpecialist(meeting.specialistId);
+            const specialist = await bookingEngineService?.catalog.getSpecialist(
+              meeting.specialistId,
+            );
             return specialist?.fullName?.trim() || null;
           }
           const fio = await userProjectionPort.getCurrentPatientFio();
           return (
             formatDoctorFioShort(
-              { lastName: fio?.lastName ?? null, firstName: fio?.firstName ?? null, patronymic: null },
+              {
+                lastName: fio?.lastName ?? null,
+                firstName: fio?.firstName ?? null,
+                patronymic: null,
+              },
               fio?.displayName?.trim() ?? '',
             ) || 'Гость'
           );
@@ -2002,6 +2009,8 @@ function _buildAppDeps() {
     doctorBroadcasts: createDoctorBroadcastsService({
       assertWriteClearance: assertMechanicWriteClearance,
       resolvePatientPublicOrigin,
+      resolveExternalImageUrl: (mediaId, mimeType) =>
+        resolveInlineMediaDeliveryUrl(mediaId, mimeType, 7 * 24 * 60 * 60),
       resolveBroadcastAudience: async (filter, channels, category, context) => {
         const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter, context);
         const prefsMap = await channelPreferencesPort.getBroadcastNotificationFlagsBatch(

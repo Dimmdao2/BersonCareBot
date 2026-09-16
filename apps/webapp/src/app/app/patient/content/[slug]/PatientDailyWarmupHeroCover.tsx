@@ -4,6 +4,7 @@ import { Sparkles } from 'lucide-react';
 import { stripApiMediaForAnonymousGuest } from '@/app/app/patient/home/patientHomeGuestNav';
 import { PatientHomeSafeImage } from '@/app/app/patient/home/PatientHomeSafeImage';
 import { cn } from '@/lib/utils';
+import type { MediaRecord } from '@/modules/media/types';
 
 /** Слот обложки на странице материала разминки — меньше карточки на главной, ниже hero. */
 const warmupDetailHeroImageSlotClass = cn(
@@ -13,17 +14,23 @@ const warmupDetailHeroImageSlotClass = cn(
 
 type Props = {
   imageUrl?: string | null;
+  imageLibraryMedia?: MediaRecord | null;
   anonymousGuest: boolean;
 };
 
 /** Обложка разминки на экране материала: тот же SafeImage/fallback, компактный слот. */
-export function PatientDailyWarmupHeroCover({ imageUrl, anonymousGuest }: Props) {
+export function PatientDailyWarmupHeroCover({
+  imageUrl,
+  imageLibraryMedia,
+  anonymousGuest,
+}: Props) {
   const heroImageUrl = stripApiMediaForAnonymousGuest(imageUrl ?? null, anonymousGuest);
 
   return (
     <div className={warmupDetailHeroImageSlotClass} aria-hidden>
       <PatientHomeSafeImage
         src={heroImageUrl}
+        imageLibraryMedia={anonymousGuest ? null : imageLibraryMedia}
         alt=""
         className="h-full w-full object-contain object-right-bottom drop-shadow-lg"
         loading="lazy"

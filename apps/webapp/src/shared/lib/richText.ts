@@ -51,7 +51,7 @@ export function plainTextToTiptapDocument(value: string): JSONContent {
 
 function hasDocumentContent(node: JSONContent): boolean {
   if (typeof node.text === 'string' && node.text.length > 0) return true;
-  if (node.type === 'image') return true;
+  if (node.type === 'image' || node.type === 'video') return true;
   return node.content?.some(hasDocumentContent) ?? false;
 }
 
@@ -91,6 +91,10 @@ function nodePlainText(node: JSONContent): string {
   if (node.type === 'image') {
     const attrs = node.attrs as Record<string, unknown> | undefined;
     return typeof attrs?.alt === 'string' ? attrs.alt : '';
+  }
+  if (node.type === 'video') {
+    const attrs = node.attrs as Record<string, unknown> | undefined;
+    return typeof attrs?.title === 'string' ? attrs.title : 'Видео';
   }
 
   const text = node.content?.map(nodePlainText).join('') ?? '';
@@ -155,6 +159,12 @@ function nodeMessengerHtml(node: JSONContent): string {
     const alt = typeof attrs?.alt === 'string' ? attrs.alt : 'Изображение';
     return src ? `<a href="${escapeHtml(src)}">${escapeHtml(alt)}</a>` : escapeHtml(alt);
   }
+  if (node.type === 'video') {
+    const attrs = node.attrs as Record<string, unknown> | undefined;
+    const src = safeRichTextUrl(attrs?.src);
+    const title = typeof attrs?.title === 'string' ? attrs.title : 'Видео';
+    return src ? `<a href="${escapeHtml(src)}">${escapeHtml(title)}</a>` : escapeHtml(title);
+  }
 
   const children = node.content?.map(nodeMessengerHtml).join('') ?? '';
   if (node.type === 'heading') return `<b>${children}</b>\n`;
@@ -171,14 +181,20 @@ function nodeMessengerHtml(node: JSONContent): string {
 
 export function richTextToMessengerHtml(value: string): string | null {
   const document = parseTiptapRichText(value);
-  return document ? nodeMessengerHtml(document).replace(/\n{3,}/g, '\n\n').trim() : null;
+  return document
+    ? nodeMessengerHtml(document)
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+    : null;
 }
 
 function mapTextNodes(node: JSONContent, transform: (value: string) => string): JSONContent {
   return {
     ...node,
     ...(typeof node.text === 'string' ? { text: transform(node.text) } : {}),
-    ...(node.content ? { content: node.content.map((child) => mapTextNodes(child, transform)) } : {}),
+    ...(node.content
+      ? { content: node.content.map((child) => mapTextNodes(child, transform)) }
+      : {}),
   };
 }
 

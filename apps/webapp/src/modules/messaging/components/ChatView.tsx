@@ -23,6 +23,7 @@ import {
   groupMessagesByDay,
 } from '../messageFormatting';
 import type { SerializedSupportMessage } from '../serializeSupportMessage';
+import { mediaPreviewMdUrl } from '@/shared/lib/mediaPreviewUrls';
 
 type Variant = 'patient' | 'doctor';
 
@@ -181,7 +182,7 @@ export function ChatView({
                           {m.mediaUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={m.mediaUrl}
+                              src={mediaPreviewMdUrl(m.mediaUrl) ?? m.mediaUrl}
                               alt=""
                               className={cn(
                                 'max-h-60 w-auto max-w-full rounded-lg',

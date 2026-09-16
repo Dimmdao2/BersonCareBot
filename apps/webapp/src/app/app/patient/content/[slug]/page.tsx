@@ -45,10 +45,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
   const patientContext = session
-    ? await resolvePatientOrganizationRequestContext(
-        deps.patientOrganization,
-        session.user.userId,
-      )
+    ? await resolvePatientOrganizationRequestContext(deps.patientOrganization, session.user.userId)
     : null;
   if (session && !patientContext?.ok) return null;
   if (session && patientContext?.ok) {
@@ -84,6 +81,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
     contentPages: deps.contentPages,
     contentSections: deps.contentSections,
     systemSettings: deps.systemSettings,
+    ...(session ? { loadMediaById: (id: string) => deps.media.getById(id) } : {}),
   });
 
   const { isDailyWarmupMember, practiceSource, warmupNav, backNav } =
@@ -111,9 +109,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           ? item.videoSource.mediaId
           : `/api/media/${item.videoSource.mediaId}`
         : undefined;
-  const hostedVideoIframeSrc = videoPlayableUrl
-    ? toHostedVideoEmbedSrc(videoPlayableUrl)
-    : null;
+  const hostedVideoIframeSrc = videoPlayableUrl ? toHostedVideoEmbedSrc(videoPlayableUrl) : null;
 
   let appTrustedOrigin: string | null = null;
   try {

@@ -5,6 +5,8 @@ import { parseHostedVideoLink } from '@/shared/lib/hostingEmbedUrls';
 import { ContentHeroImage } from '@/shared/ui/doctor/media/ContentHeroImage';
 import { NoContextMenuVideo } from '@/shared/ui/doctor/media/NoContextMenuVideo';
 import { HostedVideoEmbed } from '@/shared/ui/doctor/media/HostedVideoEmbed';
+import { DoctorMediaPlaybackVideo } from '@/shared/ui/doctor/media/DoctorMediaPlaybackVideo';
+import { parseApiMediaIdFromPlayableUrl } from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
 import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 
@@ -19,6 +21,7 @@ type Props = {
 export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: Props) {
   const { patientSingularLabel } = useDoctorPatientTerms();
   const hostedVideo = videoUrl ? parseHostedVideoLink(videoUrl) : null;
+  const libraryVideoId = videoUrl ? parseApiMediaIdFromPlayableUrl(videoUrl) : null;
   return (
     <section className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-muted/10 p-4">
       <h3 className={`m-0 ${doctorSectionTitleClass}`}>
@@ -41,6 +44,12 @@ export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: P
         {videoUrl.trim() ? (
           hostedVideo ? (
             <HostedVideoEmbed url={hostedVideo.canonicalUrl} title={title || 'preview-video'} />
+          ) : libraryVideoId ? (
+            <DoctorMediaPlaybackVideo
+              mediaId={libraryVideoId}
+              title={title || 'preview-video'}
+              initialPlayback={null}
+            />
           ) : (
             <NoContextMenuVideo controls preload="metadata" className="max-w-full rounded-lg">
               <source src={videoUrl.trim()} />

@@ -749,6 +749,8 @@ export const notificationText = {
   patientEntryUpdated: 'Запись обновлена',
   mediaVideoTooShort: 'Видео должно быть не короче 10 секунд',
   mediaUploadFailed: 'Не удалось загрузить файл. Повторите попытку.',
+  mediaImagePreviewPending: 'Изображение ещё готовится. Выберите его после подготовки.',
+  mediaVideoPreviewPending: 'Превью видео ещё готовится. Выберите видео после подготовки.',
   adminDuplicateSettingsKeyInBatch: 'Одна и та же настройка указана дважды.',
   adminInvalidRequestBodyExtraFields: 'Форма заполнена неверно. Проверьте поля и повторите.',
   adminEmptySettingsList: 'Пустой список настроек',

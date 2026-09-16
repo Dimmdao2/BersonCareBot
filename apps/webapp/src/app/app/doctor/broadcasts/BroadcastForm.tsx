@@ -35,6 +35,8 @@ import {
 import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from '@/modules/doctor-broadcasts/deliveryQueueKind';
 import type { BroadcastChannelCounts } from '@/modules/doctor-broadcasts/draftPort';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { ContentHeroImage } from '@/shared/ui/doctor/media/ContentHeroImage';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Stage = 'idle' | 'previewing' | 'previewed' | 'confirming' | 'sent' | 'error';
 
@@ -223,6 +225,14 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
 
   function handlePickImage(item: MediaListItem) {
     if (item.kind !== 'image') return;
+    if (
+      item.previewStatus !== 'ready' ||
+      (!item.previewSmUrl?.trim() && !item.previewMdUrl?.trim())
+    ) {
+      setErrorMsg(notificationText.mediaImagePreviewPending);
+      return;
+    }
+    setErrorMsg(null);
     setMediaUrl(item.url);
     setMediaType(item.mimeType);
     setMediaPickerOpen(false);
@@ -467,11 +477,11 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
         </p>
         {mediaUrl ? (
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={mediaUrl}
-              alt="Прикреплённая картинка"
-              className="max-h-20 rounded-md border border-border object-contain"
+            <ContentHeroImage
+              imageUrl={mediaUrl}
+              hydrateFromAdminApi
+              className="h-20 max-w-40 rounded-md border border-border"
+              imgClassName="h-20 max-w-40 object-contain"
             />
             <Button
               type="button"

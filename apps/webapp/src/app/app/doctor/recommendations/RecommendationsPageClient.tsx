@@ -105,7 +105,7 @@ function firstRecommendationMedia(r: Recommendation) {
   return [...r.media].sort((a, b) => a.sortOrder - b.sortOrder)[0];
 }
 
-/** Список/плитка: для image/gif — через дверь (`recommendationMediaItemToPreviewUi` + `MediaThumb`), состояние берётся из `media_files` на сервере; для video — элемент video (отдельный конвейер, правило дверь не касается). */
+/** Список/плитка показывает только статичное превью; воспроизведение видео начинается в карточке материала. */
 function RecommendationCatalogMediaThumb({
   media,
   className,
@@ -117,20 +117,6 @@ function RecommendationCatalogMediaThumb({
   imgClassName?: string;
   sizes?: string;
 }) {
-  if (media.mediaType === 'video') {
-    return (
-      <div className={cn('relative overflow-hidden bg-muted/30', className)}>
-        <video
-          src={media.mediaUrl}
-          muted
-          playsInline
-          preload="metadata"
-          className={cn('size-full object-cover', imgClassName)}
-          aria-hidden
-        />
-      </div>
-    );
-  }
   return (
     <MediaThumb
       media={recommendationMediaItemToPreviewUi(media)}

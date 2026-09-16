@@ -1,7 +1,12 @@
 import Link from 'next/link';
-import type { RecommendationMediaItem } from '@/modules/recommendations/types';
+import type { MediaRecord } from '@/modules/media/types';
 import type { DailyWarmupListEntry } from '@/modules/patient-home/todayConfig';
 import { PatientCatalogMediaStaticThumb } from '@/shared/ui/patient/PatientCatalogMediaStaticThumb';
+import {
+  libraryMediaRowToPreviewUi,
+  type MediaPreviewUiModel,
+} from '@/shared/ui/patient/media/mediaPreviewUiModel';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import { cn } from '@/lib/utils';
 import {
   patientCompositionCurrentRowChromeClass,
@@ -15,33 +20,56 @@ export type PatientDailyWarmupListItem = {
   title: string;
   summary: string;
   imageUrl: string | null;
+  imageLibraryMedia: MediaRecord | null;
   href: string;
   isCurrent: boolean;
 };
 
 export function dailyWarmupListImageToMedia(
   imageUrl: string | null,
-): RecommendationMediaItem | null {
+  imageLibraryMedia: MediaRecord | null,
+): MediaPreviewUiModel | null {
   if (!imageUrl?.trim()) return null;
   const url = imageUrl.trim();
+  const mediaId = parseMediaFileIdFromAppUrl(url);
+  if (!mediaId) {
+    return {
+      id: url,
+      kind: 'image',
+      url,
+      previewStatus: 'ready',
+      previewSmUrl: url,
+      previewMdUrl: null,
+    };
+  }
+  const row = imageLibraryMedia?.id === mediaId ? imageLibraryMedia : null;
   return {
-    mediaUrl: url,
-    mediaType: 'image',
-    sortOrder: 0,
-    previewSmUrl: url,
-    previewStatus: 'ready',
+    ...libraryMediaRowToPreviewUi({
+      id: mediaId,
+      kind: row?.kind === 'video' ? 'video' : 'image',
+      url: row?.url ?? url,
+      previewSmUrl: row?.previewSmUrl ?? null,
+      previewMdUrl: row?.previewMdUrl ?? null,
+      previewStatus: row?.previewStatus ?? null,
+      sourceWidth: row?.sourceWidth ?? null,
+      sourceHeight: row?.sourceHeight ?? null,
+    }),
+    standardRendition: row?.standardRendition ?? null,
   };
 }
 
 export function buildPatientDailyWarmupQuickListItems(
   currentSlug: string,
-  pages: ReadonlyArray<Pick<DailyWarmupListEntry, 'slug' | 'title' | 'summary' | 'imageUrl'>>,
+  pages: ReadonlyArray<
+    Pick<DailyWarmupListEntry, 'slug' | 'title' | 'summary' | 'imageUrl' | 'imageLibraryMedia'>
+  >,
 ): PatientDailyWarmupListItem[] {
   return pages.map((page) => ({
     slug: page.slug,
     title: page.title,
     summary: page.summary,
     imageUrl: page.imageUrl,
+    imageLibraryMedia: page.imageLibraryMedia,
     href: `/app/patient/content/${encodeURIComponent(page.slug)}?from=daily_warmup`,
     isCurrent: page.slug === currentSlug,
   }));
@@ -49,7 +77,9 @@ export function buildPatientDailyWarmupQuickListItems(
 
 type Props = {
   currentSlug: string;
-  pages: ReadonlyArray<Pick<DailyWarmupListEntry, 'slug' | 'title' | 'summary' | 'imageUrl'>>;
+  pages: ReadonlyArray<
+    Pick<DailyWarmupListEntry, 'slug' | 'title' | 'summary' | 'imageUrl' | 'imageLibraryMedia'>
+  >;
   className?: string;
 };
 
@@ -71,7 +101,7 @@ export function PatientDailyWarmupQuickList({ currentSlug, pages, className }: P
               )}
             >
               <PatientCatalogMediaStaticThumb
-                media={dailyWarmupListImageToMedia(item.imageUrl)}
+                media={dailyWarmupListImageToMedia(item.imageUrl, item.imageLibraryMedia)}
                 frameClassName={patientCompositionListThumbSlotClass}
                 sizes="40px"
                 iconClassName="size-4"

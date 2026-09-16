@@ -12,14 +12,17 @@ import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 
-export type MailAttachment = {
+type MailAttachmentBase = {
   /** Имя файла вложения (например, `booking.ics`). */
   filename: string;
-  /** Содержимое вложения (строка или Buffer). */
-  content: string | Buffer;
   /** MIME-тип вложения (например, `text/calendar`). */
   contentType: string;
+  /** Content-ID для встроенной картинки в HTML-письме. */
+  cid?: string;
 };
+
+export type MailAttachment = MailAttachmentBase &
+  ({ content: string | Buffer; path?: never } | { path: string; content?: never });
 
 export type SendMailParams = {
   to: string | string[];
@@ -54,7 +57,10 @@ function transportSignature(cfg: ResolvedSmtpOutboundConfig, timeoutMs?: number)
     .digest('hex');
 }
 
-function getOrCreateTransport(cfg: ResolvedSmtpOutboundConfig, timeoutMs?: number): Transporter | null {
+function getOrCreateTransport(
+  cfg: ResolvedSmtpOutboundConfig,
+  timeoutMs?: number,
+): Transporter | null {
   if (!cfg.configured) return null;
   const sig = transportSignature(cfg, timeoutMs);
   if (transportCache?.sig !== sig) {

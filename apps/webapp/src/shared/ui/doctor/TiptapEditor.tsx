@@ -28,17 +28,12 @@ import {
 import { HeadingDropdownMenu } from '@/shared/ui/doctor/tiptap/ui/heading-dropdown-menu';
 import { ListDropdownMenu } from '@/shared/ui/doctor/tiptap/ui/list-dropdown-menu';
 import { BlockquoteButton } from '@/shared/ui/doctor/tiptap/ui/blockquote-button';
-import { CodeBlockButton } from '@/shared/ui/doctor/tiptap/ui/code-block-button';
 import {
   ColorHighlightPopover,
   ColorHighlightPopoverButton,
   ColorHighlightPopoverContent,
 } from '@/shared/ui/doctor/tiptap/ui/color-highlight-popover';
-import {
-  LinkButton,
-  LinkContent,
-  LinkPopover,
-} from '@/shared/ui/doctor/tiptap/ui/link-popover';
+import { LinkButton, LinkContent, LinkPopover } from '@/shared/ui/doctor/tiptap/ui/link-popover';
 import { MarkButton } from '@/shared/ui/doctor/tiptap/ui/mark-button';
 import { TextAlignButton } from '@/shared/ui/doctor/tiptap/ui/text-align-button';
 import { UndoRedoButton } from '@/shared/ui/doctor/tiptap/ui/undo-redo-button';
@@ -86,6 +81,15 @@ function isImage(meta: MediaLibraryInsertPickMeta | undefined, filename: string)
   );
 }
 
+function isVideo(meta: MediaLibraryInsertPickMeta | undefined, filename: string): boolean {
+  const mimeType = meta?.mimeType?.toLowerCase() ?? '';
+  return (
+    meta?.kind === 'video' ||
+    mimeType.startsWith('video/') ||
+    /\.(mp4|mov|webm|m4v)$/i.test(filename)
+  );
+}
+
 function cleanMediaLabel(filename: string): string {
   return filename.replace(/[\[\]]/g, '').trim() || 'Файл';
 }
@@ -100,7 +104,9 @@ function TableButton({ editor }: { editor: Editor | null }) {
       data-disabled={!canInsert}
       tooltip="Вставить таблицу"
       aria-label="Вставить таблицу"
-      onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+      onClick={() =>
+        editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+      }
     >
       <Table2 className="tiptap-button-icon" />
     </Button>
@@ -139,14 +145,12 @@ function MainToolbarContent({
         <HeadingDropdownMenu modal={false} levels={[1, 2, 3, 4]} />
         <ListDropdownMenu modal={false} types={['bulletList', 'orderedList', 'taskList']} />
         <BlockquoteButton />
-        <CodeBlockButton />
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
         <MarkButton type="bold" />
         <MarkButton type="italic" />
         <MarkButton type="strike" />
-        <MarkButton type="code" />
         <MarkButton type="underline" />
         {isMobile ? (
           <ColorHighlightPopoverButton onClick={onHighlighterClick} />
@@ -154,11 +158,6 @@ function MainToolbarContent({
           <ColorHighlightPopover />
         )}
         {isMobile ? <LinkButton onClick={onLinkClick} /> : <LinkPopover />}
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
-        <MarkButton type="superscript" />
-        <MarkButton type="subscript" />
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
@@ -322,6 +321,14 @@ export function TiptapEditor({
       const labelText = cleanMediaLabel(filename);
       if (isImage(meta, filename)) {
         editor.chain().focus().setImage({ src: url, alt: labelText, title: labelText }).run();
+        return;
+      }
+      if (isVideo(meta, filename)) {
+        editor
+          .chain()
+          .focus()
+          .insertContent({ type: 'video', attrs: { src: url, title: labelText } })
+          .run();
         return;
       }
       editor

@@ -91,9 +91,10 @@ const allowed = {
   row: {
     usage_purpose: null,
     uploaded_by: 'patient-1',
-    mime_type: 'video/mp4',
-    stored_path: 'media/file.mp4',
-    s3_key: 'media/file.mp4',
+    mime_type: 'application/pdf',
+    original_name: 'patient-document.pdf',
+    stored_path: 'media/file.pdf',
+    s3_key: 'media/file.pdf',
   },
 };
 
@@ -104,7 +105,7 @@ describe('media delivery routes', () => {
     mocks.patientGate.mockResolvedValue({ ok: true, session: appSession });
     mocks.authorize.mockResolvedValue(allowed);
     mocks.ttl.mockResolvedValue(900);
-    mocks.getS3Key.mockResolvedValue({ key: 'media/file.mp4', target: 'patient' });
+    mocks.getS3Key.mockResolvedValue({ key: 'media/file.pdf', target: 'patient' });
     mocks.presign.mockResolvedValue('https://storage.example/signed');
     mocks.getPreviewKey.mockResolvedValue({ key: 'media/preview.jpg', target: 'patient' });
     mocks.getPreviewHead.mockResolvedValue({
@@ -170,7 +171,10 @@ describe('media delivery routes', () => {
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toBe('https://storage.example/signed');
     expect(response.headers.get('cache-control')).toBe('private, max-age=0, must-revalidate');
-    expect(mocks.presign).toHaveBeenCalledWith('media/file.mp4', 900, 'patient');
+    expect(mocks.presign).toHaveBeenCalledWith('media/file.pdf', 900, 'patient', {
+      mimeType: 'application/pdf',
+      filename: 'patient-document.pdf',
+    });
     expect(mocks.withPatientPrincipal).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: '00000000-0000-4000-8000-000000000001',
@@ -184,6 +188,16 @@ describe('media delivery routes', () => {
     // fix(media) a94e16508, 2026-09-12: video has no version this route can serve (no progressive
     // object, no redirect to the HLS proxy either — a byte-expecting consumer would get m3u8
     // instead of video). The player must call the HLS proxy directly; this route answers 404.
+    mocks.authorize.mockResolvedValueOnce({
+      ...allowed,
+      row: {
+        ...allowed.row,
+        mime_type: 'video/mp4',
+        original_name: 'patient-video.mp4',
+        stored_path: 'media/file.mp4',
+        s3_key: 'media/file.mp4',
+      },
+    });
     mocks.getS3Key.mockResolvedValueOnce(null);
     mocks.resolvePlayback.mockResolvedValueOnce({
       ok: true,

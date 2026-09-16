@@ -101,6 +101,7 @@ function mapSituationChipsForGuest(
     ...c,
     href: hrefForPatientHomeDrilldown(c.href, true),
     imageUrl: stripApiMediaForAnonymousGuest(c.imageUrl, true),
+    imageLibraryMedia: null,
   }));
 }
 
@@ -113,6 +114,7 @@ function mapCarouselForGuest(
     ...c,
     href: hrefForPatientHomeDrilldown(c.href, true),
     imageUrl: stripApiMediaForAnonymousGuest(c.imageUrl, true),
+    imageLibraryMedia: null,
   }));
 }
 
@@ -125,6 +127,7 @@ function mapSosForGuest(
     ...sos,
     href: hrefForPatientHomeDrilldown(sos.href, true),
     imageUrl: stripApiMediaForAnonymousGuest(sos.imageUrl, true),
+    imageLibraryMedia: null,
   };
 }
 
@@ -153,6 +156,7 @@ function mapUsefulPostForGuest(
     ...post,
     href: hrefForPatientHomeDrilldown(post.href, true),
     imageUrl: stripApiMediaForAnonymousGuest(post.imageUrl, true),
+    imageLibraryMedia: null,
   };
 }
 
@@ -259,6 +263,7 @@ async function renderPatientHomeToday({
     contentPages: deps.contentPages,
     contentSections: deps.contentSections,
     systemSettings: deps.systemSettings,
+    ...(session ? { loadMediaById: (id: string) => deps.media.getById(id) } : {}),
   };
   const presentationSyncDeps =
     session && personalTierOk && materializeWarmupPresentation
@@ -275,6 +280,7 @@ async function renderPatientHomeToday({
     contentSections: deps.contentSections,
     contentPages: deps.contentPages,
     courses: deps.courses,
+    ...(session ? { loadMediaById: (id: string) => deps.media.getById(id) } : {}),
   };
 
   const situationsBlock = homeBlocks.find((b) => b.code === 'situations');

@@ -858,6 +858,7 @@ export type MediaAccessRow = {
   usage_purpose: string | null;
   uploaded_by: string;
   mime_type: string;
+  original_name?: string | null;
   stored_path: string;
   s3_key: string | null;
 };
@@ -911,7 +912,7 @@ export async function getMediaAccessRow(
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<MediaAccessRow>(
     getWebappSqlDb(),
-    sql`SELECT usage_purpose, uploaded_by::text, mime_type, stored_path, s3_key
+    sql`SELECT usage_purpose, uploaded_by::text, mime_type, original_name, stored_path, s3_key
      FROM media_files
      WHERE id = ${id}::uuid
        AND owner_kind = 'organization' AND organization_id = ${organizationId}::uuid
@@ -925,6 +926,7 @@ export async function getMediaAccessRow(
     usage_purpose: platformRow.usage_purpose,
     uploaded_by: platformRow.uploaded_by,
     mime_type: platformRow.mime_type,
+    original_name: null,
     stored_path: platformRow.stored_path,
     s3_key: platformRow.s3_key,
   };
@@ -1348,9 +1350,7 @@ export type OrgAppIconRenditionSource =
   | { status: 'processing' }
   | { status: 'missing' };
 
-export async function getOrgAppIconRenditionSource(
-  id: string,
-): Promise<OrgAppIconRenditionSource> {
+export async function getOrgAppIconRenditionSource(id: string): Promise<OrgAppIconRenditionSource> {
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<{
     s3_key: string | null;
@@ -1623,7 +1623,11 @@ export async function purgePendingMediaDeleteBatch(
            бакете (или в горячем, если это ещё не перенесённый старый исходник — F-1), а HLS/постер/
            превью/standard.webp — всегда в горячем. Один дефолт `'hot'` на всю итерацию удалял бы
            `pending_delete` строку из БД, оставляя сырые байты на месте и рапортуя успех. */
-        await s3DeleteObject(key, claim.storageTarget, sourceStorageKindForKey(claim.storageTarget, key));
+        await s3DeleteObject(
+          key,
+          claim.storageTarget,
+          sourceStorageKindForKey(claim.storageTarget, key),
+        );
       }
     } catch (e) {
       await runMediaPendingDeleteStep('retry', row.id, null, claim.claimToken);

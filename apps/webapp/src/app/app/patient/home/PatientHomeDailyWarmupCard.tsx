@@ -170,6 +170,7 @@ export function PatientHomeDailyWarmupCard({
         <HeroImageSlotDecor>
           <PatientHomeSafeImage
             src={heroImageUrl}
+            imageLibraryMedia={anonymousGuest ? null : page.imageLibraryMedia}
             alt=""
             className="h-full w-full object-contain object-right-bottom drop-shadow-lg"
             loading="lazy"

@@ -35,13 +35,29 @@ describe('clinic-owned doctor broadcast delivery jobs', () => {
       unsubscribeUrlByUserId: new Map([[client.userId, 'https://example.test/unsubscribe']]),
       unsubscribeTopicTitle: 'Новости',
       verifiedEmailByUserId: new Map([[client.userId, 'patient@example.test']]),
+      imageUrl: 'https://storage.example.test/signed-image',
+      imageMimeType: 'image/webp',
     });
 
-    const intents = jobs.map((job) => job.payloadJson.intent as {
-      payload?: { message?: { text?: string }; html?: string };
-    });
+    const intents = jobs.map(
+      (job) =>
+        job.payloadJson.intent as {
+          payload?: {
+            message?: { text?: string };
+            html?: string;
+            inlineImage?: { url?: string; mimeType?: string; cid?: string };
+          };
+        },
+    );
     expect(intents[0]?.payload?.message?.text).toContain('<b>Важный текст</b>');
     expect(intents[1]?.payload?.message?.text).toContain('Важный текст');
+    expect(intents[1]?.payload?.html).toContain('src="cid:broadcast-image"');
+    expect(intents[1]?.payload?.inlineImage).toEqual({
+      url: 'https://storage.example.test/signed-image',
+      mimeType: 'image/webp',
+      filename: 'broadcast-image.webp',
+      cid: 'broadcast-image',
+    });
     expect(JSON.stringify(intents)).not.toContain('tiptap-json:v1:');
   });
 

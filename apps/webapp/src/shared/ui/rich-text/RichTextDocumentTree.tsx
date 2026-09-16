@@ -6,6 +6,7 @@ import { renderToReactElement } from '@tiptap/static-renderer/pm/react';
 import { useMemo, type ReactNode } from 'react';
 import { createRichTextSchemaExtensions } from '@/shared/lib/richTextExtensions';
 import { safeRichTextUrl } from '@/shared/lib/richText';
+import { mediaPreviewMdUrl } from '@/shared/lib/mediaPreviewUrls';
 
 export type RichTextLinkRenderProps = {
   href: string;
@@ -21,17 +22,23 @@ export type RichTextImageRenderProps = {
   title?: string;
 };
 
+export type RichTextVideoRenderProps = {
+  src: string;
+  title: string;
+};
+
 type Props = {
   document: JSONContent;
   renderLink?: (props: RichTextLinkRenderProps) => ReactNode;
   renderImage?: (props: RichTextImageRenderProps) => ReactNode;
+  renderVideo?: (props: RichTextVideoRenderProps) => ReactNode;
 };
 
 function stringAttribute(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-export function RichTextDocumentTree({ document, renderLink, renderImage }: Props) {
+export function RichTextDocumentTree({ document, renderLink, renderImage, renderVideo }: Props) {
   return useMemo(() => {
     try {
       return renderToReactElement({
@@ -46,7 +53,9 @@ export function RichTextDocumentTree({ document, renderLink, renderImage }: Prop
                 href,
                 children,
                 ...(stringAttribute(mark.attrs.title) ? { title: String(mark.attrs.title) } : {}),
-                ...(stringAttribute(mark.attrs.target) ? { target: String(mark.attrs.target) } : {}),
+                ...(stringAttribute(mark.attrs.target)
+                  ? { target: String(mark.attrs.target) }
+                  : {}),
                 ...(stringAttribute(mark.attrs.rel) ? { rel: String(mark.attrs.rel) } : {}),
               };
               return renderLink ? (
@@ -76,7 +85,26 @@ export function RichTextDocumentTree({ document, renderLink, renderImage }: Prop
                 renderImage(props)
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={props.src} alt={props.alt} title={props.title} />
+                <img
+                  src={mediaPreviewMdUrl(props.src) ?? props.src}
+                  alt={props.alt}
+                  title={props.title}
+                />
+              );
+            },
+            video: ({ node }: { node: Node }) => {
+              const src = safeRichTextUrl(node.attrs.src);
+              if (!src) return null;
+              const props: RichTextVideoRenderProps = {
+                src,
+                title: stringAttribute(node.attrs.title) ?? 'Видео',
+              };
+              return renderVideo ? (
+                renderVideo(props)
+              ) : (
+                <a href={props.src} target="_blank" rel="noopener noreferrer nofollow">
+                  {props.title}
+                </a>
               );
             },
           },
@@ -85,5 +113,5 @@ export function RichTextDocumentTree({ document, renderLink, renderImage }: Prop
     } catch {
       return null;
     }
-  }, [document, renderImage, renderLink]);
+  }, [document, renderImage, renderLink, renderVideo]);
 }

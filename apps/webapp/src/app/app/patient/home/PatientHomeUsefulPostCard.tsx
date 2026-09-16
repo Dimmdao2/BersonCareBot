@@ -28,6 +28,7 @@ export function PatientHomeUsefulPostCard({ post }: Props) {
       >
         <PatientHomeSafeImage
           src={post.imageUrl}
+          imageLibraryMedia={post.imageLibraryMedia}
           alt=""
           className="absolute inset-0 z-0 block h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.02]"
           loading="lazy"

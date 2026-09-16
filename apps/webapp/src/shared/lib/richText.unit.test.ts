@@ -69,6 +69,27 @@ describe('richText', () => {
     expect(html).not.toContain(TIPTAP_JSON_PREFIX);
   });
 
+  it('сохраняет документ только с видео и передаёт его заголовок в текстовые каналы', () => {
+    const value = serializeTiptapRichText({
+      type: 'doc',
+      content: [
+        {
+          type: 'video',
+          attrs: {
+            src: '/api/media/00000000-0000-4000-8000-000000000001',
+            title: 'Разминка',
+          },
+        },
+      ],
+    });
+
+    expect(value.startsWith(TIPTAP_JSON_PREFIX)).toBe(true);
+    expect(richTextToPlainText(value)).toBe('Разминка');
+    expect(richTextToMessengerHtml(value)).toBe(
+      '<a href="/api/media/00000000-0000-4000-8000-000000000001">Разминка</a>',
+    );
+  });
+
   it('не интерпретирует старую строку как Markdown и нормализует её в Tiptap JSON', () => {
     const value = normalizeTiptapRichTextValue('**Старый текст**');
 

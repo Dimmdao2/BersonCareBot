@@ -22,13 +22,23 @@ import { authorizeMediaDelivery } from '@/app-layer/media/authorizeMediaDelivery
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolvePatientOrganizationRequestContext } from '@/app-layer/patient-organization/requestContext';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { encoderOutputFor } from '@/shared/lib/mediaEncoderOutput';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-async function redirectPresignedOr503(object: MediaObjectLocation): Promise<Response> {
+async function redirectPresignedOr503(
+  object: MediaObjectLocation,
+  mimeType: string,
+  filename?: string | null,
+): Promise<Response> {
   try {
     const ttlSec = await getVideoPresignTtlSeconds();
-    const signed = await presignDeliveryGetUrl(object.key, ttlSec, object.target);
+    const output = encoderOutputFor(mimeType);
+    const deliveryMimeType = output === 'standard_image' ? 'image/webp' : mimeType;
+    const signed = await presignDeliveryGetUrl(object.key, ttlSec, object.target, {
+      mimeType: deliveryMimeType,
+      ...(output === 'none' && filename ? { filename } : {}),
+    });
     /** 307 so clients (esp. Safari/WebKit video) re-issue GET+Range to the presigned URL; 302 often drops Range after redirect. */
     const res = NextResponse.redirect(signed, 307);
     res.headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
@@ -66,7 +76,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       const object = await getMediaS3KeyForRedirect(id, {
         allowPlatformBase: access.allowPlatformBase,
       });
-      if (object) return redirectPresignedOr503(object);
+      if (object) {
+        return redirectPresignedOr503(object, access.row.mime_type, access.row.original_name);
+      }
       /* Видео этим маршрутом не отдаётся вовсе — его путь один, `/hls/master.m3u8` через свой
          прокси. Промежуточная редакция кандидата редиректила сюда на плейлист; это добавляло
          поведение, которого в плане владельца нет, и потребитель, ждущий БАЙТЫ по голой ссылке

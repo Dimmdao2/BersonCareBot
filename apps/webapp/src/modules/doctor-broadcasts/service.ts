@@ -33,6 +33,7 @@ import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports'
 import type { PatientNotificationTopicsPort } from '@/modules/patient-notifications/patientNotificationTopicsPort';
 import { broadcastNotificationTopicCode } from '@/modules/patient-notifications/notificationTopicCodes';
 import { buildRecipientsPreviewFromClients } from './broadcastAudienceMetrics';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 
 export type DoctorBroadcastAudienceContext = {
   organizationId: string;
@@ -67,6 +68,8 @@ export type DoctorBroadcastsServiceDeps = {
   /** Existing patient-facing title from `system_settings.notifications_topics`. */
   getTopicDisplayTitle: (topicCode: string, organizationId: string) => Promise<string | null>;
   resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
+  /** Produces a provider-readable URL for the encoder-owned image rendition. */
+  resolveExternalImageUrl?: (mediaId: string, mimeType: string) => Promise<string | null>;
   /**
    * 3.2: physically refuses a mailings write unless a passing `mailings` mutation decision already
    * ran in this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
@@ -227,6 +230,25 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       if (channels.includes('email') && verifiedEmailByUserId === undefined) {
         throw new Error('broadcast_email_recipients_unavailable');
       }
+      const storedImageUrl = command.message.mediaUrl?.trim() || null;
+      const storedImageMimeType = command.message.mediaType?.trim() || 'image/jpeg';
+      const storedImageId = storedImageUrl ? parseMediaFileIdFromAppUrl(storedImageUrl) : null;
+      let externalImageUrl: string | null = null;
+      let externalImageMimeType: string | null = null;
+      if (storedImageId && deps.resolveExternalImageUrl) {
+        try {
+          externalImageUrl = await deps.resolveExternalImageUrl(storedImageId, storedImageMimeType);
+          if (externalImageUrl) externalImageMimeType = 'image/webp';
+        } catch (err) {
+          logger.warn(
+            { err, event: 'doctor_broadcast.image_delivery_url_failed', mediaId: storedImageId },
+            'doctor broadcast image delivery URL failed',
+          );
+        }
+      } else if (storedImageUrl && /^https?:\/\//i.test(storedImageUrl)) {
+        externalImageUrl = storedImageUrl;
+        externalImageMimeType = storedImageMimeType;
+      }
       const jobs = buildDoctorBroadcastDeliveryJobs({
         auditId,
         eligibleClients,
@@ -236,7 +258,8 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         attachMenu: command.attachMenuAfterSend === true,
         audienceFilter: command.audienceFilter,
         notificationPrefsByUserId,
-        imageUrl: command.message.mediaUrl ?? null,
+        imageUrl: externalImageUrl,
+        imageMimeType: externalImageMimeType,
         unsubscribeUrlByUserId,
         unsubscribeTopicTitle: topicTitle,
         verifiedEmailByUserId,

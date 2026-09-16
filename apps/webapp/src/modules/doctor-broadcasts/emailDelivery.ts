@@ -11,10 +11,10 @@ export function buildBroadcastEmailHtml(input: {
   body: string;
   unsubscribeUrl: string;
   unsubscribeTopicTitle: string;
-  mediaUrl?: string | null;
+  mediaCid?: string | null;
 }): string {
-  const img = input.mediaUrl
-    ? `<img src="${escapeHtml(input.mediaUrl)}" alt="" style="max-width:100%;height:auto;border-radius:8px;display:block;margin-bottom:12px" />`
+  const img = input.mediaCid
+    ? `<img src="cid:${escapeHtml(input.mediaCid)}" alt="" style="max-width:100%;height:auto;border-radius:8px;display:block;margin-bottom:12px" />`
     : '';
   const head = input.title.trim()
     ? `<div style="font-weight:600;font-size:16px;margin-bottom:6px">${escapeHtml(input.title.trim())}</div>`

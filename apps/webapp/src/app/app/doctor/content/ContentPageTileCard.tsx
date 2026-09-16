@@ -8,6 +8,7 @@ import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVi
 import { ContentLifecycleDropdown } from './ContentLifecycleDropdown';
 import { ContentRatingChip, type ContentRatingSummary } from './ContentRatingChip';
 import type { ContentPageListRow } from './ContentPagesSectionList';
+import { ContentHeroImage } from '@/shared/ui/doctor/media/ContentHeroImage';
 
 type Props = {
   page: ContentPageListRow;
@@ -44,12 +45,11 @@ export function ContentPageTileCard({
         {/* Preview area */}
         <div className="w-full overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/30">
           {page.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={page.imageUrl}
-              alt=""
-              className="h-[120px] w-full object-cover"
-              loading="lazy"
+            <ContentHeroImage
+              imageUrl={page.imageUrl}
+              hydrateFromAdminApi
+              className="h-[120px] w-full"
+              imgClassName="h-[120px] w-full object-cover"
             />
           ) : (
             <div className="flex h-[120px] w-full items-center justify-center" aria-hidden>
