@@ -31,6 +31,7 @@ const ERROR_CODE_TEXT: Record<string, string> = {
   lead_status_transition_invalid: notificationText.leadAlreadyInProgress,
   lead_submit_failed: notificationText.leadSubmitFailed,
   lead_email_verification_required: notificationText.authVerifiedEmailRequired,
+  patient_email_required: notificationText.patientEmailRequired,
   captcha_required: notificationText.leadCaptchaRequired,
   captcha_unavailable: notificationText.authCaptchaUnavailable,
   oauth_role_not_allowed: notificationText.authOauthRoleNotAllowed,

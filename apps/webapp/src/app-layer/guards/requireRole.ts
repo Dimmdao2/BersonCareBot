@@ -18,6 +18,7 @@ import {
   getCurrentSessionForPasswordChange,
 } from '@/modules/auth/service';
 import {
+  patientEmailGateForProtectedData,
   patientClientBusinessGate,
   resolvePlatformAccessContext,
 } from '@/app-layer/platform-access';
@@ -66,7 +67,15 @@ export async function requirePatientAccess(returnPath?: string): Promise<AppSess
 /** Как requirePatientAccess, плюс бизнес-доступ пациента: tier **patient** из БД (фаза C), без БД — fallback на телефон в сессии. */
 export async function requirePatientAccessWithPhone(returnPath?: string): Promise<AppSession> {
   const session = await requirePatientAccess(returnPath);
-  await requirePatientBusinessTierOrRedirect(session, returnPath ?? routePaths.patient);
+  const returnTo = returnPath ?? routePaths.patient;
+  await requirePatientBusinessTierOrRedirect(session, returnTo);
+  const emailGate = await patientEmailGateForProtectedData({
+    sessionRole: session.user.role,
+    pathname: returnTo,
+  });
+  if (emailGate.blocksProtectedData) {
+    redirect(`${routePaths.bindEmail}?next=${encodeURIComponent(returnTo)}`);
+  }
   return session;
 }
 
@@ -945,18 +954,72 @@ function patientActivationRequiredJson(returnPath: string) {
   );
 }
 
+function patientEmailRequiredJson(returnPath: string) {
+  const next = encodeURIComponent(returnPath);
+  return NextResponse.json(
+    {
+      ok: false,
+      error: 'patient_email_required',
+      message: notificationText.patientEmailRequired,
+      redirectTo: `${routePaths.bindEmail}?next=${next}`,
+    },
+    { status: 403 },
+  );
+}
+
 /**
  * Для Route Handlers под `/api/patient/*` и `/api/booking/*`: тот же критерий, что `requirePatientAccessWithPhone`
  * (`patientClientBusinessGate`). Перечень patient-business API — `patientApiPathIsPatientBusinessSurface` в `patientRouteApiPolicy`.
  */
-export async function requirePatientApiBusinessAccess(options?: {
+type PatientApiBusinessAccessCommonOptions = {
   /** Для redirectTo в теле 403 (по умолчанию главное меню пациента). */
   returnPath?: string;
   workspaceModule?: WorkspaceModuleKey;
-}): Promise<{ ok: true; session: AppSession } | { ok: false; response: NextResponse }> {
+};
+
+type PatientApiBusinessAccessOptions = PatientApiBusinessAccessCommonOptions & {
+  businessAccess?: 'required';
+};
+
+type PatientApiOptionalBusinessAccessOptions = PatientApiBusinessAccessCommonOptions & {
+  /**
+   * Узкое чтение, доступное пациенту до завершения активации. Email-gate и patient principal
+   * остаются обязательными; вызывающий получает признак, можно ли добавлять персональную часть.
+   */
+  businessAccess: 'optional';
+};
+
+type PatientApiAccessFailure = { ok: false; response: NextResponse };
+
+export function requirePatientApiBusinessAccess(
+  options: PatientApiOptionalBusinessAccessOptions,
+): Promise<
+  | { ok: true; session: AppSession; hasBusinessAccess: boolean }
+  | PatientApiAccessFailure
+>;
+export function requirePatientApiBusinessAccess(
+  options?: PatientApiBusinessAccessOptions,
+): Promise<{ ok: true; session: AppSession } | PatientApiAccessFailure>;
+export async function requirePatientApiBusinessAccess(
+  options?: PatientApiBusinessAccessOptions | PatientApiOptionalBusinessAccessOptions,
+): Promise<
+  | { ok: true; session: AppSession; hasBusinessAccess?: boolean }
+  | PatientApiAccessFailure
+> {
   ensureDbPrincipalContext({ source: 'requirePatientApiBusinessAccess:pending' });
-  const session = await getCurrentSession();
-  if (!session || !canAccessPatient(session.user.role)) {
+  const optionalBusinessAccess = options?.businessAccess === 'optional';
+  const session = optionalBusinessAccess
+    ? await getOptionalPatientSession()
+    : await getCurrentSession();
+  if (!session) {
+    return {
+      ok: false,
+      response: optionalBusinessAccess
+        ? NextResponse.json({ ok: false, error: 'organization_required' }, { status: 403 })
+        : NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
+  }
+  if (!canAccessPatient(session.user.role)) {
     return {
       ok: false,
       response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
@@ -965,14 +1028,22 @@ export async function requirePatientApiBusinessAccess(options?: {
 
   const returnPath = options?.returnPath ?? routePaths.patient;
   const gate = await patientClientBusinessGate(session);
-  if (gate === 'stale_session') {
+  if (!optionalBusinessAccess && gate === 'stale_session') {
     return {
       ok: false,
       response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     };
   }
-  if (gate === 'need_activation') {
+  if (!optionalBusinessAccess && gate === 'need_activation') {
     return { ok: false, response: patientActivationRequiredJson(returnPath) };
+  }
+
+  const emailGate = await patientEmailGateForProtectedData({
+    sessionRole: session.user.role,
+    pathname: returnPath,
+  });
+  if (emailGate.blocksProtectedData) {
+    return { ok: false, response: patientEmailRequiredJson(returnPath) };
   }
 
   const principal = await stampPatientPrincipalForApi(session);
@@ -997,7 +1068,9 @@ export async function requirePatientApiBusinessAccess(options?: {
     if (!moduleGate.ok) return moduleGate;
   }
 
-  return { ok: true, session };
+  return optionalBusinessAccess
+    ? { ok: true, session, hasBusinessAccess: gate === 'allow' }
+    : { ok: true, session };
 }
 
 /** Как {@link requirePatientApiBusinessAccess}, плюс подтверждённый canonical phone для native-записи и отмены. */

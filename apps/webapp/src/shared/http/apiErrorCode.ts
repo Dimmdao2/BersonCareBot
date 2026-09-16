@@ -43,6 +43,32 @@ export function readSafeApiErrorText(body: unknown, fallback: string): string {
   return fallback;
 }
 
+export type PatientAccessRedirectNavigate = (path: string) => void;
+
+const PATIENT_ACCESS_REDIRECT_FALLBACKS: Readonly<Record<string, string>> = {
+  patient_activation_required: '/app/patient/bind-phone',
+  booking_phone_trust_required: '/app/patient/bind-phone',
+  patient_email_required: '/app/patient/bind-email',
+};
+
+/**
+ * Единая клиентская дверь для машинно-различимых patient-access отказов.
+ * Сервер выбирает точный escape route в `redirectTo`; клиент принимает только внутренний app path.
+ */
+export function redirectIfPatientAccessRequired(
+  body: unknown,
+  navigate: PatientAccessRedirectNavigate,
+): boolean {
+  if (typeof body !== 'object' || body === null) return false;
+  const { error, redirectTo } = body as { error?: unknown; redirectTo?: unknown };
+  if (typeof error !== 'string') return false;
+  const fallback = PATIENT_ACCESS_REDIRECT_FALLBACKS[error];
+  if (!fallback) return false;
+  const target = typeof redirectTo === 'string' ? redirectTo.trim() : '';
+  navigate(target.startsWith('/app/') ? target : fallback);
+  return true;
+}
+
 /**
  * Text from a client-LOCAL action-result shape (`{ ok: false; error?: string }`, the convention
  * used by `'use server'` actions and `saveDraft()`-style hooks in this codebase) whose `error`

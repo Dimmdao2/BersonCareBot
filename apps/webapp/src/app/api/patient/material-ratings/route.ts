@@ -1,15 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import {
-  getOptionalPatientSession,
-  requirePatientApiBusinessAccess,
-} from '@/app-layer/guards/requireRole';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { routePaths } from '@/app-layer/routes/paths';
-import {
-  patientClientBusinessGate,
-  resolvePatientCanViewAuthOnlyContent,
-} from '@/app-layer/platform-access';
+import { resolvePatientCanViewAuthOnlyContent } from '@/app-layer/platform-access';
 import { MaterialRatingAccessError } from '@/modules/material-rating/types';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { requirePatientWorkspaceModuleForApi } from '@/app-layer/guards/workspaceModuleAccess';
@@ -43,31 +37,27 @@ export async function GET(req: Request) {
   if (!ratingsEnabled) {
     return NextResponse.json({ ok: false, error: 'material_ratings_disabled' }, { status: 403 });
   }
-  const session = await getOptionalPatientSession();
-  let userId: string | null = null;
-  if (session) {
-    const gate = await patientClientBusinessGate(session);
-    if (gate === 'allow') userId = session.user.userId;
-  }
 
-  const canViewAuthOnlyContent = session
-    ? await resolvePatientCanViewAuthOnlyContent(session)
-    : false;
+  const gate = await requirePatientApiBusinessAccess({
+    returnPath: routePaths.patient,
+    businessAccess: 'optional',
+  });
+  if (!gate.ok) return gate.response;
 
-  if (!session) {
-    return NextResponse.json({ ok: false, error: 'organization_required' }, { status: 403 });
-  }
+  const userId = gate.hasBusinessAccess ? gate.session.user.userId : null;
+  const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(gate.session);
+
   if (parsed.data.kind !== 'content_page') {
     const moduleGate = await requirePatientWorkspaceModuleForApi(
       deps,
-      session.user.userId,
+      gate.session.user.userId,
       'rehabilitation',
     );
     if (!moduleGate.ok) return moduleGate.response;
   }
   const tenant = await resolvePatientEnrollmentOrganizationId(
     { patientOrganization: deps.patientOrganization },
-    session.user.userId,
+    gate.session.user.userId,
   );
   if (!tenant.ok) return tenant.response;
 

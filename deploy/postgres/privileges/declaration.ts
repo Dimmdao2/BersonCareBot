@@ -25664,6 +25664,10 @@ const REV10_CONTEXT = {
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.diary-day.snapshot.capture',
       functionIdentity: 'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)' },
+    patient_email_gate_state: patientSelfCapability(
+      'patient.email-gate.state',
+      'app.patient_email_gate_state(boolean)',
+    ),
     patient_notification_topic_set: { port: 'webapp',
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.notification-topic.set',
@@ -30198,6 +30202,21 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    'app.patient_email_gate_state(boolean)': patientSelfFunction(
+      'record',
+      true,
+      ['boolean'],
+      'patient.email-gate.state',
+      [
+        { relation: 'public.platform_users', columns: [
+          'id', 'role', 'merged_into_id', 'email_first_requested_at',
+        ], operations: ['SELECT', 'UPDATE'],
+        evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.user_contacts', columns: [
+          'platform_user_id', 'contact_kind', 'confirmed_at',
+        ], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
+    ),
     'app.set_current_patient_notification_topic_channel(text,text,boolean)': rev10Function({
       owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'set one supported notification topic channel for the current patient',
