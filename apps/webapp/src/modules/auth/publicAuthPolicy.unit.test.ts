@@ -108,7 +108,9 @@ describe('public auth policy', () => {
         telegram: false,
         max: false,
       });
-      await expect(isIndependentAuthMethodEnabled('passkey')).resolves.toBe(true);
+      // Passkey остаётся дверью сотрудника и снят у платформенного администратора (С9
+      // `docs/_TODO/STAFF_DOORS_HARDCODED_2026-09-16.md`): состав двери решает код, а не тумблер.
+      await expect(isIndependentAuthMethodEnabled('passkey')).resolves.toBe(surface === 'staff');
       for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
         await expect(isOAuthProviderEnabled(provider)).resolves.toBe(false);
       }
