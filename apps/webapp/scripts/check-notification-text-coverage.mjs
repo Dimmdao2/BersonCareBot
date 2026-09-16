@@ -394,7 +394,64 @@ function responseJsonMessageLiteralOf(node, consts = EMPTY_CONSTS) {
  * не меньше трёх. Порог выбран по замеру, а не на глаз: на 16.09 во всём webapp шаблонных `message:`
  * ровно два, и порог 3 отделяет живой дубль от законной склейки.
  */
-function templateMessageSentenceOf(node) {
+/**
+ * Разворачивает выражение в список шаблонов-кандидатов.
+ *
+ * Круг 1 независимого аудита (16.09) показал, что правило G4b ловило ТОЛЬКО голый шаблон в
+ * `message:`, а пять соседних форм записи проходили мимо: шаблон в тернарнике, шаблон после `??`
+ * или `||`, шаблон, вынесенный в module-level `const`, тегированный `String.raw` и слова,
+ * разложенные по подстановкам. Форма записи не меняет того, что наружу уходит inline-фраза мимо
+ * словаря, поэтому разворачиваем все эти формы к одному виду.
+ */
+function templateCandidatesOf(expr, moduleTemplates, seen = new Set()) {
+  if (!expr) return [];
+  if (ts.isParenthesizedExpression(expr)) return templateCandidatesOf(expr.expression, moduleTemplates, seen);
+  if (ts.isAsExpression(expr) || ts.isSatisfiesExpression(expr)) {
+    return templateCandidatesOf(expr.expression, moduleTemplates, seen);
+  }
+  if (ts.isConditionalExpression(expr)) {
+    return [
+      ...templateCandidatesOf(expr.whenTrue, moduleTemplates, seen),
+      ...templateCandidatesOf(expr.whenFalse, moduleTemplates, seen),
+    ];
+  }
+  if (
+    ts.isBinaryExpression(expr) &&
+    (expr.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+      expr.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+  ) {
+    return [
+      ...templateCandidatesOf(expr.left, moduleTemplates, seen),
+      ...templateCandidatesOf(expr.right, moduleTemplates, seen),
+    ];
+  }
+  /* `String.raw`ᐟtag` — тот же шаблон, только с тегом. */
+  if (ts.isTaggedTemplateExpression(expr)) return templateCandidatesOf(expr.template, moduleTemplates, seen);
+  if (ts.isTemplateExpression(expr)) return [expr];
+  /* Шаблон, вынесенный в константу модуля: смотрим её значение, но не зацикливаемся. */
+  if (ts.isIdentifier(expr) && moduleTemplates.has(expr.text) && !seen.has(expr.text)) {
+    seen.add(expr.text);
+    return templateCandidatesOf(moduleTemplates.get(expr.text), moduleTemplates, seen);
+  }
+  return [];
+}
+
+/** Слова, статически видимые в шаблоне: и в его кусках, и в строковых литералах подстановок. */
+function staticWordsOfTemplate(expr) {
+  const parts = [expr.head.text];
+  for (const span of expr.templateSpans) {
+    parts.push(span.literal.text);
+    /* Круг 1, форма 5: слова, перенесённые в подстановки, остаются словами. */
+    const visit = (n) => {
+      if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) parts.push(n.text);
+      ts.forEachChild(n, visit);
+    };
+    visit(span.expression);
+  }
+  return { parts, words: parts.join(' ').match(/[\p{L}]{2,}/gu) ?? [] };
+}
+
+function templateMessageSentenceOf(node, moduleTemplates) {
   let arg = responseBuilderBodyArg(node);
   if (arg === undefined) return undefined;
   if (ts.isParenthesizedExpression(arg)) arg = arg.expression;
@@ -402,13 +459,24 @@ function templateMessageSentenceOf(node) {
   for (const prop of arg.properties) {
     if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
     if (prop.name.text !== 'message') continue;
-    const expr = prop.initializer;
-    if (!ts.isTemplateExpression(expr)) continue;
-    const staticParts = [expr.head.text, ...expr.templateSpans.map((span) => span.literal.text)];
-    const words = staticParts.join(' ').match(/[\p{L}]{2,}/gu) ?? [];
-    if (words.length >= 3) return { expr, sample: staticParts.join('…').trim() };
+    for (const expr of templateCandidatesOf(prop.initializer, moduleTemplates)) {
+      const { parts, words } = staticWordsOfTemplate(expr);
+      if (words.length >= 3) return { expr: prop.initializer, sample: parts.join('…').trim() };
+    }
   }
   return undefined;
+}
+
+/** Константы модуля, чьё значение — шаблон: `const X = `…`;` на верхнем уровне файла. */
+function moduleTemplateConsts(sf) {
+  const map = new Map();
+  for (const st of sf.statements) {
+    if (!ts.isVariableStatement(st)) continue;
+    for (const d of st.declarationList.declarations) {
+      if (ts.isIdentifier(d.name) && d.initializer) map.set(d.name.text, d.initializer);
+    }
+  }
+  return map;
 }
 
 /**
@@ -745,6 +813,7 @@ function checkSource(relativePath, text) {
   );
 
   const consts = moduleConstStringLiterals(sf);
+  const moduleTemplates = moduleTemplateConsts(sf);
   const sourceLines = text.split('\n');
   // Сколько попаданий правила G6 на каждой строке — считаем до обхода, чтобы маркер не мог
   // освободить строку, на которой их несколько.
@@ -800,7 +869,7 @@ function checkSource(relativePath, text) {
     }
 
     // G4b: шаблонная строка-ПРЕДЛОЖЕНИЕ в том же `message` — см. комментарий у helper.
-    const templateSentence = templateMessageSentenceOf(node);
+    const templateSentence = templateMessageSentenceOf(node, moduleTemplates);
     if (templateSentence) {
       const { line } = sf.getLineAndCharacterOfPosition(templateSentence.expr.getStart(sf));
       findings.push(
@@ -899,6 +968,17 @@ function selfTest() {
     // G4b (ведущий, 16.09): шаблонная строка-предложение в том же `message`.
     ['NextResponse.json message — шаблонная строка-предложение',
       "return NextResponse.json({ ok: false, message: `Введите текст сообщения (до ${MAX} символов)` }, { status: 400 });"],
+    // Круг 1 аудита (16.09): пять форм записи того же самого, которые правило раньше пропускало.
+    ['G4b: шаблон-предложение внутри тернарника',
+      "return NextResponse.json({ ok: false, message: ru ? `Введите текст сообщения до ${MAX} символов` : 'x' }, { status: 400 });"],
+    ['G4b: шаблон-предложение после ??',
+      "return NextResponse.json({ ok: false, message: custom ?? `Введите текст сообщения до ${MAX} символов` }, { status: 400 });"],
+    ['G4b: шаблон-предложение вынесен в константу модуля',
+      "const TEXT = `Введите текст сообщения до ${MAX} символов`;\nreturn NextResponse.json({ ok: false, message: TEXT }, { status: 400 });"],
+    ['G4b: шаблон-предложение через String.raw',
+      "return NextResponse.json({ ok: false, message: String.raw`Введите текст сообщения до ${MAX} символов` }, { status: 400 });"],
+    ['G4b: слова предложения перенесены в подстановки',
+      "return NextResponse.json({ ok: false, message: `${'Введите'} ${'текст'} ${'сообщения'}` }, { status: 400 });"],
     // Owner check, 14.09: the branch shapes the toast rule had always walked were invisible here.
     ['NextResponse.json message ternary',
       "return NextResponse.json({ error: 'x', message: locked ? 'Слишком много попыток.' : 'Пароль неверен.' });"],

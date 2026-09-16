@@ -82,7 +82,9 @@ export async function POST(request: Request) {
         message:
           channel === 'email'
             ? notificationText.settingsDeliveryTestNoEmail
-            : `У вашей учётной записи не подключён ${channel === 'telegram' ? 'Telegram' : 'MAX'} для проверки.`,
+            : notificationText.settingsDeliveryTestNoMessenger(
+                channel === 'telegram' ? 'Telegram' : 'MAX',
+              ),
       },
       { status: 400 },
     );

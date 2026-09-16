@@ -211,7 +211,6 @@ export const notificationText = {
   authPhoneAndChannelRequired: 'Укажите номер телефона и способ связи.',
   supportMessageTextRequired: 'Введите текст сообщения (до 4000 символов).',
   authCodeExpiredAskAdminForNew: 'Код истёк. Попросите администратора выслать новый.',
-  authEmailAlreadyUsedByAnotherAccount: 'Этот email уже используется другим аккаунтом.',
   authEmailCodeGoesThroughEmailDoor:
     'Код на почту отправляется по входу через email — введите адрес там.',
   authMessengerBindUnavailable: 'Привязка мессенджера сейчас недоступна. Повторите попытку позже.',
@@ -498,6 +497,8 @@ export const notificationText = {
   settingsIntegrationDisabledByPlatform: 'Интеграция отключена платформой.',
   settingsSmtpDisabledByPlatform: 'SMTP отключён платформой.',
   settingsDeliveryTestNoEmail: 'У вашей учётной записи нет адреса почты для проверки.',
+  settingsDeliveryTestNoMessenger: (messenger: string) =>
+    `У вашей учётной записи не подключён ${messenger} для проверки.`,
 
   // --- domain/booking-engine ---
   // Публичная запись: отказ инфраструктуры (не прошёл reverse proxy) — читателю здесь нечего

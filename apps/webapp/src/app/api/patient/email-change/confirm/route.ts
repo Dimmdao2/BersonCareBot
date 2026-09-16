@@ -106,7 +106,7 @@ function errMsg(code: string): string {
     case 'too_many_attempts':
       return notificationText.authTooManyAttempts;
     case 'email_conflict':
-      return notificationText.authEmailAlreadyUsedByAnotherAccount;
+      return notificationText.authEmailBelongsToAnotherAccount;
     default:
       return notificationText.authConfirmationFailed;
   }
