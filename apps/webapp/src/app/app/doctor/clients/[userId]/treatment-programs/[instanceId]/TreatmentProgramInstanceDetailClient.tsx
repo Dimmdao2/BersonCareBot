@@ -761,7 +761,7 @@ function MobileInstanceDraftAutosaveBridge() {
     void saveDraft({ confirmActiveProgramChange: false }).then((result) => {
       if (!result.ok && !result.cancelled) {
         failedRevisionRef.current = draftRevision;
-        toast.error(result.error ?? notificationText.commonGenericError);
+        toast.error(notificationText.commonSaveFailed);
       }
     });
   }, [draftRevision, isDirty, mobile, saveDraft, saving]);
@@ -803,7 +803,7 @@ function MobileInstanceDraftAutosaveBridge() {
           return;
         }
         if (!result.cancelled) {
-          toast.error(result.error ?? notificationText.commonGenericError);
+          toast.error(notificationText.commonSaveFailed);
         }
       });
     };
@@ -1509,7 +1509,7 @@ function MobileProgramStagesEditor(props: {
       if (isDirty) {
         const saved = await saveDraft({ confirmActiveProgramChange: false });
         if (!saved.ok) {
-          if (!saved.cancelled) toast.error(saved.error ?? notificationText.commonGenericError);
+          if (!saved.cancelled) toast.error(notificationText.commonSaveFailed);
           return;
         }
       }
