@@ -67,7 +67,7 @@ export function InstanceEditorAddStageDialog(props: {
             }}
           />
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex-row flex-nowrap justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Отмена
           </Button>

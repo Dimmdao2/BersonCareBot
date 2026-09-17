@@ -870,6 +870,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         isActionable?: boolean | null;
         groupId?: string | null;
         settings?: Record<string, unknown> | null;
+        snapshot?: Record<string, unknown>;
       },
     ) {
       const inst = instances.get(instanceId);
@@ -890,6 +891,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         ...(patch.settings !== undefined
           ? { settings: patch.settings === null ? null : patch.settings }
           : {}),
+        ...(patch.snapshot !== undefined ? { snapshot: patch.snapshot } : {}),
       };
       items.set(itemId, next);
       touchInstance(instanceId);

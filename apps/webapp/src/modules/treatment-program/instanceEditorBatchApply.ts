@@ -65,14 +65,10 @@ async function assertStageItemAllowsStructuralChange(
   testAttempts: TreatmentProgramTestAttemptsPort | undefined,
 ): Promise<void> {
   if (item.completedAt) {
-    throw new UserFacingError(
-      notificationText.treatmentProgramElementDeleteReplaceLocked,
-    );
+    throw new UserFacingError(notificationText.treatmentProgramElementDeleteReplaceLocked);
   }
   if (testAttempts && (await testAttempts.hasAnyAttemptForStageItem(item.id))) {
-    throw new UserFacingError(
-      notificationText.treatmentProgramElementDeleteReplaceLocked,
-    );
+    throw new UserFacingError(notificationText.treatmentProgramElementDeleteReplaceLocked);
   }
 }
 
@@ -212,9 +208,7 @@ function validateItemStructuralGroupPatch(
       throw new UserFacingError(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
     }
     if (patch.groupId != null) {
-      throw new UserFacingError(
-        notificationText.treatmentProgramGeneralStageNoGroupBinding,
-      );
+      throw new UserFacingError(notificationText.treatmentProgramGeneralStageNoGroupBinding);
     }
     return;
   }
@@ -296,12 +290,12 @@ async function validateInstanceEditorBatchDraft(
       }
       if (stage && isStageZero(stage)) {
         if (create.itemType !== 'recommendation') {
-          throw new UserFacingError(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
+          throw new UserFacingError(
+            notificationText.treatmentProgramGeneralStageRecommendationsOnly,
+          );
         }
         if (create.groupId != null) {
-          throw new UserFacingError(
-            notificationText.treatmentProgramGeneralStageNoGroupBinding,
-          );
+          throw new UserFacingError(notificationText.treatmentProgramGeneralStageNoGroupBinding);
         }
       }
       if (create.itemType === 'exercise' && create.loadSettings) {
@@ -320,7 +314,9 @@ async function validateInstanceEditorBatchDraft(
       const stage = detail.stages.find((row) => row.id === stageId);
       if (stage) {
         if (isStageZero(stage)) {
-          throw new UserFacingError(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
+          throw new UserFacingError(
+            notificationText.treatmentProgramGeneralStageRecommendationsOnly,
+          );
         }
         const group = stage.groups.find((row) => row.id === groupId);
         if (!group && !isInstanceEditorBatchClientId(create.groupId)) {
@@ -430,6 +426,16 @@ async function validateInstanceEditorBatchDraft(
     if (patch.personalTitle !== undefined) {
       if (item.itemType !== 'exercise' || item.snapshot.exerciseScope !== 'personal') {
         throw new UserFacingError(notificationText.treatmentProgramExerciseNameEditPersonalOnly);
+      }
+    }
+    if (patch.recommendationContent !== undefined) {
+      if (item.itemType !== 'recommendation') {
+        throw new UserFacingError(
+          notificationText.treatmentProgramExecutionModeRecommendationsOnly,
+        );
+      }
+      if (!patch.recommendationContent.title.trim()) {
+        throw new UserFacingError(notificationText.recommendationNameRequired);
       }
     }
   }
@@ -551,15 +557,14 @@ export async function applyInstanceEditorBatch(
             );
           }
           if (resolvedGroupId) {
-            throw new UserFacingError(
-              notificationText.treatmentProgramGeneralStageNoGroupBinding,
-            );
+            throw new UserFacingError(notificationText.treatmentProgramGeneralStageNoGroupBinding);
           }
         } else if (!resolvedGroupId) {
           if (create.itemType === 'recommendation' || create.itemType === 'clinical_test') {
             const want = create.itemType === 'recommendation' ? 'recommendations' : 'tests';
             const sg = stage.groups.find((g) => g.systemKind === want);
-            if (!sg) throw new UserFacingError(notificationText.treatmentProgramStageSystemGroupNotFound);
+            if (!sg)
+              throw new UserFacingError(notificationText.treatmentProgramStageSystemGroupNotFound);
             resolvedGroupId = sg.id;
           } else {
             throw new UserFacingError(notificationText.treatmentProgramSelectGroupForElementType);
@@ -608,7 +613,8 @@ export async function applyInstanceEditorBatch(
           bodyMd: create.bodyMd.trim(),
           createdBy: null,
         });
-        if (!result) throw new UserFacingError(notificationText.treatmentProgramRecommendationAddFailed);
+        if (!result)
+          throw new UserFacingError(notificationText.treatmentProgramRecommendationAddFailed);
         idMap.set(create.clientId, result.item.id);
         if (create.localComment !== undefined) {
           await instances.updateStageItemLocalComment(
@@ -639,7 +645,9 @@ export async function applyInstanceEditorBatch(
         const stage = detail.stages.find((row) => row.id === stageId);
         if (!stage) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
         if (isStageZero(stage)) {
-          throw new UserFacingError(notificationText.treatmentProgramGeneralStageRecommendationsOnly);
+          throw new UserFacingError(
+            notificationText.treatmentProgramGeneralStageRecommendationsOnly,
+          );
         }
         const group = stage.groups.find((row) => row.id === groupId);
         if (!group) throw new UserFacingError(notificationText.treatmentProgramGroupNotFound);
@@ -662,7 +670,8 @@ export async function applyInstanceEditorBatch(
           settings,
           localComment: create.localComment?.trim() || null,
         });
-        if (!result) throw new UserFacingError(notificationText.treatmentProgramPersonalExerciseCreateFailed);
+        if (!result)
+          throw new UserFacingError(notificationText.treatmentProgramPersonalExerciseCreateFailed);
         idMap.set(create.clientId, result.item.id);
         diff.itemsAdded += 1;
       } else if (create.kind === 'test_set_expand') {
@@ -670,7 +679,8 @@ export async function applyInstanceEditorBatch(
         const stage = detail.stages.find((s) => s.id === stageId);
         if (!stage) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
         const testsGroup = stage.groups.find((g) => g.systemKind === 'tests');
-        if (!testsGroup) throw new UserFacingError(notificationText.treatmentProgramTestingSystemGroupNotFound);
+        if (!testsGroup)
+          throw new UserFacingError(notificationText.treatmentProgramTestingSystemGroupNotFound);
         let sortOrder = stage.items.reduce((m, i) => Math.max(m, i.sortOrder), -1);
         for (const line of create.items) {
           await itemRefs.assertItemRefExists('clinical_test', line.itemRefId);
@@ -826,7 +836,9 @@ export async function applyInstanceEditorBatch(
       if (patch.status !== undefined) itemPatch.status = patch.status;
       if (patch.isActionable !== undefined) {
         if (item.itemType !== 'recommendation') {
-          throw new UserFacingError(notificationText.treatmentProgramExecutionModeRecommendationsOnly);
+          throw new UserFacingError(
+            notificationText.treatmentProgramExecutionModeRecommendationsOnly,
+          );
         }
         itemPatch.isActionable = patch.isActionable;
       }
@@ -841,16 +853,15 @@ export async function applyInstanceEditorBatch(
             );
           }
           if (patch.groupId != null) {
-            throw new UserFacingError(
-              notificationText.treatmentProgramGeneralStageNoGroupBinding,
-            );
+            throw new UserFacingError(notificationText.treatmentProgramGeneralStageNoGroupBinding);
           }
           nextGroupId = null;
         } else if (!nextGroupId) {
           if (item.itemType === 'recommendation' || item.itemType === 'clinical_test') {
             const want = item.itemType === 'recommendation' ? 'recommendations' : 'tests';
             const sg = stage.groups.find((g) => g.systemKind === want);
-            if (!sg) throw new UserFacingError(notificationText.treatmentProgramStageSystemGroupNotFound);
+            if (!sg)
+              throw new UserFacingError(notificationText.treatmentProgramStageSystemGroupNotFound);
             nextGroupId = sg.id;
           } else {
             throw new UserFacingError(notificationText.treatmentProgramSelectGroupForElementType);
@@ -945,7 +956,24 @@ export async function applyInstanceEditorBatch(
           itemId,
           patch.personalTitle,
         );
-        if (!row) throw new UserFacingError(notificationText.treatmentProgramExerciseNameEditPersonalOnly);
+        if (!row)
+          throw new UserFacingError(notificationText.treatmentProgramExerciseNameEditPersonalOnly);
+        diff.itemsMetadataUpdated += 1;
+      }
+      if (patch.recommendationContent !== undefined) {
+        const item = detail.stages.flatMap((stage) => stage.items).find((row) => row.id === itemId);
+        if (!item || item.itemType !== 'recommendation') {
+          throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
+        }
+        const row = await instances.patchInstanceStageItem(input.instanceId, itemId, {
+          snapshot: {
+            ...item.snapshot,
+            title: patch.recommendationContent.title.trim(),
+            bodyMd: patch.recommendationContent.bodyMd.trim(),
+            media: patch.recommendationContent.media,
+          },
+        });
+        if (!row) throw new UserFacingError(notificationText.treatmentProgramElementNotFound);
         diff.itemsMetadataUpdated += 1;
       }
       if (patch.localComment !== undefined) {

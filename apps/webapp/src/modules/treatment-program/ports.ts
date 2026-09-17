@@ -214,6 +214,8 @@ export type TreatmentProgramInstancePort = {
       groupId?: string | null;
       /** Полная замена JSON `settings` (`null` — очистить колонку). */
       settings?: Record<string, unknown> | null;
+      /** Локальный снимок назначенной рекомендации; не меняет общий каталог. */
+      snapshot?: Record<string, unknown>;
     },
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;
 

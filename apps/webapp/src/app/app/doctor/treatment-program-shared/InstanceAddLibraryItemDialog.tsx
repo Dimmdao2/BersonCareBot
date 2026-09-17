@@ -599,7 +599,7 @@ export function InstanceAddLibraryItemDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="grid max-h-[calc(100dvh-2rem)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden sm:h-[min(760px,calc(100dvh-2rem))] sm:max-w-6xl">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-hidden sm:grid sm:h-[min(760px,calc(100dvh-2rem))] sm:max-w-6xl sm:grid-rows-[auto_auto_minmax(0,1fr)_auto]">
         <DialogHeader>
           <DialogTitle>{isPhaseZero ? 'Рекомендация' : 'Элемент из библиотеки'}</DialogTitle>
           {!isPhaseZero ? (
@@ -848,7 +848,7 @@ export function InstanceAddLibraryItemDialog(props: {
             </Button>
           </div>
         ) : (
-          <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
             {showCustomKindToggle ? (
               <div className="flex flex-col gap-2">
                 <Label>Тип элемента</Label>

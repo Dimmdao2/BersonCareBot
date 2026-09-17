@@ -20,6 +20,7 @@ import {
 } from '../../../db/schema/treatmentProgramInstances';
 import { recommendations as recommendationsTable } from '../../../db/schema/recommendations';
 import { treatmentProgramEvents as eventTable } from '../../../db/schema/treatmentProgramEvents';
+import { programItemDiscussionMessages } from '../../../db/schema/programItemDiscussion';
 import type { TreatmentProgramInstancePort } from '@/modules/treatment-program/ports';
 import type {
   AddTreatmentProgramInstanceStageInput,
@@ -1493,6 +1494,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         isActionable?: boolean | null;
         groupId?: string | null;
         settings?: Record<string, unknown> | null;
+        snapshot?: Record<string, unknown>;
       },
     ) {
       return runDrizzleMutationTransaction(async (tx) => {
@@ -1520,6 +1522,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         if (patch.isActionable !== undefined) rowPatch.isActionable = patch.isActionable;
         if (patch.groupId !== undefined) rowPatch.groupId = patch.groupId;
         if (patch.settings !== undefined) rowPatch.settings = patch.settings;
+        if (patch.snapshot !== undefined) rowPatch.snapshot = patch.snapshot;
 
         if (Object.keys(rowPatch).length === 0) return mapItem(itemRow);
 
@@ -1610,10 +1613,18 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           .from(itemTable)
           .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
           .where(eq(itemTable.id, itemId))
+          .for('update', { of: itemTable })
           .limit(1);
         const row0 = joined[0];
         if (!row0 || row0.instanceIdCol !== instanceId) return false;
         const it = row0.item;
+
+        const discussion = await tx
+          .select({ id: programItemDiscussionMessages.id })
+          .from(programItemDiscussionMessages)
+          .where(eq(programItemDiscussionMessages.instanceStageItemId, itemId))
+          .limit(1);
+        if (discussion.length > 0) return false;
 
         await tx.delete(itemTable).where(eq(itemTable.id, itemId));
 

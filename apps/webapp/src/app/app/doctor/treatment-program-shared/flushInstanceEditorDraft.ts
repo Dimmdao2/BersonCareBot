@@ -21,6 +21,8 @@ export async function flushInstanceEditorDraft(input: {
   draft: InstanceEditorDraft;
   baseline: TreatmentProgramInstanceDetail;
   terms: Pick<PatientTerms, 'patientGenitive'>;
+  /** Мобильный редактор подтверждает опасное действие в самой предметной модалке. */
+  confirmActiveProgramChange?: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string; cancelled?: boolean }> {
   const normalized = normalizeInstanceEditorDraft(input.draft, input.baseline);
   if (!isInstanceEditorDraftDirty(normalized, input.baseline)) {
@@ -34,7 +36,10 @@ export async function flushInstanceEditorDraft(input: {
     return { ok: false, error: loadError };
   }
 
-  if (!confirmActiveProgramInstanceBatchSave(input.programStatus, input.terms)) {
+  if (
+    input.confirmActiveProgramChange !== false &&
+    !confirmActiveProgramInstanceBatchSave(input.programStatus, input.terms)
+  ) {
     return { ok: false, error: 'cancelled', cancelled: true };
   }
 

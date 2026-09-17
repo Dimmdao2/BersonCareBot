@@ -276,7 +276,9 @@ export function createTreatmentProgramProgressService(deps: {
     return instances.touchCurrentPatientProgramItem ? fn() : instances.runInMutationTransaction(fn);
   }
 
-  function metricPointFromActionRow(row: ProgramActionLogListRow): import('./types').ExerciseMetricPoint {
+  function metricPointFromActionRow(
+    row: ProgramActionLogListRow,
+  ): import('./types').ExerciseMetricPoint {
     const payload = row.payload ?? {};
     const difficulty = payload.perceivedDifficulty;
     return {
@@ -398,7 +400,9 @@ export function createTreatmentProgramProgressService(deps: {
           throw new UserFacingError(notificationText.treatmentProgramElementDisabled);
         }
         if (isPersistentRecommendation(item)) {
-          throw new UserFacingError(notificationText.treatmentProgramRecurringRecommendationNotCompletable);
+          throw new UserFacingError(
+            notificationText.treatmentProgramRecurringRecommendationNotCompletable,
+          );
         }
         if (item.itemType === 'clinical_test') {
           throw new UserFacingError(notificationText.treatmentProgramUseTestResultRecording);
@@ -495,7 +499,10 @@ export function createTreatmentProgramProgressService(deps: {
       const weightKg =
         typeof p.weightKg === 'number' && Number.isFinite(p.weightKg) ? p.weightKg : null;
       const pain010 =
-        typeof p.pain010 === 'number' && Number.isInteger(p.pain010) && p.pain010 >= 0 && p.pain010 <= 10
+        typeof p.pain010 === 'number' &&
+        Number.isInteger(p.pain010) &&
+        p.pain010 >= 0 &&
+        p.pain010 <= 10
           ? p.pain010
           : null;
       const d = p.perceivedDifficulty;
@@ -541,7 +548,10 @@ export function createTreatmentProgramProgressService(deps: {
         sets: typeof p.sets === 'number' && Number.isFinite(p.sets) ? p.sets : null,
         weightKg: typeof p.weightKg === 'number' && Number.isFinite(p.weightKg) ? p.weightKg : null,
         pain010:
-          typeof p.pain010 === 'number' && Number.isInteger(p.pain010) && p.pain010 >= 0 && p.pain010 <= 10
+          typeof p.pain010 === 'number' &&
+          Number.isInteger(p.pain010) &&
+          p.pain010 >= 0 &&
+          p.pain010 <= 10
             ? p.pain010
             : null,
         difficulty: d === 'easy' || d === 'medium' || d === 'hard' ? d : null,
@@ -666,9 +676,7 @@ export function createTreatmentProgramProgressService(deps: {
           decision = 'partial';
         }
         if (!decision) {
-          throw new UserFacingError(
-            notificationText.testSpecifyOutcome,
-          );
+          throw new UserFacingError(notificationText.testSpecifyOutcome);
         }
 
         const resultRow = await tests.upsertResult({
@@ -748,11 +756,35 @@ export function createTreatmentProgramProgressService(deps: {
         if (input.doctorUserId) assertUuid(input.doctorUserId);
         if (input.status === 'skipped') {
           const r = input.reason?.trim();
-          if (!r) throw new UserFacingError(notificationText.treatmentProgramStageSkipReasonRequired);
+          if (!r)
+            throw new UserFacingError(notificationText.treatmentProgramStageSkipReasonRequired);
         }
         const detail0 = await instances.getInstanceById(input.instanceId);
-        const st0 = detail0?.stages.find((s) => s.id === input.stageId);
+        if (!detail0) throw new UserFacingError(notificationText.treatmentProgramNotFound);
+        const st0 = detail0.stages.find((s) => s.id === input.stageId);
         if (!st0) throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
+        if (input.status === 'in_progress') {
+          const activeStages = detail0.stages.filter(
+            (stage) => stage.id !== input.stageId && stage.status === 'in_progress',
+          );
+          for (const activeStage of activeStages) {
+            const completed = await instances.updateInstanceStage(
+              input.instanceId,
+              activeStage.id,
+              { status: 'completed' },
+            );
+            if (!completed) {
+              throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
+            }
+            await recordStageStatusChange({
+              instanceId: input.instanceId,
+              stageId: activeStage.id,
+              beforeStatus: activeStage.status,
+              afterRow: completed,
+              actorId: input.doctorUserId,
+            });
+          }
+        }
         const beforeStatus = st0.status;
         const row = await instances.updateInstanceStage(input.instanceId, input.stageId, {
           status: input.status,
@@ -767,6 +799,31 @@ export function createTreatmentProgramProgressService(deps: {
           actorId: input.doctorUserId,
           doctorReason: input.reason,
         });
+        if (input.status === 'in_progress') {
+          const afterActivation = await instances.getInstanceById(input.instanceId);
+          if (!afterActivation) {
+            throw new UserFacingError(notificationText.treatmentProgramNotFound);
+          }
+          for (const availableStage of afterActivation.stages.filter(
+            (stage) => stage.id !== input.stageId && stage.status === 'available',
+          )) {
+            const locked = await instances.updateInstanceStage(
+              input.instanceId,
+              availableStage.id,
+              { status: 'locked' },
+            );
+            if (!locked) {
+              throw new UserFacingError(notificationText.treatmentProgramStageNotFound);
+            }
+            await recordStageStatusChange({
+              instanceId: input.instanceId,
+              stageId: availableStage.id,
+              beforeStatus: availableStage.status,
+              afterRow: locked,
+              actorId: input.doctorUserId,
+            });
+          }
+        }
         const out = await instances.getInstanceById(input.instanceId);
         if (!out) throw new UserFacingError(notificationText.treatmentProgramNotFound);
         return out;
@@ -855,7 +912,8 @@ export function createTreatmentProgramProgressService(deps: {
       assertUuid(params.instanceStageItemId);
       const [points, messages] = await Promise.all([
         listExerciseMetrics({ ...params, scope: 'all' }),
-        discussion?.listMessagesForStageItem(params.instanceStageItemId, null) ?? Promise.resolve([]),
+        discussion?.listMessagesForStageItem(params.instanceStageItemId, null) ??
+          Promise.resolve([]),
       ]);
       const comments = messages.flatMap((message) => {
         const body = message.senderRole === 'patient' ? message.body?.trim() : null;

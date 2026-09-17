@@ -115,11 +115,13 @@ export function TreatmentProgramSortablePipelineStage({
   id,
   disabled,
   className,
+  dragHandleClassName,
   children,
 }: {
   id: string;
   disabled?: boolean;
   className?: string;
+  dragHandleClassName?: string;
   children: (dragHandle: ReactNode) => ReactNode;
 }) {
   const {
@@ -144,6 +146,7 @@ export function TreatmentProgramSortablePipelineStage({
       listeners={listeners}
       setActivatorNodeRef={setActivatorNodeRef}
       disabled={disabled}
+      className={dragHandleClassName}
     />
   );
 
@@ -253,11 +256,13 @@ export function TreatmentProgramSortableItemShell({
   id,
   disabled,
   className,
+  dragHandleClassName,
   children,
 }: {
   id: string;
   disabled?: boolean;
   className?: string;
+  dragHandleClassName?: string;
   children: (dragHandle: ReactNode) => ReactNode;
 }) {
   const {
@@ -282,6 +287,7 @@ export function TreatmentProgramSortableItemShell({
       listeners={listeners}
       setActivatorNodeRef={setActivatorNodeRef}
       disabled={disabled}
+      className={dragHandleClassName}
     />
   );
 

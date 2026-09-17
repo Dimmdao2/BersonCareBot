@@ -9,6 +9,7 @@ import type {
 import { effectiveInstanceStageItemComment } from '@/modules/treatment-program/types';
 import { sortByOrderThenId } from './treatmentProgramReorderHelpers';
 import type { InstanceEditorItemLoadSettingsPatch } from './instanceEditorLoadSettings';
+import type { RecommendationMediaItem } from '@/modules/recommendations/types';
 
 export type { InstanceEditorItemLoadSettingsPatch };
 
@@ -41,6 +42,11 @@ export type InstanceEditorItemPatch = {
   localComment?: string | null;
   loadSettings?: InstanceEditorItemLoadSettingsPatch;
   personalTitle?: string;
+  recommendationContent?: {
+    title: string;
+    bodyMd: string;
+    media: RecommendationMediaItem[];
+  };
 };
 
 export type InstanceEditorStageCreate = {
@@ -259,22 +265,47 @@ export function applyItemPatchToItemCreates(
   if (
     patch.localComment === undefined &&
     patch.loadSettings === undefined &&
-    patch.personalTitle === undefined
+    patch.personalTitle === undefined &&
+    patch.recommendationContent === undefined
   ) {
     return creates;
   }
   return creates.map((create): InstanceEditorItemCreate => {
     if (create.kind === 'library_item' && create.clientId === itemId) {
+      const recommendationContent =
+        create.itemType === 'recommendation' ? patch.recommendationContent : undefined;
       return {
         ...create,
         ...(patch.localComment !== undefined ? { localComment: patch.localComment } : {}),
         ...(patch.loadSettings !== undefined ? { loadSettings: patch.loadSettings } : {}),
+        ...(recommendationContent
+          ? {
+              snapshot: {
+                ...create.snapshot,
+                title: recommendationContent.title,
+                bodyMd: recommendationContent.bodyMd,
+                media: recommendationContent.media,
+              },
+            }
+          : {}),
       };
     }
     if (create.kind === 'freeform_recommendation' && create.clientId === itemId) {
       return {
         ...create,
         ...(patch.localComment !== undefined ? { localComment: patch.localComment } : {}),
+        ...(patch.recommendationContent
+          ? {
+              title: patch.recommendationContent.title,
+              bodyMd: patch.recommendationContent.bodyMd,
+              snapshot: {
+                ...create.snapshot,
+                title: patch.recommendationContent.title,
+                bodyMd: patch.recommendationContent.bodyMd,
+                media: patch.recommendationContent.media,
+              },
+            }
+          : {}),
       };
     }
     if (create.kind === 'individual_exercise' && create.clientId === itemId) {
@@ -610,6 +641,16 @@ function itemPatchDiffers(
     const currentTitle = typeof item.snapshot.title === 'string' ? item.snapshot.title : '';
     if (patch.personalTitle.trim() !== currentTitle.trim()) return true;
   }
+  if (patch.recommendationContent !== undefined) {
+    if (item.itemType !== 'recommendation') return true;
+    const nextSnapshot = {
+      ...item.snapshot,
+      title: patch.recommendationContent.title,
+      bodyMd: patch.recommendationContent.bodyMd,
+      media: patch.recommendationContent.media,
+    };
+    if (JSON.stringify(nextSnapshot) !== JSON.stringify(item.snapshot)) return true;
+  }
   return false;
 }
 
@@ -901,6 +942,17 @@ function mergeItemRow(
   }
   if (patch?.personalTitle !== undefined) {
     next = { ...next, snapshot: { ...next.snapshot, title: patch.personalTitle } };
+  }
+  if (patch?.recommendationContent !== undefined) {
+    next = {
+      ...next,
+      snapshot: {
+        ...next.snapshot,
+        title: patch.recommendationContent.title,
+        bodyMd: patch.recommendationContent.bodyMd,
+        media: patch.recommendationContent.media,
+      },
+    };
   }
   return {
     ...next,

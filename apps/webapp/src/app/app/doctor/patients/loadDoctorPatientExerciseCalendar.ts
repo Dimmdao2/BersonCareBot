@@ -88,7 +88,11 @@ export async function loadDoctorPatientExerciseCalendar(
   workspace: DoctorWorkspaceAccessContext,
   patientUserId: string,
   range?: { from: string; to: string },
-  exerciseFilter?: { instanceId: string; stageItemId: string },
+  exerciseFilter?: {
+    instanceId: string;
+    stageItemId?: string;
+    stageItemIds?: readonly string[];
+  },
 ): Promise<DoctorPatientExerciseCalendarSnapshot> {
   const patientIana =
     (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? FALLBACK_IANA;
@@ -154,10 +158,15 @@ export async function loadDoctorPatientExerciseCalendar(
     if (!day || day < fromDate || day > toDate) continue;
     counts.set(day, (counts.get(day) ?? 0) + 1);
   }
+  const filteredStageItemIds = exerciseFilter?.stageItemIds
+    ? new Set(exerciseFilter.stageItemIds)
+    : null;
   for (const item of programDoneItems) {
     if (
       exerciseFilter &&
-      (item.instanceId !== exerciseFilter.instanceId || item.itemId !== exerciseFilter.stageItemId)
+      (item.instanceId !== exerciseFilter.instanceId ||
+        (exerciseFilter.stageItemId !== undefined && item.itemId !== exerciseFilter.stageItemId) ||
+        (filteredStageItemIds !== null && !filteredStageItemIds.has(item.itemId)))
     ) {
       continue;
     }

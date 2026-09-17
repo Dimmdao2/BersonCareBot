@@ -8,7 +8,8 @@
  *  1. lfk_sessions — personal LFK diary sessions (manual complexes in bot/app)
  *  2. patient_practice_completions (non-warmup) — standalone content-page completions
  *  3. program_action_log (done) — treatment program exercise completions (main source)
- * Optional instanceId + stageItemId restrict the result to one assigned exercise.
+ * Optional instanceId + stageItemId restrict the result to one assigned exercise;
+ * instanceId + stageId restricts it to all items of one program stage.
  */
 
 import { NextResponse } from 'next/server';
@@ -37,6 +38,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
   const rawTo = url.searchParams.get('to');
   const rawInstanceId = url.searchParams.get('instanceId');
   const rawStageItemId = url.searchParams.get('stageItemId');
+  const rawStageId = url.searchParams.get('stageId');
 
   let fromDate: string | undefined;
   let toDate: string | undefined;
@@ -61,7 +63,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
   const exerciseFilterResult = z
     .object({ instanceId: uuidSchema, stageItemId: uuidSchema })
     .safeParse({ instanceId: rawInstanceId, stageItemId: rawStageItemId });
-  if ((rawInstanceId || rawStageItemId) && !exerciseFilterResult.success) {
+  const stageFilterResult = z
+    .object({ instanceId: uuidSchema, stageId: uuidSchema })
+    .safeParse({ instanceId: rawInstanceId, stageId: rawStageId });
+  if (
+    (rawInstanceId || rawStageItemId || rawStageId) &&
+    !exerciseFilterResult.success &&
+    !stageFilterResult.success
+  ) {
     return NextResponse.json({ ok: false, error: 'invalid_exercise_filter' }, { status: 400 });
   }
 
@@ -73,6 +82,33 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
   );
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+
+  let exerciseFilter:
+    | { instanceId: string; stageItemId: string }
+    | { instanceId: string; stageItemIds: string[] }
+    | undefined;
+  if (exerciseFilterResult.success) {
+    exerciseFilter = exerciseFilterResult.data;
+  } else if (stageFilterResult.success) {
+    const instance = await deps.treatmentProgramInstance.getInstanceById(
+      stageFilterResult.data.instanceId,
+    );
+    if (
+      !instance ||
+      instance.organizationId !== gate.ctx.organizationId ||
+      instance.patientUserId !== identity.userId
+    ) {
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+    }
+    const stage = instance.stages.find((row) => row.id === stageFilterResult.data.stageId);
+    if (!stage) {
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+    }
+    exerciseFilter = {
+      instanceId: stageFilterResult.data.instanceId,
+      stageItemIds: stage.items.map((item) => item.id),
+    };
   }
 
   const patientIana = (await deps.patientCalendarTimezone.getIanaForUser(identity.userId)) ?? 'UTC';
@@ -90,7 +126,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
       from: fromDate,
       to: toDate,
     },
-    exerciseFilterResult.success ? exerciseFilterResult.data : undefined,
+    exerciseFilter,
   );
 
   return NextResponse.json({ ok: true, ...snapshot });

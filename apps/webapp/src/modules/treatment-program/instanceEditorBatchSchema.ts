@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { TREATMENT_PROGRAM_ITEM_TYPES } from './types';
+import {
+  RICH_TEXT_SERIALIZED_MAX_LENGTH,
+  richTextWithinCharacterLimit,
+} from '@/shared/lib/richText';
 
 /** Client draft id (`draft:` + uuid) or persisted uuid. */
 export const instanceEditorBatchIdSchema = z.union([
@@ -34,11 +38,37 @@ const loadSettingsPatchSchema = z
   })
   .strict();
 
+const recommendationMediaSchema = z
+  .object({
+    mediaUrl: z.string().min(1),
+    mediaType: z.enum(['image', 'video', 'gif', 'hosted_video']),
+    sortOrder: z.number().int(),
+    previewSmUrl: z.string().nullable().optional(),
+    previewMdUrl: z.string().nullable().optional(),
+    previewStatus: z
+      .enum(['pending', 'processing', 'ready', 'failed', 'skipped', 'blocked'])
+      .nullable()
+      .optional(),
+    standardRendition: z.boolean().nullable().optional(),
+  })
+  .strict();
+
 const itemPatchSchema = z
   .object({
     localComment: z.union([z.string(), z.null()]).optional(),
     loadSettings: loadSettingsPatchSchema.optional(),
     personalTitle: z.string().min(1).max(2000).optional(),
+    recommendationContent: z
+      .object({
+        title: z.string().min(1).max(2000),
+        bodyMd: z
+          .string()
+          .max(RICH_TEXT_SERIALIZED_MAX_LENGTH)
+          .refine((value) => richTextWithinCharacterLimit(value, 100_000)),
+        media: z.array(recommendationMediaSchema).max(20),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

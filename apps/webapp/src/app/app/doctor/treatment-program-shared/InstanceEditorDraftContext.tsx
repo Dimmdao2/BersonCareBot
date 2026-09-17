@@ -49,6 +49,7 @@ type InstanceEditorDraftContextValue = {
   /** Metadata-патчи, блокирующие status API до legacy flush (structural-only не блокирует). */
   isFlushableDirty: boolean;
   saving: boolean;
+  draftRevision: number;
   displayDetail: TreatmentProgramInstanceDetail;
   patchStageMetadata: (stageId: string, patch: InstanceEditorStageMetadataPatch) => void;
   patchGroup: (groupId: string, patch: InstanceEditorGroupPatch) => void;
@@ -72,7 +73,7 @@ type InstanceEditorDraftContextValue = {
   setGroupReorder: (stageId: string, orderedUserGroupIds: string[]) => void;
   patchItemStructural: (itemId: string, patch: InstanceEditorItemStructuralPatch) => void;
   discardDraft: () => void;
-  saveDraft: () => Promise<{
+  saveDraft: (options?: { confirmActiveProgramChange?: boolean }) => Promise<{
     ok: boolean;
     error?: string;
     cancelled?: boolean;
@@ -91,6 +92,7 @@ export function InstanceEditorDraftProvider(props: {
   const { baseline, programStatus, onBaselineSynced, children } = props;
   const [draft, setDraft] = useState<InstanceEditorDraft>(() => createEmptyInstanceEditorDraft());
   const [saving, setSaving] = useState(false);
+  const [draftRevision, setDraftRevision] = useState(0);
 
   useEffect(() => {
     setDraft((prev) => normalizeInstanceEditorDraft(prev, baseline));
@@ -122,6 +124,7 @@ export function InstanceEditorDraftProvider(props: {
   const mergeDraft = useCallback(
     (updater: (prev: InstanceEditorDraft) => InstanceEditorDraft) => {
       setDraft((prev) => normalizeInstanceEditorDraft(updater(prev), baseline));
+      setDraftRevision((revision) => revision + 1);
     },
     [baseline],
   );
@@ -313,51 +316,58 @@ export function InstanceEditorDraftProvider(props: {
     setDraft(createEmptyInstanceEditorDraft());
   }, []);
 
-  const saveDraft = useCallback(async () => {
-    if (!isInstanceEditorDraftDirty(draft, baseline)) return { ok: true };
+  const saveDraft = useCallback(
+    async (options?: { confirmActiveProgramChange?: boolean }) => {
+      if (!isInstanceEditorDraftDirty(draft, baseline)) return { ok: true };
 
-    setSaving(true);
-    try {
-      let saveBaseline = baseline;
+      setSaving(true);
       try {
-        const synced = await onBaselineSynced();
-        if (synced && typeof synced === 'object' && 'stages' in synced) {
-          saveBaseline = synced;
-        }
-      } catch {
-        // keep current baseline if refresh failed
-      }
-      const saveDraft = normalizeInstanceEditorDraft(draft, saveBaseline);
-      const result = await flushInstanceEditorDraft({
-        instanceId: saveBaseline.id,
-        programStatus,
-        draft: saveDraft,
-        baseline: saveBaseline,
-        terms: { patientGenitive },
-      });
-      if (!result.ok) {
-        if (result.cancelled) return { ok: false, cancelled: true };
-        let staleRefreshed = false;
-        if (result.error && isStaleInstanceEditorSaveError(result.error)) {
-          try {
-            await onBaselineSynced();
-            staleRefreshed = true;
-          } catch {
-            staleRefreshed = false;
+        let saveBaseline = baseline;
+        try {
+          const synced = await onBaselineSynced();
+          if (synced && typeof synced === 'object' && 'stages' in synced) {
+            saveBaseline = synced;
           }
+        } catch {
+          // keep current baseline if refresh failed
         }
-        return {
-          ok: false,
-          error: formatInstanceEditorSaveError(result.error ?? 'Ошибка сохранения', staleRefreshed),
-        };
+        const saveDraft = normalizeInstanceEditorDraft(draft, saveBaseline);
+        const result = await flushInstanceEditorDraft({
+          instanceId: saveBaseline.id,
+          programStatus,
+          draft: saveDraft,
+          baseline: saveBaseline,
+          terms: { patientGenitive },
+          confirmActiveProgramChange: options?.confirmActiveProgramChange,
+        });
+        if (!result.ok) {
+          if (result.cancelled) return { ok: false, cancelled: true };
+          let staleRefreshed = false;
+          if (result.error && isStaleInstanceEditorSaveError(result.error)) {
+            try {
+              await onBaselineSynced();
+              staleRefreshed = true;
+            } catch {
+              staleRefreshed = false;
+            }
+          }
+          return {
+            ok: false,
+            error: formatInstanceEditorSaveError(
+              result.error ?? 'Ошибка сохранения',
+              staleRefreshed,
+            ),
+          };
+        }
+        setDraft(createEmptyInstanceEditorDraft());
+        await onBaselineSynced();
+        return { ok: true };
+      } finally {
+        setSaving(false);
       }
-      setDraft(createEmptyInstanceEditorDraft());
-      await onBaselineSynced();
-      return { ok: true };
-    } finally {
-      setSaving(false);
-    }
-  }, [baseline, draft, onBaselineSynced, patientGenitive, programStatus]);
+    },
+    [baseline, draft, onBaselineSynced, patientGenitive, programStatus],
+  );
 
   const value = useMemo(
     (): InstanceEditorDraftContextValue => ({
@@ -365,6 +375,7 @@ export function InstanceEditorDraftProvider(props: {
       isDirty,
       isFlushableDirty,
       saving,
+      draftRevision,
       displayDetail,
       patchStageMetadata,
       patchGroup,
@@ -388,6 +399,7 @@ export function InstanceEditorDraftProvider(props: {
       isDirty,
       isFlushableDirty,
       saving,
+      draftRevision,
       displayDetail,
       patchStageMetadata,
       patchGroup,

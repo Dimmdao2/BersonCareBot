@@ -79,7 +79,7 @@ function StageOrderDialogBody(props: {
           ))}
         </div>
       </TreatmentProgramPipelineStagesDnd>
-      <DialogFooter>
+      <DialogFooter className="flex-row flex-nowrap justify-end gap-2">
         <Button type="button" variant="outline" onClick={onClose}>
           Отмена
         </Button>
