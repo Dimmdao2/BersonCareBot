@@ -180,13 +180,41 @@ describe('S8: одна оплата подтверждает все записи
     expect(captured[1]!.payload.doctorNotify).toBe(false);
   });
 
-  // ТЕСТ АУДИТА СНЯТ ВЕДУЩИМ (F1 аудита S8). Он требовал событие и для того слота, чья проекция
-  // НЕ подтвердилась. Такого требования нет ни в плане владельца, ни в поведении до S8: прежний
-  // обработчик выходил ровно на том же условии (`if (!row || row.status !== 'confirmed') return`),
-  // то есть кандидат ничего не сломал. По сути требование и неверно: `booking.payment_captured`
-  // для неподтверждённой брони — ложь о её состоянии. Что неподтверждённая проекция навсегда
-  // остаётся без календарного события — настоящий предсуществующий дефект, и он вынесен владельцу
-  // вопросом в план, а не превращён в работу этого этапа.
+  it('не завершает durable replay, если проекция хотя бы одного оплаченного слота отсутствует', async () => {
+    const first = { ...fakeRecord(), serviceTitleSnapshot: 'Первичный приём' };
+    const emitBookingEvent = vi.fn(async () => {});
+    const handler = createAppointmentPaymentConfirmedHandler({
+      patientBookings: {
+        markConfirmedByCanonicalAppointment: vi.fn(async (appointmentId) =>
+          appointmentId === 'appt-1' ? first : null,
+        ),
+        getByCanonicalAppointmentId: vi.fn(async (appointmentId) =>
+          appointmentId === 'appt-1' ? first : null,
+        ),
+      },
+      bookingEngine: {
+        getAppointment: vi.fn(async () => ({ organizationId: 'org-1' }) as never),
+      },
+      loadNotificationSettings: vi.fn(async () => null as never),
+      bookingSync: { emitBookingEvent },
+    });
+
+    // S11 PAY-REL-02 requires the worker to retry until every paid slot has its patient
+    // projection. A successful partial replay would permanently omit the missing slot from the
+    // aggregate message and let the queue row be acknowledged.
+    await expect(
+      handler({
+        appointmentIds: ['appt-1', 'appt-2'],
+        paymentId: 'pay-1',
+        platformUserId: 'user-1',
+      }),
+    ).rejects.toThrow();
+    expect(emitBookingEvent).not.toHaveBeenCalled();
+  });
+
+  // S8 не разрешал слать ложное `booking.payment_captured` для неподтверждённой проекции. S11
+  // позже потребовал самовосстановление либо retryable отказ; тест выше держит именно этот новый
+  // durable-replay контракт и по-прежнему не требует ложного события.
 
   it('не начинает доставку, если метаданные второго слота загрузить не удалось', async () => {
     const captured: Array<Record<string, unknown>> = [];
