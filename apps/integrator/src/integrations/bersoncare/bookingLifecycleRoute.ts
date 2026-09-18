@@ -898,7 +898,7 @@ function bookingLifecycleSteps(input: {
     }
     if (shouldNotifyDoctor(payload)) {
       steps.push(
-        doctorMessageStep(`booking-rescheduled:${bookingId}`, async () =>
+        doctorMessageStep(`booking-rescheduled:${payload.occurrenceId ?? bookingId}`, async () =>
           resolveDoctorMessageText(
             payload,
             doctorRescheduledText(payload, await displayTimeZone()),

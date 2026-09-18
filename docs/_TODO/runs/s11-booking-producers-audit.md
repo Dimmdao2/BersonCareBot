@@ -314,3 +314,21 @@ forward migration не нужен. Точный поиск
 
 По запрету correction brief не запускались full CI, execute, live UI, deploy, push и новый audit; scope
 money/reminders/visit/reconciliation не расширялся.
+
+### Lead acceptance correction
+
+При собственной приёмке correction ведущий не принял удаление прежнего PAY-APPT-09 oracle без переноса на
+новый passage: durable replay ожидания оплаты форматировал deadline в общем timezone приложения вместо timezone
+филиала очной записи. Replay теперь читает филиал через существующий `bookingEngine.catalog` port, fail-closed
+обрабатывает отсутствующую/чужую canonical binding и строит payment copy в timezone филиала. Поведенческий oracle
+перенесён в signed lifecycle route test; payment URL и локализованный deadline наблюдаются в конечном payload.
+
+Тот же просмотр K15 выявил, что patient inbox уже различал два reschedule occurrence, а staff delivery event id
+оставался привязан только к appointment. Doctor reschedule key теперь также включает typed `occurrenceId`; один
+replay дедуплицируется step-key, два честных перехода дают разные patient stable keys и разные staff event ids.
+
+- Оба exact correction acceptance bundles из таблицы `Correction checks` выше повторены после lead-правок — PASS.
+- `pnpm --dir apps/webapp exec vitest run src/app/api/integrator/appointments/lifecycle/route.route.test.ts` — PASS: 4 теста.
+- `pnpm --dir apps/integrator exec vitest run src/integrations/bersoncare/bookingLifecycleRoute.dedup.test.ts` — PASS: 4 теста.
+- `pnpm --dir apps/webapp typecheck` и `pnpm --dir apps/integrator typecheck` — PASS.
+- ESLint четырёх изменённых route/dedup production+test файлов с `--max-warnings=0` — PASS.

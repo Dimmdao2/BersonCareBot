@@ -170,8 +170,9 @@ describe('D20 item 16: booking-lifecycle event dedup — persistent idempotency 
     expect(retryCode).toHaveBeenCalledWith(200);
   });
 
-  it('keeps two honest reschedule transitions of one booking distinct at the persistent inbox boundary', async () => {
+  it('keeps two honest reschedule transitions distinct in patient inbox and staff delivery', async () => {
     const route = await import('./bookingLifecycleRoute.js');
+    const dispatchPort = fakeDispatchPort();
     const notifyPatientWebPush = vi.fn(
       async (_input: { body: string; idempotencyKey: string }) => ({ ok: true, status: 200 }),
     );
@@ -187,12 +188,12 @@ describe('D20 item 16: booking-lifecycle event dedup — persistent idempotency 
 
     await route.handleBookingLifecycleEvent(
       rescheduled('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-      fakeDispatchPort(),
+      dispatchPort,
       { idempotencyPort: fakePersistentIdempotencyPort(), webappEventsPort },
     );
     await route.handleBookingLifecycleEvent(
       rescheduled('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
-      fakeDispatchPort(),
+      dispatchPort,
       { idempotencyPort: fakePersistentIdempotencyPort(), webappEventsPort },
     );
 
@@ -202,5 +203,10 @@ describe('D20 item 16: booking-lifecycle event dedup — persistent idempotency 
     });
     expect(stableKeys).toHaveLength(2);
     expect(new Set(stableKeys).size).toBe(2);
+    const staffEventIds = dispatchPort.dispatchOutgoing.mock.calls
+      .map(([input]) => (input as { meta?: { eventId?: string } }).meta?.eventId)
+      .filter((eventId): eventId is string => Boolean(eventId?.includes(':doctor:')));
+    expect(staffEventIds).toHaveLength(2);
+    expect(new Set(staffEventIds).size).toBe(2);
   });
 });

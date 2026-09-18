@@ -106,13 +106,24 @@ export async function POST(request: Request) {
     if (!checkoutUrl) {
       return NextResponse.json({ ok: false, error: 'canonical_payment_missing' }, { status: 503 });
     }
+    let paymentTimeZone = await getAppDisplayTimeZone();
+    if (appointment.branchId) {
+      const branch = await deps.bookingEngine.catalog.getBranch(appointment.branchId);
+      if (!branch) {
+        return NextResponse.json({ ok: false, error: 'canonical_branch_missing' }, { status: 503 });
+      }
+      if (branch.organizationId !== input.organizationId) {
+        return NextResponse.json({ ok: false, error: 'canonical_branch_mismatch' }, { status: 409 });
+      }
+      paymentTimeZone = branch.timezone;
+    }
     const paymentDeadlineAt = appointment.paymentDeadlineAt;
     awaitingPayment = {
       checkoutUrl,
       paymentDeadlineAt,
       patientMessageText: buildPatientAwaitingPaymentMessageText(
         { checkoutUrl, paymentDeadlineAt },
-        await getAppDisplayTimeZone(),
+        paymentTimeZone,
       ),
     };
   }

@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  emitBookingEvent: vi.fn(async () => undefined),
+  emitBookingEvent: vi.fn(async (_input: unknown) => undefined),
   getAppointment: vi.fn(),
   getAppointmentLifecycleHistory: vi.fn(),
+  getBranch: vi.fn(),
   getBookingByCanonicalAppointment: vi.fn(),
   listAppointmentCheckoutUrls: vi.fn(),
 }));
@@ -25,6 +26,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
     bookingEngine: {
       getAppointment: fakes.getAppointment,
       getAppointmentLifecycleHistory: fakes.getAppointmentLifecycleHistory,
+      catalog: { getBranch: fakes.getBranch },
     },
     patientBooking: {
       getBookingByCanonicalAppointment: fakes.getBookingByCanonicalAppointment,
@@ -41,6 +43,7 @@ const APPOINTMENT_ID = '20000000-0000-4000-8000-000000000002';
 const HISTORY_ID = '30000000-0000-4000-8000-000000000003';
 const USER_ID = '40000000-0000-4000-8000-000000000004';
 const BOOKING_ID = '50000000-0000-4000-8000-000000000005';
+const BRANCH_ID = '60000000-0000-4000-8000-000000000006';
 
 function request(input: {
   fact: 'created' | 'awaiting_payment' | 'rescheduled' | 'cancelled' | 'no_show';
@@ -71,6 +74,7 @@ beforeEach(() => {
   fakes.getAppointment.mockResolvedValue({
     id: APPOINTMENT_ID,
     organizationId: ORGANIZATION_ID,
+    branchId: BRANCH_ID,
     platformUserId: USER_ID,
     startAt: '2027-01-02T12:00:00.000Z',
     endAt: '2027-01-02T12:30:00.000Z',
@@ -81,6 +85,11 @@ beforeEach(() => {
     appointmentReminderOffsetsMinutes: [],
   });
   fakes.getAppointmentLifecycleHistory.mockResolvedValue(null);
+  fakes.getBranch.mockResolvedValue({
+    id: BRANCH_ID,
+    organizationId: ORGANIZATION_ID,
+    timezone: 'Asia/Yekaterinburg',
+  });
   fakes.listAppointmentCheckoutUrls.mockResolvedValue([
     { appointmentId: APPOINTMENT_ID, checkoutUrl: 'https://clinic.test/book/pay/intent-1' },
   ]);
@@ -143,6 +152,24 @@ describe('signed durable booking lifecycle replay', () => {
         eventType: 'booking.awaiting_payment',
         idempotencyKey: `booking.lifecycle:awaiting_payment:${APPOINTMENT_ID}`,
       }),
+    );
+  });
+
+  it('formats an in-person payment deadline in the appointment branch timezone', async () => {
+    const response = await POST(request({ fact: 'awaiting_payment' }));
+
+    expect(response.status).toBe(200);
+    const emitted = fakes.emitBookingEvent.mock.calls[0]?.[0] as
+      | { payload?: { patientMessageText?: string } }
+      | undefined;
+    const branchDeadline = new Intl.DateTimeFormat('ru-RU', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Yekaterinburg',
+    }).format(new Date('2027-01-02T11:30:00.000Z'));
+    expect(emitted?.payload?.patientMessageText).toContain(branchDeadline);
+    expect(emitted?.payload?.patientMessageText).toContain(
+      'https://clinic.test/book/pay/intent-1',
     );
   });
 });
