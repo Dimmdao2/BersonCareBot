@@ -132,15 +132,16 @@ test('only the payment seam writes the money that actually arrived', () => {
     if (!surface || !surface.operations.includes('UPDATE')) return false;
     return updatableColumns(surface).has(FACTUAL_MONEY_COLUMN);
   });
-  // Двери приёма денег ровно две — онлайн-платёж провайдера и наличные в кассе, — и обе стоят у
-  // ОДНОГО шва. Третья дверь здесь означала бы, что зачислить предоплату умеет кто-то ещё.
+  // Фактические деньги меняют ровно три двери одного шва: онлайн-проводка, приём наличных и
+  // обратная кассовая операция. Четвёртая дверь означала бы обход платёжного контура.
   assert.deepEqual(
     writers.map(([identity]) => identity).sort(),
     [
+      'app.refund_appointment_cash_payment(text)',
       'app.settle_appointment_cash_prepayment(text)',
       'app.settle_booking_payment_webhook_event(text,text,text,text,text)',
     ],
-    'more than the two payment-seam roots may credit an appointment prepayment',
+    'an undeclared root may change factual appointment money',
   );
   for (const [, declared] of writers) {
     assert.equal(declared.owner, 'app_seam_payment_webhook_owner');
@@ -150,6 +151,7 @@ test('only the payment seam writes the money that actually arrived', () => {
     'app_tenant_service',
   ]);
   assert.deepEqual(fn('app.settle_appointment_cash_prepayment(text)').execute, ['app_staff']);
+  assert.deepEqual(fn('app.refund_appointment_cash_payment(text)').execute, ['app_staff']);
 });
 
 test('the cash door credits money but never rewrites the price it was measured against', () => {
