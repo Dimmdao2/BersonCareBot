@@ -3383,3 +3383,4 @@ wt/preflight-integration | 8a3d1d11b (сборка, не приземляетс�
   подтверждение пациентом) и честная подмена политики в уже существовавшем тесте приглашения,
   которая ловит возврат поломки. Отдельный вопрос владельцу, работой не делаю: очередь доставки как
   единый чокпойнт — строки канона под это нет.
+wt/2fa-no-skip-integrate | ea46873df, 86dd4920d | **INTEGRATION MIRROR of audited `wt/2fa-no-skip` 7ba617661 + 55374f564 above.** Same two accepted patches replayed on current `feat/doctor-ui-rebuild`; no new product or test behavior. | ведущий
