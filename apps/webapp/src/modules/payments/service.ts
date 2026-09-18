@@ -84,6 +84,9 @@ export function createPaymentsService(deps: {
   /** Injected once by composition; patient payment returns never use the staff deployment origin. */
   resolvePatientPublicOrigin?: (organizationId: string) => Promise<string>;
 }) {
+  type AppointmentRefundResult = { ok: true; refundedMinor: number };
+  const appointmentRefundsInFlight = new Map<string, Promise<AppointmentRefundResult>>();
+
   async function loadSettings(organizationId?: string): Promise<BookingPaymentSettings> {
     return deps.config.getBookingPaymentSettings(organizationId);
   }
@@ -266,6 +269,123 @@ export function createPaymentsService(deps: {
       });
     }
     return captured.result;
+  }
+
+  async function appointmentRefundedMinor(
+    appointmentId: string,
+    paymentId: string,
+    organizationId: string,
+  ): Promise<number> {
+    const history = await deps.port.listHistoryForAppointment(appointmentId, organizationId);
+    return history
+      .filter(
+        (event) =>
+          event.paymentId === paymentId &&
+          event.eventType === 'refund_succeeded' &&
+          event.status === 'succeeded',
+      )
+      .reduce((sum, event) => sum + (event.amountMinor ?? 0), 0);
+  }
+
+  function refundAppointmentPaymentOnce(input: {
+    appointmentId: string;
+    organizationId: string;
+    amountMinor: number;
+    reason?: string;
+    idempotencyKey?: string;
+  }): Promise<AppointmentRefundResult> {
+    const requestIdentity =
+      input.idempotencyKey?.trim() || `${input.appointmentId}:${input.amountMinor}`;
+    const inFlightKey = `${input.organizationId}:${requestIdentity}`;
+    const existing = appointmentRefundsInFlight.get(inFlightKey);
+    if (existing) return existing;
+
+    const operation = (async () => {
+      if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
+        throw new Error('invalid_refund_amount');
+      }
+      const resolved = await resolveAppointmentPayment(input.appointmentId, input.organizationId);
+      if (!resolved || !['captured', 'refunded'].includes(resolved.payment.status)) {
+        throw new Error('payment_not_refundable');
+      }
+      const { payment } = resolved;
+      return deps.captureUnitOfWork.runSerializedPostCommit(
+        input.organizationId,
+        `appointment-refund:${payment.id}:${input.appointmentId}`,
+        async () => {
+          const appointmentAmountMinor = await resolveAppointmentAmountMinor(
+            input.organizationId,
+            payment,
+          );
+          const alreadyRefunded = await appointmentRefundedMinor(
+            input.appointmentId,
+            payment.id,
+            input.organizationId,
+          );
+          const refundableMinor = Math.max(0, appointmentAmountMinor - alreadyRefunded);
+          if (input.amountMinor > refundableMinor) {
+            throw new Error('refund_amount_exceeds_payment');
+          }
+
+          const settings = await loadSettings(input.organizationId);
+          const provider = resolveActiveProvider(settings, payment.providerId);
+          const adapter = getPaymentProviderAdapter(provider.id);
+          const intent = await deps.port.findIntentById(payment.paymentIntentId);
+          const providerIdempotencyKey =
+            input.idempotencyKey?.trim() ||
+            `staff-refund:${payment.id}:${input.appointmentId}:${input.amountMinor}`;
+          const refundResult = await adapter.refund({
+            providerIntentRef: intent?.providerIntentRef ?? payment.paymentIntentId,
+            amountMinor: input.amountMinor,
+            currency: payment.currency,
+            idempotencyKey: providerIdempotencyKey,
+            providerConfig: provider,
+          });
+
+          return deps.captureUnitOfWork.run(input.organizationId, async () => {
+            const refund = await deps.port.createRefund({
+              organizationId: input.organizationId,
+              paymentId: payment.id,
+              appointmentId: input.appointmentId,
+              amountMinor: input.amountMinor,
+              currency: payment.currency,
+              status: 'succeeded',
+              reason: input.reason,
+              providerRefundRef: refundResult.providerRefundRef,
+            });
+            if (refund.created === false) {
+              return { ok: true as const, refundedMinor: input.amountMinor };
+            }
+            const refundedAmount = await deps.port.getSucceededRefundedAmount(
+              payment.id,
+              input.organizationId,
+            );
+            if (refundedAmount >= payment.amountMinor) {
+              await deps.port.updatePaymentStatus(payment.id, 'refunded', input.organizationId);
+            }
+            await deps.port.appendHistoryEvent({
+              organizationId: input.organizationId,
+              appointmentId: input.appointmentId,
+              paymentId: payment.id,
+              refundId: refund.id,
+              eventType: 'refund_succeeded',
+              amountMinor: input.amountMinor,
+              currency: payment.currency,
+              providerId: payment.providerId,
+              status: 'succeeded',
+              comment: input.reason ?? null,
+            });
+            return { ok: true as const, refundedMinor: input.amountMinor };
+          });
+        },
+      );
+    })();
+    appointmentRefundsInFlight.set(inFlightKey, operation);
+    void operation.then(
+      () => appointmentRefundsInFlight.delete(inFlightKey),
+      () => appointmentRefundsInFlight.delete(inFlightKey),
+    );
+    return operation;
   }
 
   return {
@@ -500,9 +620,7 @@ export function createPaymentsService(deps: {
           description,
           amountMinor: input.amountMinor,
         }),
-        ...(input.expiresAt
-          ? { invoice: { description, expiresAt: input.expiresAt } }
-          : {}),
+        ...(input.expiresAt ? { invoice: { description, expiresAt: input.expiresAt } } : {}),
         metadata: {
           appointmentId: input.appointmentId,
         },
@@ -750,46 +868,13 @@ export function createPaymentsService(deps: {
       }
 
       if (input.prepaymentRefunded) {
-        const settings = await loadSettings(input.organizationId);
-        const provider = resolveActiveProvider(settings, payment.providerId);
-        const adapter = getPaymentProviderAdapter(provider.id);
         const idempotencyKey = `refund:${payment.id}:${input.appointmentId}`;
-        const intent = await deps.port.findIntentById(payment.paymentIntentId);
-        const refundResult = await adapter.refund({
-          providerIntentRef: intent?.providerIntentRef ?? payment.paymentIntentId,
-          amountMinor: appointmentAmountMinor,
-          currency: payment.currency,
-          idempotencyKey,
-          providerConfig: provider,
-        });
-        const refund = await deps.port.createRefund({
+        await refundAppointmentPaymentOnce({
           organizationId: input.organizationId,
-          paymentId: payment.id,
           appointmentId: input.appointmentId,
           amountMinor: appointmentAmountMinor,
-          currency: payment.currency,
-          status: 'succeeded',
           reason: input.reason,
-          providerRefundRef: refundResult.providerRefundRef,
-        });
-        const refundedAmount = await deps.port.getSucceededRefundedAmount(
-          payment.id,
-          input.organizationId,
-        );
-        if (refundedAmount >= payment.amountMinor) {
-          await deps.port.updatePaymentStatus(payment.id, 'refunded', input.organizationId);
-        }
-        await deps.port.appendHistoryEvent({
-          organizationId: input.organizationId,
-          appointmentId: input.appointmentId,
-          paymentId: payment.id,
-          refundId: refund.id,
-          eventType: 'refund_succeeded',
-          amountMinor: appointmentAmountMinor,
-          currency: payment.currency,
-          providerId: payment.providerId,
-          status: 'succeeded',
-          comment: input.reason ?? null,
+          idempotencyKey,
         });
         return { ok: true as const, skipped: false as const, action: 'refunded' as const };
       }
@@ -802,68 +887,9 @@ export function createPaymentsService(deps: {
       organizationId: string;
       amountMinor: number;
       reason?: string;
+      idempotencyKey?: string;
     }) {
-      if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
-        throw new Error('invalid_refund_amount');
-      }
-      const resolved = await resolveAppointmentPayment(input.appointmentId, input.organizationId);
-      if (!resolved || resolved.payment.status !== 'captured') {
-        throw new Error('payment_not_refundable');
-      }
-      const { payment } = resolved;
-      const appointmentAmountMinor = await resolveAppointmentAmountMinor(
-        input.organizationId,
-        payment,
-      );
-      const alreadyRefunded = await deps.port.getSucceededRefundedAmount(
-        payment.id,
-        input.organizationId,
-      );
-      const refundableMinor = Math.max(0, appointmentAmountMinor - alreadyRefunded);
-      if (input.amountMinor > refundableMinor) throw new Error('refund_amount_exceeds_payment');
-
-      const settings = await loadSettings(input.organizationId);
-      const provider = resolveActiveProvider(settings, payment.providerId);
-      const adapter = getPaymentProviderAdapter(provider.id);
-      const intent = await deps.port.findIntentById(payment.paymentIntentId);
-      const idempotencyKey = `staff-refund:${payment.id}:${input.appointmentId}:${alreadyRefunded}:${input.amountMinor}`;
-      const refundResult = await adapter.refund({
-        providerIntentRef: intent?.providerIntentRef ?? payment.paymentIntentId,
-        amountMinor: input.amountMinor,
-        currency: payment.currency,
-        idempotencyKey,
-        providerConfig: provider,
-      });
-      const refund = await deps.port.createRefund({
-        organizationId: input.organizationId,
-        paymentId: payment.id,
-        appointmentId: input.appointmentId,
-        amountMinor: input.amountMinor,
-        currency: payment.currency,
-        status: 'succeeded',
-        reason: input.reason,
-        providerRefundRef: refundResult.providerRefundRef,
-      });
-      const refundedAmount = await deps.port.getSucceededRefundedAmount(
-        payment.id,
-        input.organizationId,
-      );
-      if (refundedAmount >= payment.amountMinor) {
-        await deps.port.updatePaymentStatus(payment.id, 'refunded', input.organizationId);
-      }
-      await deps.port.appendHistoryEvent({
-        organizationId: input.organizationId,
-        appointmentId: input.appointmentId,
-        paymentId: payment.id,
-        refundId: refund.id,
-        eventType: 'refund_succeeded',
-        amountMinor: input.amountMinor,
-        currency: payment.currency,
-        providerId: payment.providerId,
-        status: 'succeeded',
-        comment: input.reason ?? null,
-      });
-      return { ok: true as const, refundedMinor: input.amountMinor };
+      return refundAppointmentPaymentOnce(input);
     },
 
     async getAppointmentPaymentSummary(

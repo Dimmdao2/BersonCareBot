@@ -176,11 +176,7 @@ export function AppointmentPaymentSection({
     [apiBase, applyPayment],
   );
 
-  const run = (
-    action: 'cash' | 'link',
-    amountMinor: number,
-    purpose: CollectionMode,
-  ) =>
+  const run = (action: 'cash' | 'link', amountMinor: number, purpose: CollectionMode) =>
     startTransition(async () => {
       const version = requestVersion.current + 1;
       requestVersion.current = version;
@@ -224,13 +220,28 @@ export function AppointmentPaymentSection({
     startTransition(async () => {
       const version = requestVersion.current + 1;
       requestVersion.current = version;
+      const requestId = crypto.randomUUID();
       try {
         const response = await fetch(
           `${apiBase}/appointments/${encodeURIComponent(appointmentId)}/payment`,
           {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ action: 'refund', method: refundMethod, amountMinor }),
+            body: JSON.stringify({
+              action: 'refund',
+              method: refundMethod,
+              amountMinor,
+              requestId,
+              reason:
+                retainCommission || retainPrepayment
+                  ? [
+                      retainCommission ? 'Удержана комиссия' : null,
+                      retainPrepayment ? 'Удержана предоплата' : null,
+                    ]
+                      .filter(Boolean)
+                      .join('. ')
+                  : undefined,
+            }),
           },
         );
         const json = (await response.json()) as { ok?: boolean; error?: string };
@@ -287,8 +298,8 @@ export function AppointmentPaymentSection({
   const canCollect = !cancelled && remaining !== null && remaining > 0;
   const prepaymentConfigured = Boolean(
     current.prepayment &&
-      current.prepayment.mode !== 'disabled' &&
-      current.prepayment.requiredMinor > 0,
+    current.prepayment.mode !== 'disabled' &&
+    current.prepayment.requiredMinor > 0,
   );
   const prepaymentPaidMinor = current.prepayment?.paidMinor ?? 0;
   const hasPaymentDetails = current.hasPaymentActivity || paid > 0 || prepaymentPaidMinor > 0;
@@ -341,13 +352,9 @@ export function AppointmentPaymentSection({
       : deadlinePassed
         ? 'Просрочена'
         : 'Ожидается';
-  const refundableOnlineMinor = Math.max(
-    0,
-    captured -
-      (details?.onlineHistory ?? [])
-        .filter((event) => event.eventType === 'refund_succeeded')
-        .reduce((sum, event) => sum + (event.amountMinor ?? 0), 0),
-  );
+  // `current.payment.amountMinor` is already net of successful online refunds. Subtracting the
+  // history here again hid the still-refundable balance after the first partial return.
+  const refundableOnlineMinor = Math.max(0, captured);
   const refundableSourceMinor = refundMethod === 'auto' ? refundableOnlineMinor : paid;
   const customRetentionMinor = customRetention
     ? Math.max(0, Math.round(Number(retentionRubles.replace(',', '.')) * 100) || 0)
@@ -355,6 +362,9 @@ export function AppointmentPaymentSection({
       ? Math.min(prepaymentPaidMinor, refundableSourceMinor)
       : 0;
   const refundAmountMinor = Math.max(0, refundableSourceMinor - customRetentionMinor);
+  const retentionAmountValid =
+    !customRetention ||
+    (customRetentionMinor > 0 && customRetentionMinor < refundableSourceMinor);
 
   useEffect(() => {
     if (!collectOpen || isSettled) return;
@@ -398,10 +408,7 @@ export function AppointmentPaymentSection({
                   current.prepayment?.requiredMinor ?? 0,
                   current.prepayment?.currency,
                 )}`
-              : money(
-                  current.prepayment?.requiredMinor ?? 0,
-                  current.prepayment?.currency,
-                )
+              : money(current.prepayment?.requiredMinor ?? 0, current.prepayment?.currency)
             : 'Без предоплаты'}
         </p>
       </div>
@@ -662,15 +669,25 @@ export function AppointmentPaymentSection({
               .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
               .map((movement) => (
                 <div key={movement.id} className="flex items-start gap-3 p-3">
-                  <ReceiptText className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <ReceiptText
+                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{movement.title}</p>
                     <p className={doctorSecondaryListTextClass}>
                       {movement.method} ·{' '}
-                      {DateTime.fromISO(movement.at).setLocale('ru').toFormat('d MMMM yyyy, HH:mm')}
+                      {DateTime.fromJSDate(parseBusinessInstant(movement.at, timeZone))
+                        .setZone(timeZone)
+                        .setLocale('ru')
+                        .toFormat('d MMMM yyyy, HH:mm')}
                     </p>
                   </div>
-                  <p className={movement.refunded ? 'font-semibold text-destructive' : 'font-semibold'}>
+                  <p
+                    className={
+                      movement.refunded ? 'font-semibold text-destructive' : 'font-semibold'
+                    }
+                  >
                     {movement.refunded ? '−' : '+'}
                     {money(movement.amountMinor, movement.currency)}
                   </p>
@@ -747,8 +764,11 @@ export function AppointmentPaymentSection({
           <label className="flex min-h-11 items-center gap-3">
             <Checkbox
               checked={retainCommission}
-              onCheckedChange={(checked) => setRetainCommission(checked === true)}
-              disabled
+              onCheckedChange={(checked) => {
+                const enabled = checked === true;
+                setRetainCommission(enabled);
+                if (enabled) setCustomRetention(true);
+              }}
             />
             <span>Удержать комиссию</span>
           </label>
@@ -757,7 +777,7 @@ export function AppointmentPaymentSection({
               checked={retainPrepayment}
               onCheckedChange={(checked) => {
                 setRetainPrepayment(checked === true);
-                if (checked !== true) setCustomRetention(false);
+                if (checked !== true && !retainCommission) setCustomRetention(false);
               }}
             />
             <span>Удержать предоплату</span>
@@ -765,28 +785,33 @@ export function AppointmentPaymentSection({
           <div className="flex min-h-11 items-center gap-3">
             <Checkbox
               checked={customRetention}
-              onCheckedChange={(checked) => setCustomRetention(checked === true)}
-              disabled={!retainPrepayment}
+              onCheckedChange={(checked) => {
+                const enabled = checked === true;
+                setCustomRetention(enabled);
+                if (!enabled) setRetainCommission(false);
+              }}
+              disabled={!retainPrepayment && !retainCommission}
             />
             <span className="flex-1">Указать сумму</span>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
-              value={retentionRubles}
-              onChange={(event) => setRetentionRubles(event.target.value)}
-              disabled={!retainPrepayment || !customRetention}
-              className="w-32"
-              aria-label="Сумма удержания"
-            />
+            {customRetention ? (
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                value={retentionRubles}
+                onChange={(event) => setRetentionRubles(event.target.value)}
+                className="w-32"
+                aria-label="Сумма удержания"
+              />
+            ) : null}
           </div>
           <p className="text-lg font-semibold">Сумма к возврату: {money(refundAmountMinor)}</p>
         </div>
         <DoctorModalFooter>
           <Button
             type="button"
-            disabled={pending || refundAmountMinor <= 0}
+            disabled={pending || refundAmountMinor <= 0 || !retentionAmountValid}
             onClick={() => runRefund(refundAmountMinor)}
           >
             Оформить

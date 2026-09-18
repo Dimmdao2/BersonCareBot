@@ -38,6 +38,7 @@ const postSchema = z.discriminatedUnion('action', [
     amountMinor: z.number().int().positive(),
     method: z.enum(['auto', 'cash']),
     reason: z.string().trim().max(500).optional(),
+    requestId: z.string().uuid().optional(),
   }),
 ]);
 
@@ -139,6 +140,7 @@ export async function POST(request: Request, context: RouteContext) {
             amountMinor: refund.amountMinor,
             method: refund.method,
             reason: refund.reason,
+            idempotencyKey: refund.requestId,
             createdBy: gate.ctx.session.user.userId,
           }),
       );

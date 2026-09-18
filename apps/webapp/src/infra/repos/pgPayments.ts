@@ -660,8 +660,7 @@ export function createPgPaymentsPort(): PaymentsPort {
         amountMinor: row.amountMinor,
         currency: row.currency,
         status: row.status,
-        refundedMinor:
-          refundedByAppointment.get(`${row.paymentId}:${row.appointmentId}`) ?? 0,
+        refundedMinor: refundedByAppointment.get(`${row.paymentId}:${row.appointmentId}`) ?? 0,
         appointmentCount: countByPayment.get(row.paymentId) ?? 1,
       }));
     },
@@ -748,9 +747,25 @@ export function createPgPaymentsPort(): PaymentsPort {
             reason: input.reason ?? null,
             providerRefundRef: input.providerRefundRef ?? null,
           })
+          .onConflictDoNothing()
           .returning({ id: beRefunds.id }),
       );
-      return { id: inserted[0]!.id };
+      if (inserted[0]) return { id: inserted[0].id, created: true };
+      if (!input.providerRefundRef) throw new Error('refund_create_failed');
+      const existing = await runPaymentMutation(input.organizationId, (tx) =>
+        tx
+          .select({ id: beRefunds.id })
+          .from(beRefunds)
+          .where(
+            and(
+              eq(beRefunds.organizationId, input.organizationId),
+              eq(beRefunds.providerRefundRef, input.providerRefundRef as string),
+            ),
+          )
+          .limit(1),
+      );
+      if (!existing[0]) throw new Error('refund_create_failed');
+      return { id: existing[0].id, created: false };
     },
 
     async recordProviderEvent(input) {

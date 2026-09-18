@@ -59,10 +59,9 @@ function paymentIndicator(props: Props): Indicator | null {
     };
   }
 
-  if (
-    (props.prepaymentPaidMinor ?? 0) > 0 ||
-    ['succeeded', 'captured'].includes(props.paymentStatus ?? '')
-  ) {
+  const prepaymentRequiredMinor = props.prepaymentRequiredMinor ?? 0;
+  const prepaymentPaidMinor = props.prepaymentPaidMinor ?? 0;
+  if (prepaymentRequiredMinor > 0 && prepaymentPaidMinor >= prepaymentRequiredMinor) {
     return {
       icon: CreditCardCheck,
       label: 'Предоплата внесена',
@@ -72,8 +71,9 @@ function paymentIndicator(props: Props): Indicator | null {
 
   if (
     props.prepaymentPending ||
-    (props.prepaymentRequiredMinor ?? 0) > (props.prepaymentPaidMinor ?? 0) ||
-    ['pending', 'processing', 'requires_action'].includes(props.paymentStatus ?? '')
+    (prepaymentRequiredMinor > 0 && prepaymentRequiredMinor > prepaymentPaidMinor) ||
+    (prepaymentRequiredMinor > 0 &&
+      ['pending', 'processing', 'requires_action'].includes(props.paymentStatus ?? ''))
   ) {
     return {
       icon: CreditCardMinus,

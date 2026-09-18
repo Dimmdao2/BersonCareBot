@@ -213,6 +213,9 @@ export const beRefunds = pgTable(
   },
   (table) => [
     index('idx_be_refunds_payment').on(table.paymentId),
+    uniqueIndex('be_refunds_provider_ref_uidx')
+      .on(table.organizationId, table.providerRefundRef)
+      .where(sql`${table.providerRefundRef} IS NOT NULL`),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],

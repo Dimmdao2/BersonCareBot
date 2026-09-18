@@ -180,10 +180,7 @@ export async function listStaffAppointmentPaymentViews(
             percentBps: snapshot.prepaymentPercentBps,
             amountMinor: snapshot.prepaymentAmountMinor,
             requiredMinor: snapshot.prepaymentRequiredMinor,
-            paidMinor: Math.min(
-              snapshot.prepaymentRequiredMinor,
-              Math.max(0, effectivePaidMinor),
-            ),
+            paidMinor: Math.min(snapshot.prepaymentRequiredMinor, Math.max(0, effectivePaidMinor)),
             currency: snapshot.priceCurrency,
             deadlineAt: snapshot.paymentDeadlineAt,
             checkoutUrl: checkoutByAppointment.get(target.appointmentId) ?? null,
@@ -246,6 +243,25 @@ export type StaffAppointmentPaymentState = {
 
 export type StaffAppointmentPaymentAction = 'cash' | 'link';
 
+const cashCollectionChains = new Map<string, Promise<void>>();
+
+async function serializeCashCollection<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = cashCollectionChains.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const chain = previous.then(() => current);
+  cashCollectionChains.set(key, chain);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (cashCollectionChains.get(key) === chain) cashCollectionChains.delete(key);
+  }
+}
+
 /**
  * Coordinates the existing payments share calculation with the patient-payment ledger.
  * This belongs in app-layer rather than either module: neither module may depend on the other,
@@ -286,20 +302,26 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
             : 0),
       0,
     );
+    const effectivePaidMinor = Math.max(
+      0,
+      capturedMinor + manualPaidMinor,
+      (snapshot?.prepaymentPaidMinor ?? 0) - onlineRefundedMinor,
+    );
     return {
       summary,
       totalMinor,
       manualPaidMinor,
-      remainingMinor:
-        totalMinor === null ? null : Math.max(0, totalMinor - capturedMinor - manualPaidMinor),
+      remainingMinor: totalMinor === null ? null : Math.max(0, totalMinor - effectivePaidMinor),
       prepaymentRequiredMinor: snapshot?.prepaymentRequiredMinor ?? 0,
-      prepaymentPaidMinor: snapshot?.prepaymentPaidMinor ?? 0,
+      prepaymentPaidMinor: snapshot
+        ? Math.min(snapshot.prepaymentRequiredMinor, effectivePaidMinor)
+        : 0,
       paymentDeadlineAt: snapshot?.paymentDeadlineAt ?? null,
       manualPayments: manual,
     };
   }
 
-  async function createPayment(
+  async function createPaymentUnlocked(
     input: PaymentStateInput & {
       action: StaffAppointmentPaymentAction;
       amountMinor?: number;
@@ -342,7 +364,7 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
             : input.purpose === 'partial'
               ? 'Частичная оплата наличными в карточке записи'
               : 'Оплачено наличными в карточке записи',
-        idempotencyKey: `staff-appointment-cash:${input.appointmentId}:${requestedAmountMinor}:${state.manualPaidMinor}`,
+        idempotencyKey: `staff-appointment-cash:${input.appointmentId}:${requestedAmountMinor}:${state.manualPayments[0]?.id ?? 'initial'}`,
         createdBy: input.createdBy,
       });
       return {
@@ -388,23 +410,50 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
     };
   }
 
+  async function createPayment(
+    input: PaymentStateInput & {
+      action: StaffAppointmentPaymentAction;
+      amountMinor?: number;
+      purpose?: 'prepayment' | 'full' | 'partial';
+      createdBy: string;
+      returnUrl: string;
+    },
+  ) {
+    if (input.action !== 'cash') return createPaymentUnlocked(input);
+    return serializeCashCollection(`${input.organizationId}:${input.appointmentId}`, () =>
+      createPaymentUnlocked(input),
+    );
+  }
+
   async function refundPayment(
     input: PaymentStateInput & {
       amountMinor: number;
       method: 'auto' | 'cash';
       reason?: string;
       createdBy: string;
+      idempotencyKey?: string;
     },
   ) {
     if (!deps.payments) throw new Error('payments_unavailable');
     const state = await getPaymentState(input);
     const capturedMinor =
-      state.summary?.payment?.status === 'captured' ? state.summary.payment.amountMinor : 0;
+      state.summary?.payment?.status === 'captured'
+        ? Math.max(
+            0,
+            state.summary.payment.amountMinor -
+              state.summary.history
+                .filter((event) => event.eventType === 'refund_succeeded')
+                .reduce((sum, event) => sum + (event.amountMinor ?? 0), 0),
+          )
+        : 0;
+    const netPaidMinor = Math.max(0, capturedMinor + state.manualPaidMinor);
     if (input.method === 'cash') {
-      if (input.amountMinor <= 0 || input.amountMinor > capturedMinor + state.manualPaidMinor) {
+      if (input.amountMinor <= 0 || input.amountMinor > netPaidMinor) {
         return { ok: false as const, error: 'refund_amount_exceeds_payment' as const };
       }
-      const booking = await deps.patientBooking.getBookingByCanonicalAppointment(input.appointmentId);
+      const booking = await deps.patientBooking.getBookingByCanonicalAppointment(
+        input.appointmentId,
+      );
       const payment = await deps.patientPayments.addCashRefund({
         organizationId: input.organizationId,
         patientUserId: input.platformUserId,
@@ -413,17 +462,26 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
         currency: 'RUB',
         comment: input.reason ?? 'Возврат наличными по записи',
         service: booking?.serviceTitleSnapshot ?? null,
-        idempotencyKey: `staff-appointment-refund-cash:${input.appointmentId}:${input.amountMinor}:${state.prepaymentPaidMinor}`,
+        idempotencyKey:
+          input.idempotencyKey?.trim() ||
+          `staff-appointment-refund-cash:${input.appointmentId}:${input.amountMinor}:${state.manualPayments[0]?.id ?? 'initial'}`,
         createdBy: input.createdBy,
       });
       return { ok: true as const, refundedMinor: input.amountMinor, payment };
     }
-    if (capturedMinor <= 0) return { ok: false as const, error: 'payment_not_refundable' as const };
+    const refundableOnlineMinor = Math.min(capturedMinor, netPaidMinor);
+    if (refundableOnlineMinor <= 0) {
+      return { ok: false as const, error: 'payment_not_refundable' as const };
+    }
+    if (input.amountMinor > refundableOnlineMinor) {
+      return { ok: false as const, error: 'refund_amount_exceeds_payment' as const };
+    }
     return deps.payments.refundAppointmentPayment({
       appointmentId: input.appointmentId,
       organizationId: input.organizationId,
       amountMinor: input.amountMinor,
       reason: input.reason,
+      idempotencyKey: input.idempotencyKey,
     });
   }
 

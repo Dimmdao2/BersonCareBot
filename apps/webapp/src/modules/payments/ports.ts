@@ -129,7 +129,7 @@ export type PaymentsPort = {
     status: string;
     reason?: string;
     providerRefundRef?: string;
-  }): Promise<{ id: string }>;
+  }): Promise<{ id: string; created?: boolean }>;
 
   recordProviderEvent(input: {
     organizationId: string;
