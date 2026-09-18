@@ -2,8 +2,8 @@
 
 Прочитай `AGENTS.md`: карту, §1/§1b migrations, §5, §10a–§10b, §21/§21a, §24 и adjacent module docs.
 Authority: S11 в `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`,
-`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §24.1, принятый payment/outbox core до `4c12f16cf` и booking
-producer candidate `567ca1cda` после его отдельной приёмки. Не переписывай общий outbox, existing
+`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §24.1 и принятый integration SHA `bd2c95cc5`, содержащий payment/outbox
+core и исправленные booking producers (`c496a03db`, `6848189f1`). Не переписывай общий outbox, existing
 `patientNotifications` store или уже принятые booking/payment-captured producers.
 
 Источник оракула: `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`, S11 — «все события должны идти
@@ -54,5 +54,6 @@ best-effort/`after()`/прямую отправку и не заводи вто�
 оба typecheck/lint, migration order/privilege generation/static gates. Для миграций — owner-aware rollback-only
 DEV preflight по документированному пути; execute/full CI/live UI/deploy/push запрещены.
 
-В evidence для каждого producer назови точный atomic root, immutable stable key, replay endpoint/handler и
-удалённый best-effort обход. Закоммить явные paths, дерево чистое. S11 plan пока не закрывай.
+В `docs/_TODO/runs/s11-money-reminders-evidence.md` для каждого producer назови точный atomic root, immutable
+stable key, replay endpoint/handler и удалённый best-effort обход. Закоммить явные paths, дерево чистое. S11 plan
+пока не закрывай.
