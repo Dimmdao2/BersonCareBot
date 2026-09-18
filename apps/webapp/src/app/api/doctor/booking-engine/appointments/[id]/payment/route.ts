@@ -12,6 +12,7 @@ const PAYMENT_ERROR_RULES: ApiErrorLiteralRules = {
   refund_amount_exceeds_payment: { code: 'refund_amount_exceeds_payment', status: 409 },
   payment_not_refundable: { code: 'payment_not_refundable', status: 409 },
   appointment_cash_refund_failed: { code: 'appointment_cash_refund_failed', status: 409 },
+  invalid_payment_amount: { code: 'invalid_payment_amount', status: 422 },
 };
 import { z } from 'zod';
 import {
@@ -170,7 +171,13 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError({
       error,
       literalRules: PAYMENT_ERROR_RULES,
-      fallback: { code: 'payment_provider_unavailable', status: 503 },
+      // Provider-backed actions keep their provider fallback. A cash ledger/database failure has
+      // nothing to do with YooKassa and must stay a generic payment-save error instead of telling
+      // the clinic to configure an online provider.
+      fallback:
+        data.action === 'link' || (data.action === 'refund' && data.method === 'auto')
+          ? { code: 'payment_provider_unavailable', status: 503 }
+          : { code: 'financials_update_failed', status: 500 },
       logEvent: 'doctor_appointment_payment_failed',
     });
   }

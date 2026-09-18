@@ -71,3 +71,23 @@ Migration `20260918T230100_remaining_patient_lifecycle_producers.sql`:
 Новых test files/cases не добавлено. Существующий reminder materialization test адаптирован к удалению отдельного
 web-push sibling и сохранён как regression suite. По brief не запускались: migration execute, full CI, live UI,
 deploy, push.
+
+## Lead correction: cash without an online provider
+
+Живой журнал активного контейнера нового PROD (`THERAPYSTO_GIT_COMMIT=c305f2f4b`) доказал, что показанный врачу
+текст про ненастроенный provider был ложным: попытка принять 10 000 ₽ наличными дошла до
+`app.settle_appointment_cash_prepayment(text)` и получила `invalid_payment_amount`. Достижимый класс — историческая
+запись без `be_appointments.price_minor`, для которой карточка законно использует сохранённый
+`patient_bookings.price_minor_snapshot`; cash root без канонического потолка отказывает.
+
+Исправление:
+
+- forward-only backfill `20260918T231000_legacy_appointment_price_snapshot_repair.sql` переносит в appointment
+  только один согласованный non-null projection price; неоднозначные проекции не трогает;
+- route отдельно сообщает `invalid_payment_amount`, оставляет provider fallback только link/auto-refund и для
+  неизвестной cash-ошибки использует общий отказ сохранения оплаты;
+- словарь больше не превращает ошибку кассы в требование настроить YooKassa.
+
+Проверено после исправления: cash/payment route-набор — 3 files / 20 tests; webapp typecheck и точечный ESLint —
+PASS; `pnpm test:db-privileges` — 391 tests / 0 fail; owner-aware rollback-only DEV preflight — PASS
+(`pending=5`, `total=237`, `unapplied=0`). UI-тесты не создавались.

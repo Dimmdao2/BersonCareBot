@@ -553,6 +553,8 @@ export const notificationText = {
   bookingPaymentProviderUnavailable:
     'Платёжный сервис не настроен. Проверьте настройки приёма оплат.',
   bookingAppointmentAmountUnavailable: 'Стоимость записи не определена. Укажите её и повторите.',
+  bookingAppointmentPaymentAmountInvalid:
+    'Сумма оплаты превышает остаток по записи. Обновите данные и повторите.',
   bookingAlreadyPaid: 'Запись уже оплачена.',
   bookingPackageNotFound: 'Абонемент не найден. Обновите страницу и повторите попытку.',
   bookingMembershipsUnavailable: 'Абонементы сейчас недоступны. Повторите попытку позже.',
