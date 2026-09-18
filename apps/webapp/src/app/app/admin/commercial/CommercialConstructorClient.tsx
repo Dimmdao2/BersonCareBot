@@ -1231,6 +1231,21 @@ export function CommercialConstructorClient() {
 
   async function saveTariff(event: FormEvent) {
     event.preventDefault();
+    const firstPeriodWithoutPrice = selectableBillingPeriods.find((period) => {
+      const value = tariff.periodPrices
+        .find((row) => row.billingPeriodCode === period.code)
+        ?.priceRub.trim();
+      if (!value) return true;
+      const amount = Number(value);
+      return !Number.isFinite(amount) || amount < 0;
+    });
+    if (firstPeriodWithoutPrice) {
+      toast.error(notificationText.adminTariffPeriodPricesRequired);
+      const input = document.getElementById(`tariff-period-price-${firstPeriodWithoutPrice.code}`);
+      input?.focus();
+      input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     // #1069 owner decision 2026-09-05 (period grid) — a row with an untyped price is simply
     // OMITTED, never sent as a zero: `assertCompleteTariffPeriodPriceMatrix` on the server names
     // exactly which selectable period is still missing (`saas_tariff_period_price_missing`).

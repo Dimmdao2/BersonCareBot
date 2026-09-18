@@ -451,6 +451,7 @@ export const notificationText = {
   adminLocationColorsSaved: 'Цвета локаций сохранены',
   adminSelectActionAfterPaidPeriod: 'Выберите действие после оплаченного периода',
   adminCommercialRefreshFailed: 'Изменения сохранены, но данные не обновились. Обновите страницу.',
+  adminTariffPeriodPricesRequired: 'Укажите цену для каждого активного периода оплаты.',
   adminSelectActionAfterTrial: 'Выберите действие после триала',
 
   // --- settings ---
