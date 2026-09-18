@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
@@ -19,11 +19,7 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/shared/ui/doctor/primitives/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   defaultDoctorWorkspaceClientDefaults,
   defaultDoctorWorkspaceComposition,
@@ -195,25 +191,117 @@ export function SettingsForm({
     { value: 'on_support', label: supportGroupDisplayLabel },
   ];
 
+  const workspaceDraft = useMemo(
+    () => ({
+      composition,
+      clientDefaults,
+      label,
+      appointmentWord,
+      supportLabel,
+    }),
+    [appointmentWord, clientDefaults, composition, label, supportLabel],
+  );
+  const workspaceDraftSignature = JSON.stringify(workspaceDraft);
+  const lastSavedWorkspaceRef = useRef({
+    signature: workspaceDraftSignature,
+    draft: workspaceDraft,
+  });
+  const workspaceSaveSequenceRef = useRef(0);
+  const workspaceInFlightSignatureRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      !workspaceMode ||
+      workspaceDraftSignature === lastSavedWorkspaceRef.current.signature ||
+      workspaceDraftSignature === workspaceInFlightSignatureRef.current
+    ) {
+      return;
+    }
+
+    const sequence = workspaceSaveSequenceRef.current + 1;
+    workspaceSaveSequenceRef.current = sequence;
+    workspaceInFlightSignatureRef.current = workspaceDraftSignature;
+
+    const restoreLastSavedWorkspace = () => {
+      if (sequence !== workspaceSaveSequenceRef.current) return;
+      const saved = lastSavedWorkspaceRef.current.draft;
+      setComposition(saved.composition);
+      setClientDefaults(saved.clientDefaults);
+      setLabel(saved.label);
+      setAppointmentWord(saved.appointmentWord);
+      setSupportLabel(saved.supportLabel);
+    };
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(settingsEndpoint, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: [
+              {
+                key: DOCTOR_WORKSPACE_COMPOSITION_KEY,
+                value: { value: workspaceDraft.composition },
+              },
+              {
+                key: DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
+                value: { value: workspaceDraft.clientDefaults },
+              },
+              { key: 'patient_label', value: { value: workspaceDraft.label } },
+              {
+                key: APPOINTMENT_LABEL_KEY,
+                value: { value: workspaceDraft.appointmentWord },
+              },
+              { key: SUPPORT_GROUP_LABEL_KEY, value: { value: workspaceDraft.supportLabel } },
+            ],
+          }),
+        });
+        const body = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          settings?: Array<{ key: string; valueJson: unknown }>;
+        } | null;
+        if (!response.ok || !body?.ok) {
+          restoreLastSavedWorkspace();
+          toast.error(notificationText.settingsSaveFailed);
+          return;
+        }
+        const savedKeys = new Set((body.settings ?? []).map((setting) => setting.key));
+        if (WORKSPACE_SETTINGS_BATCH_KEYS.some((key) => !savedKeys.has(key))) {
+          restoreLastSavedWorkspace();
+          toast.error(notificationText.settingsConfirmSavedFailed);
+          return;
+        }
+        if (sequence !== workspaceSaveSequenceRef.current) return;
+        lastSavedWorkspaceRef.current = {
+          signature: workspaceDraftSignature,
+          draft: workspaceDraft,
+        };
+        toast.success(notificationText.commonSaved);
+        router.refresh();
+      } catch {
+        restoreLastSavedWorkspace();
+        toast.error(notificationText.commonSaveFailed);
+      } finally {
+        if (workspaceInFlightSignatureRef.current === workspaceDraftSignature) {
+          workspaceInFlightSignatureRef.current = null;
+        }
+      }
+    });
+  }, [
+    router,
+    settingsEndpoint,
+    startTransition,
+    workspaceDraft,
+    workspaceDraftSignature,
+    workspaceMode,
+  ]);
+
   async function handleSave() {
+    if (workspaceMode) return;
     startTransition(async () => {
       try {
         let response: Response;
-        if (workspaceMode) {
-          response = await fetch(settingsEndpoint, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              items: [
-                { key: DOCTOR_WORKSPACE_COMPOSITION_KEY, value: { value: composition } },
-                { key: DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY, value: { value: clientDefaults } },
-                { key: 'patient_label', value: { value: label } },
-                { key: APPOINTMENT_LABEL_KEY, value: { value: appointmentWord } },
-                { key: SUPPORT_GROUP_LABEL_KEY, value: { value: supportLabel } },
-              ],
-            }),
-          });
-        } else if (showPatientLabel) {
+        if (showPatientLabel) {
           response = await fetch(settingsEndpoint, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -253,13 +341,7 @@ export function SettingsForm({
           return;
         }
         const savedSettings = body.settings ?? (body.setting ? [body.setting] : []);
-        if (workspaceMode) {
-          const savedKeys = new Set(savedSettings.map((setting) => setting.key));
-          if (WORKSPACE_SETTINGS_BATCH_KEYS.some((key) => !savedKeys.has(key))) {
-            toast.error(notificationText.settingsConfirmSavedFailed);
-            return;
-          }
-        } else if (showSupportDefaults) {
+        if (showSupportDefaults) {
           const valueFor = (key: string) => {
             const valueJson = savedSettings.find((setting) => setting.key === key)?.valueJson;
             return valueJson !== null && typeof valueJson === 'object' && 'value' in valueJson
@@ -278,7 +360,6 @@ export function SettingsForm({
           }
         }
         toast.success(notificationText.commonSaved);
-        if (workspaceMode) router.refresh();
       } catch {
         toast.error(notificationText.commonSaveFailed);
       }
@@ -588,11 +669,13 @@ export function SettingsForm({
           </>
         )}
 
-        <DoctorSectionActions>
-          <Button type="button" size="sm" onClick={handleSave} disabled={isPending}>
-            {isPending ? 'Сохранение...' : 'Сохранить'}
-          </Button>
-        </DoctorSectionActions>
+        {!workspaceMode ? (
+          <DoctorSectionActions>
+            <Button type="button" size="sm" onClick={handleSave} disabled={isPending}>
+              {isPending ? 'Сохранение...' : 'Сохранить'}
+            </Button>
+          </DoctorSectionActions>
+        ) : null}
       </div>
     </DoctorSection>
   );

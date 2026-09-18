@@ -37,6 +37,8 @@ type Props = {
   hintClassName?: string;
   testId?: string;
   valuePlacement?: 'responsive' | 'inline' | 'side-center' | 'stacked' | 'row-until-wide';
+  /** Reserve a fixed two-tabular-digit rail in compact side-by-side KPI cards. */
+  reserveTwoDigitValue?: boolean;
   detailsIcon?: ReactNode;
   actionIcon?: ReactNode;
   actionLabel?: string;
@@ -66,6 +68,7 @@ export function DoctorStatCard({
   hintClassName,
   testId,
   valuePlacement = 'responsive',
+  reserveTwoDigitValue = false,
   detailsIcon,
   actionIcon,
   actionLabel,
@@ -82,6 +85,7 @@ export function DoctorStatCard({
   // `flex items-center` — чтобы некликабельная плитка (article) держала содержимое
   // по центру так же, как кликабельная (кнопка центрирует его сама).
   const isStacked = valuePlacement === 'stacked';
+  const usesReservedSideMetric = valuePlacement === 'side-center' && reserveTwoDigitValue;
   const shellClass = cn(
     tone === 'warning' ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
     isStacked && 'flex items-center p-2.5',
@@ -160,12 +164,21 @@ export function DoctorStatCard({
   const inner =
     valuePlacement === 'side-center' ? (
       hint ? (
-        <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-start gap-x-1.5">
+        <div
+          className={cn(
+            'grid w-full min-w-0 grid-rows-[auto_auto] items-start',
+            usesReservedSideMetric
+              ? 'grid-cols-[minmax(0,1fr)_22px] gap-x-1'
+              : 'grid-cols-[minmax(0,1fr)_auto] gap-x-1.5',
+          )}
+        >
           <div className="col-start-1 row-start-1">{label}</div>
           <div
             className={cn(
               'col-start-2 row-span-2 row-start-1 flex self-center justify-end',
-              !actionIcon && doctorStatCardEdgeOffsetClass,
+              usesReservedSideMetric
+                ? 'w-[22px] -translate-x-1'
+                : !actionIcon && doctorStatCardEdgeOffsetClass,
             )}
           >
             {metric}
@@ -173,12 +186,21 @@ export function DoctorStatCard({
           <div className="col-start-1 row-start-2">{hintNode}</div>
         </div>
       ) : (
-        <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5">
+        <div
+          className={cn(
+            'grid w-full min-w-0 items-center',
+            usesReservedSideMetric
+              ? 'grid-cols-[minmax(0,1fr)_22px] gap-x-1'
+              : 'grid-cols-[minmax(0,1fr)_auto] gap-x-1.5',
+          )}
+        >
           <div className="translate-y-0.5">{label}</div>
           <div
             className={cn(
               'flex items-center justify-end',
-              !actionIcon && doctorStatCardEdgeOffsetClass,
+              usesReservedSideMetric
+                ? 'w-[22px] -translate-x-1'
+                : !actionIcon && doctorStatCardEdgeOffsetClass,
             )}
           >
             {metric}
@@ -225,7 +247,8 @@ export function DoctorStatCard({
     <span
       className={cn(
         doctorStatCardChevronClass,
-        'inline-flex translate-y-0.5 items-center justify-center leading-none',
+        'inline-flex items-center justify-center leading-none',
+        !usesReservedSideMetric && 'translate-y-0.5',
       )}
       aria-hidden
     >
@@ -242,13 +265,19 @@ export function DoctorStatCard({
   // ВСЕЙ карточки (подпись + число), а не по строке числа.
   const content = !showDetailsIndicator ? (
     <div className="w-full min-w-0">{inner}</div>
-  ) : isStacked ? (
+  ) : isStacked || usesReservedSideMetric ? (
     <div className="relative w-full min-w-0">
       {inner}
       <span
         className={cn(
           'absolute top-1/2 inline-flex size-4 -translate-y-1/2 items-center justify-center',
-          detailsIcon ? '-right-1.5' : '-right-2',
+          usesReservedSideMetric
+            ? detailsIcon
+              ? '-right-3.5'
+              : '-right-4'
+            : detailsIcon
+              ? '-right-1.5'
+              : '-right-2',
           !detailsIndicatorIsActive && 'opacity-10',
         )}
       >
