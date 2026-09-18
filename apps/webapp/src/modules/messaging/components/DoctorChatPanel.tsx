@@ -14,6 +14,7 @@ import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 import { reconcileSupportMessages } from '@/modules/messaging/reconcileMessages';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 import { notificationText } from '@/shared/notifications/notificationText';
 
 type DoctorChatPanelProps = {
@@ -21,6 +22,7 @@ type DoctorChatPanelProps = {
   initialMessages?: SerializedSupportMessage[];
   className?: string;
   emptyText?: string;
+  composerPlacement?: 'inline' | 'modal-footer';
   onReadStateChanged?: () => void | Promise<void>;
   onSent?: () => void | Promise<void>;
 };
@@ -57,6 +59,7 @@ export function DoctorChatPanel({
   initialMessages,
   className,
   emptyText = 'Нет сообщений в этом диалоге.',
+  composerPlacement = 'inline',
   onReadStateChanged,
   onSent,
 }: DoctorChatPanelProps) {
@@ -230,7 +233,10 @@ export function DoctorChatPanel({
       textareaRef={textareaRef}
       submitInsideInput
       inputRowClassName="relative"
-      className="flex shrink-0 flex-col gap-2 pt-3"
+      className={cn(
+        'flex min-w-0 shrink-0 flex-col gap-2',
+        composerPlacement === 'inline' && 'pt-3',
+      )}
       header={
         replyTarget ? (
           <div className="rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
@@ -253,7 +259,7 @@ export function DoctorChatPanel({
       renderTextarea={(props) => (
         <Textarea
           {...props}
-          className="min-h-10 resize-none py-2 pr-10 pl-3 leading-5"
+          className="min-h-10 resize-none rounded-lg py-2 pr-10 pl-3 leading-5"
         />
       )}
       renderSubmit={(props) => (
@@ -278,12 +284,15 @@ export function DoctorChatPanel({
         variant="doctor"
         messages={messages}
         emptyText={emptyText}
-        composer={composer}
+        composer={composerPlacement === 'inline' ? composer : undefined}
         className="min-h-0 flex-1"
         onReplyToMessage={replyToMessage}
         messageTextClassName={doctorChatMessageTextClass}
         dayLabelClassName={doctorMetaTextClass}
       />
+      {composerPlacement === 'modal-footer' ? (
+        <DoctorModalFooter layout="content">{composer}</DoctorModalFooter>
+      ) : null}
     </div>
   );
 }

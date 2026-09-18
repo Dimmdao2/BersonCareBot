@@ -34,7 +34,7 @@ import { DoctorProgramItemDiscussionMessageBody } from './DoctorProgramItemDiscu
 import type { ExerciseMedia } from '@/modules/lfk-exercises/types';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import { DoctorExerciseMediaPlayer } from '@/shared/ui/doctor/media/DoctorExerciseMediaPlayer';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorModal, DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 import {
   doctorChatMessageTextClass,
   doctorInteractiveSurfaceButtonClass,
@@ -555,65 +555,66 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
         )}
       </div>
       {(composerStageItemId || activeReplyMessage) && onSendReply ? (
-        <MessageComposer
-          value={replyDraft}
-          onValueChange={setReplyDraft}
-          onSubmit={() =>
-            submitReply(composerStageItemId ?? activeReplyMessage!.instanceStageItemId)
-          }
-          submitting={replySending}
-          placeholder="Ответ..."
-          ariaLabel="Ответ в обсуждении"
-          submitLabel={<ArrowUp className="size-4" aria-hidden />}
-          submittingLabel={<ArrowUp className="size-4" aria-hidden />}
-          submitAriaLabel="Отправить ответ"
-          maxLength={4000}
-          rows={1}
-          textareaRef={textareaRef}
-          submitInsideInput
-          inputRowClassName="relative"
-          className={cn(
-            'shrink-0 border-t border-border bg-card px-4 py-3',
-            replySending && 'opacity-50',
-          )}
-          header={
-            activeReplyMessage && !composerStageItemId ? (
-              <div className="mb-2 rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
-                <div className="flex items-start gap-2">
-                  <span className="min-w-0 flex-1 truncate">
-                    Ответ на:{' '}
-                    {activeReplyMessage.body?.trim() ||
-                      itemLabelById?.get(activeReplyMessage.instanceStageItemId) ||
-                      'сообщение с вложением'}
-                  </span>
-                  <button
-                    type="button"
-                    className="shrink-0 text-foreground/70 hover:text-foreground"
-                    onClick={closeReplyComposer}
-                    aria-label="Убрать выбранное сообщение"
-                  >
-                    <X className="size-3.5" aria-hidden />
-                  </button>
+        <DoctorModalFooter layout="content">
+          <MessageComposer
+            value={replyDraft}
+            onValueChange={setReplyDraft}
+            onSubmit={() =>
+              submitReply(composerStageItemId ?? activeReplyMessage!.instanceStageItemId)
+            }
+            submitting={replySending}
+            placeholder="Ответ..."
+            ariaLabel="Ответ в обсуждении"
+            submitLabel={<ArrowUp className="size-4" aria-hidden />}
+            submittingLabel={<ArrowUp className="size-4" aria-hidden />}
+            submitAriaLabel="Отправить ответ"
+            maxLength={4000}
+            rows={1}
+            textareaRef={textareaRef}
+            submitInsideInput
+            inputRowClassName="relative"
+            className={cn('flex min-w-0 flex-col gap-2', replySending && 'opacity-50')}
+            header={
+              activeReplyMessage && !composerStageItemId ? (
+                <div className="rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
+                  <div className="flex items-start gap-2">
+                    <span className="min-w-0 flex-1 truncate">
+                      Ответ на:{' '}
+                      {activeReplyMessage.body?.trim() ||
+                        itemLabelById?.get(activeReplyMessage.instanceStageItemId) ||
+                        'сообщение с вложением'}
+                    </span>
+                    <button
+                      type="button"
+                      className="shrink-0 text-foreground/70 hover:text-foreground"
+                      onClick={closeReplyComposer}
+                      aria-label="Убрать выбранное сообщение"
+                    >
+                      <X className="size-3.5" aria-hidden />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : null
-          }
-          status={replyError ? <p className="mt-1 text-xs text-destructive">{replyError}</p> : null}
-          renderTextarea={(textareaProps) => (
-            <Textarea
-              {...textareaProps}
-              className="min-h-10 resize-none py-2 pr-10 pl-3 leading-5"
-            />
-          )}
-          renderSubmit={(buttonProps) => (
-            <Button
-              {...buttonProps}
-              size="icon"
-              className="absolute size-8 rounded-full p-0"
-              style={{ right: 3, bottom: 4, borderRadius: '9999px' }}
-            />
-          )}
-        />
+              ) : null
+            }
+            status={
+              replyError ? <p className="text-xs text-destructive">{replyError}</p> : null
+            }
+            renderTextarea={(textareaProps) => (
+              <Textarea
+                {...textareaProps}
+                className="min-h-10 resize-none rounded-lg py-2 pr-10 pl-3 leading-5"
+              />
+            )}
+            renderSubmit={(buttonProps) => (
+              <Button
+                {...buttonProps}
+                size="icon"
+                className="absolute size-8 rounded-full p-0"
+                style={{ right: 3, bottom: 4, borderRadius: '9999px' }}
+              />
+            )}
+          />
+        </DoctorModalFooter>
       ) : null}
     </div>
   );

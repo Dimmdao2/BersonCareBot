@@ -54,7 +54,10 @@ const doctorModalDialogActionsClass = 'flex justify-end [&>*]:w-auto';
 type DoctorModalFooterSlot = {
   container: HTMLElement | null;
   setHasContent: (value: boolean) => void;
+  setLayout: (value: DoctorModalFooterLayout) => void;
 };
+
+type DoctorModalFooterLayout = 'actions' | 'content';
 
 const DoctorModalFooterSlotContext = createContext<DoctorModalFooterSlot | null>(null);
 
@@ -65,19 +68,37 @@ const DoctorModalFooterSlotContext = createContext<DoctorModalFooterSlot | null>
  * владеет модалка-хозяин: контент объявляет действия, панель остаётся общей. Вне `DoctorModal`
  * (например, в тестах компонента) рендерится на месте той же панелью.
  */
-export function DoctorModalFooter({ children }: { children: ReactNode }) {
+export function DoctorModalFooter({
+  children,
+  layout = 'actions',
+}: {
+  children: ReactNode;
+  layout?: DoctorModalFooterLayout;
+}) {
   const slot = useContext(DoctorModalFooterSlotContext);
   const setHasContent = slot?.setHasContent;
+  const setLayout = slot?.setLayout;
 
   useLayoutEffect(() => {
-    if (!setHasContent) return;
+    if (!setHasContent || !setLayout) return;
     setHasContent(true);
-    return () => setHasContent(false);
-  }, [setHasContent]);
+    setLayout(layout);
+    return () => {
+      setHasContent(false);
+      setLayout('actions');
+    };
+  }, [layout, setHasContent, setLayout]);
 
   if (!slot) {
     return (
-      <div className={cn(doctorModalFooterBarClass, doctorModalActionGridClass)}>{children}</div>
+      <div
+        className={cn(
+          doctorModalFooterBarClass,
+          layout === 'actions' && doctorModalActionGridClass,
+        )}
+      >
+        {children}
+      </div>
     );
   }
   if (!slot.container) return null;
@@ -366,9 +387,15 @@ export function DoctorModal({
   );
   const [footerSlotElement, setFooterSlotElement] = useState<HTMLDivElement | null>(null);
   const [hasSlottedFooter, setHasSlottedFooter] = useState(false);
+  const [slottedFooterLayout, setSlottedFooterLayout] =
+    useState<DoctorModalFooterLayout>('actions');
   const bodyRef = useRef<HTMLDivElement>(null);
   const footerSlot = useMemo<DoctorModalFooterSlot>(
-    () => ({ container: footerSlotElement, setHasContent: setHasSlottedFooter }),
+    () => ({
+      container: footerSlotElement,
+      setHasContent: setHasSlottedFooter,
+      setLayout: setSlottedFooterLayout,
+    }),
     [footerSlotElement],
   );
 
@@ -478,7 +505,11 @@ export function DoctorModal({
       ref={setFooterSlotElement}
       className={cn(
         doctorModalFooterBarClass,
-        isMobile || usesRightSheet ? doctorModalActionGridClass : doctorModalDialogActionsClass,
+        slottedFooterLayout === 'content'
+          ? undefined
+          : isMobile || usesRightSheet
+            ? doctorModalActionGridClass
+            : doctorModalDialogActionsClass,
         !hasFooter && 'hidden',
       )}
     >

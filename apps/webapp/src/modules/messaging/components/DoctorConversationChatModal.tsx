@@ -70,6 +70,7 @@ export function DoctorConversationChatModal({
           conversationId={conversationId}
           initialMessages={initialMessages}
           className="min-h-0 flex-1"
+          composerPlacement="modal-footer"
           onReadStateChanged={onReadStateChanged}
           onSent={onSent}
         />
