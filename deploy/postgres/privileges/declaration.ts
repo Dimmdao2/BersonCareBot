@@ -24672,6 +24672,9 @@ const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>
     'public.platform_users': 'updated_at',
   },
   'app.email_otp_public_consume_latest_challenge(text,text)': { 'public.platform_users': 'updated_at' },
+  'app.enqueue_captured_booking_payment_lifecycle()': {
+    'public.be_payment_intents': 'updated_at',
+  },
   // Этот корень строку занятия только ЧИТАЕТ под `FOR UPDATE OF h` — пишет он тему канала в
   // `user_notification_topic_channels`. Track D (#987) заново создал корень (ключ — канонический
   // uuid), и общая с done/skip/snooze поверхность занятия дала бы ему UPDATE на 21 колонке ради
@@ -26944,14 +26947,12 @@ const REV10_CONTEXT = {
     }),
     'app.enqueue_captured_booking_payment_lifecycle()': rev10Function({
       owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
-      execute: [], purpose: 'atomically enqueue reclaimable booking lifecycle work after payment settlement',
+      execute: ['app_object_owner'], purpose: 'atomically enqueue reclaimable booking lifecycle work after payment settlement',
       typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
-        { relation: 'public.be_payment_provider_events', columns: ['organization_id', 'provider_id', 'intent_ref', 'event_type', 'processed_at'], operations: ['SELECT' as const], evidence: 'payment settlement trigger guard' as const },
         { relation: 'public.be_payment_intents', columns: ['id', 'organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id'], operations: ['SELECT' as const], evidence: 'resolve settled booking intent' as const },
         { relation: 'public.be_payments', columns: ['id', 'organization_id', 'payment_intent_id'], operations: ['SELECT' as const], evidence: 'stable captured payment event id' as const },
-        { relation: 'public.be_appointments', columns: ['id', 'organization_id', 'chain_id', 'platform_user_id', 'appointment_reminder_offsets_minutes'], operations: ['SELECT' as const], evidence: 'payment chain lifecycle projection' as const },
-        { relation: 'public.patient_bookings', columns: ['id', 'organization_id', 'platform_user_id', 'booking_type', 'city', 'category', 'slot_start', 'slot_end', 'contact_name', 'contact_phone', 'contact_email', 'city_code_snapshot', 'service_title_snapshot', 'canonical_appointment_id'], operations: ['SELECT' as const], evidence: 'canonical patient lifecycle payload' as const },
+        { relation: 'public.be_appointments', columns: ['id', 'organization_id', 'chain_id', 'chain_position', 'start_at', 'platform_user_id'], operations: ['SELECT' as const], evidence: 'payment chain durable payload' as const },
         { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one idempotent durable lifecycle row per settled appointment' as const },
       ],
     }),

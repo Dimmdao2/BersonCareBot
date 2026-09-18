@@ -381,7 +381,10 @@ import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQue
 import { enqueueAccountMergeLoginNotification } from '@/modules/auth/accountMergeNotification';
 import { createBookingCreatedEffects } from '@/app-layer/booking/bookingCreatedEffects';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
-import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
+import {
+  createAppointmentPaymentConfirmedHandler,
+  createCapturedBookingPaymentBindingValidator,
+} from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
 import { loadBookingLifecycleNotificationsFromSystemSettings } from '@/modules/booking-notifications/settings';
 import { pgPatientBookingsPort } from '@/infra/repos/pgPatientBookings';
 import { inMemoryPatientBookingsPort } from '@/infra/repos/inMemoryPatientBookings';
@@ -1149,6 +1152,13 @@ const onAppointmentPaymentConfirmed = bookingEngineService
       bookingSync: bookingSyncPortForPayments,
     })
   : undefined;
+const capturedBookingPaymentBinding =
+  paymentsPort && bookingEngineService
+    ? createCapturedBookingPaymentBindingValidator({
+        payments: paymentsPort,
+        bookingEngine: bookingEngineService,
+      })
+    : undefined;
 const paymentsService =
   paymentsPort && bookingEngineService
     ? createPaymentsService({
@@ -2329,6 +2339,8 @@ function _buildAppDeps() {
     bookingSync: bookingSyncPortForPayments,
     /** Durable payment-lifecycle worker re-enters the same projection and notification passage. */
     appointmentPaymentConfirmed: onAppointmentPaymentConfirmed,
+    /** Signed M2M payloads are bound to the canonical payment root before replay. */
+    capturedBookingPaymentBinding,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
     bookingEnginePort,
     bookingScheduling: bookingSchedulingService,

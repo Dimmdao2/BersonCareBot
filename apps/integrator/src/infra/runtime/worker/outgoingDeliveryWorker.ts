@@ -197,6 +197,7 @@ async function finalizeClaimedRowFailure(
   const message = err instanceof Error ? err.message : String(err);
   const safeError = truncateDeliveryErrorMessage(message);
   if (row.attemptCount >= row.maxAttempts) {
+    await recordCapturedBookingPaymentReplayDeadIncident(row, safeError);
     await queueMarkDead(db, row.id, safeError);
     return;
   }
@@ -206,6 +207,33 @@ async function finalizeClaimedRowFailure(
     retryDelaySecondsAfterFailure(row.attemptCount, row.kind),
     safeError,
   );
+}
+
+async function recordCapturedBookingPaymentReplayDeadIncident(
+  row: OutgoingDeliveryQueueRow,
+  safeError: string,
+): Promise<void> {
+  if (row.kind !== 'booking_lifecycle') return;
+  const paymentCaptured = row.payloadJson.paymentCaptured;
+  if (!paymentCaptured || typeof paymentCaptured !== 'object' || Array.isArray(paymentCaptured))
+    return;
+  const payload = paymentCaptured as Record<string, unknown>;
+  const organizationId =
+    typeof payload.organizationId === 'string' ? payload.organizationId : 'unknown';
+  const paymentId = typeof payload.paymentId === 'string' ? payload.paymentId : 'unknown';
+  try {
+    await recordOperatorFailureIncident({
+      direction: 'booking_payment_lifecycle_replay',
+      integration: 'webapp_payment_captured',
+      errorClass: 'payment_captured_replay_dead',
+      errorDetail: `organizationId=${organizationId};queueId=${row.id};eventId=${row.eventId};paymentId=${paymentId};error=${safeError}`,
+    });
+  } catch (err) {
+    logger.warn(
+      { err, rowId: row.id, eventId: row.eventId, organizationId, paymentId },
+      'booking_payment_lifecycle_replay_dead_incident_record_failed',
+    );
+  }
 }
 
 function asChatIdFromRecipient(recipient: unknown): number | null {
@@ -688,7 +716,9 @@ export async function processOutgoingDeliveryRow(
         idempotencyKey: row.eventId,
       });
       if (!result.ok) {
-        throw new Error(`WEBAPP_CAPTURED_PAYMENT_LIFECYCLE_FAILED:${result.status}:${result.error ?? ''}`);
+        throw new Error(
+          `WEBAPP_CAPTURED_PAYMENT_LIFECYCLE_FAILED:${result.status}:${result.error ?? ''}`,
+        );
       }
       await queueMarkSent(db, row.id);
       return;
