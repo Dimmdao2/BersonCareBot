@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { ListPlus, ListTodo } from 'lucide-react';
+import toast from 'react-hot-toast';
 import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskDueOnDate } from '@/modules/specialist-tasks/taskPriority';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
@@ -208,17 +209,21 @@ export function DoctorTasksPageClient({
   const complete = async (taskId: string): Promise<boolean> => {
     setBusy(true);
     setError(null);
+    const reportFailure = () => {
+      setError(notificationText.specialistTaskCompleteFailed);
+      toast.error(notificationText.specialistTaskCompleteFailed);
+    };
     try {
       const response = await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, {
         method: 'POST',
       });
       if (!response.ok) {
-        setError(notificationText.specialistTaskCompleteFailed);
+        reportFailure();
         return false;
       }
       const data = (await response.json()) as { task?: Task };
       if (!data.task) {
-        setError(notificationText.specialistTaskCompleteFailed);
+        reportFailure();
         return false;
       }
       const completedTask = data.task;
@@ -227,7 +232,7 @@ export function DoctorTasksPageClient({
       setPane(null);
       return true;
     } catch {
-      setError(notificationText.specialistTaskCompleteFailed);
+      reportFailure();
       return false;
     } finally {
       setBusy(false);

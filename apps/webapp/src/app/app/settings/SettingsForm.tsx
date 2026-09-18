@@ -126,6 +126,14 @@ type SettingsFormProps = {
   supportGroupLabel?: SupportGroupLabelValue;
 };
 
+type WorkspaceDraft = {
+  composition: DoctorWorkspaceComposition;
+  clientDefaults: DoctorWorkspaceClientDefaults;
+  label: PatientLabelValue;
+  appointmentWord: AppointmentLabelValue;
+  supportLabel: SupportGroupLabelValue;
+};
+
 export function SettingsForm({
   patientLabel,
   appointmentLabel,
@@ -191,7 +199,7 @@ export function SettingsForm({
     { value: 'on_support', label: supportGroupDisplayLabel },
   ];
 
-  const workspaceDraft = useMemo(
+  const workspaceDraft = useMemo<WorkspaceDraft>(
     () => ({
       composition,
       clientDefaults,
@@ -206,24 +214,25 @@ export function SettingsForm({
     signature: workspaceDraftSignature,
     draft: workspaceDraft,
   });
-  const workspaceSaveSequenceRef = useRef(0);
-  const workspaceInFlightSignatureRef = useRef<string | null>(null);
+  const workspacePendingSaveRef = useRef<{
+    signature: string;
+    draft: WorkspaceDraft;
+  } | null>(null);
+  const workspaceSaveRunningRef = useRef(false);
 
   useEffect(() => {
-    if (
-      !workspaceMode ||
-      workspaceDraftSignature === lastSavedWorkspaceRef.current.signature ||
-      workspaceDraftSignature === workspaceInFlightSignatureRef.current
-    ) {
+    if (!workspaceMode || workspaceDraftSignature === lastSavedWorkspaceRef.current.signature) {
       return;
     }
 
-    const sequence = workspaceSaveSequenceRef.current + 1;
-    workspaceSaveSequenceRef.current = sequence;
-    workspaceInFlightSignatureRef.current = workspaceDraftSignature;
+    workspacePendingSaveRef.current = {
+      signature: workspaceDraftSignature,
+      draft: workspaceDraft,
+    };
+    if (workspaceSaveRunningRef.current) return;
+    workspaceSaveRunningRef.current = true;
 
     const restoreLastSavedWorkspace = () => {
-      if (sequence !== workspaceSaveSequenceRef.current) return;
       const saved = lastSavedWorkspaceRef.current.draft;
       setComposition(saved.composition);
       setClientDefaults(saved.clientDefaults);
@@ -234,57 +243,67 @@ export function SettingsForm({
 
     startTransition(async () => {
       try {
-        const response = await fetch(settingsEndpoint, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: [
-              {
-                key: DOCTOR_WORKSPACE_COMPOSITION_KEY,
-                value: { value: workspaceDraft.composition },
-              },
-              {
-                key: DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
-                value: { value: workspaceDraft.clientDefaults },
-              },
-              { key: 'patient_label', value: { value: workspaceDraft.label } },
-              {
-                key: APPOINTMENT_LABEL_KEY,
-                value: { value: workspaceDraft.appointmentWord },
-              },
-              { key: SUPPORT_GROUP_LABEL_KEY, value: { value: workspaceDraft.supportLabel } },
-            ],
-          }),
-        });
-        const body = (await response.json().catch(() => null)) as {
-          ok?: boolean;
-          settings?: Array<{ key: string; valueJson: unknown }>;
-        } | null;
-        if (!response.ok || !body?.ok) {
-          restoreLastSavedWorkspace();
-          toast.error(notificationText.settingsSaveFailed);
-          return;
+        while (workspacePendingSaveRef.current) {
+          const pending = workspacePendingSaveRef.current;
+          workspacePendingSaveRef.current = null;
+          let failureMessage: string | null = null;
+
+          try {
+            const response = await fetch(settingsEndpoint, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                items: [
+                  {
+                    key: DOCTOR_WORKSPACE_COMPOSITION_KEY,
+                    value: { value: pending.draft.composition },
+                  },
+                  {
+                    key: DOCTOR_WORKSPACE_CLIENT_DEFAULTS_KEY,
+                    value: { value: pending.draft.clientDefaults },
+                  },
+                  { key: 'patient_label', value: { value: pending.draft.label } },
+                  {
+                    key: APPOINTMENT_LABEL_KEY,
+                    value: { value: pending.draft.appointmentWord },
+                  },
+                  {
+                    key: SUPPORT_GROUP_LABEL_KEY,
+                    value: { value: pending.draft.supportLabel },
+                  },
+                ],
+              }),
+            });
+            const body = (await response.json().catch(() => null)) as {
+              ok?: boolean;
+              settings?: Array<{ key: string; valueJson: unknown }>;
+            } | null;
+            if (!response.ok || !body?.ok) {
+              failureMessage = notificationText.settingsSaveFailed;
+            } else {
+              const savedKeys = new Set((body.settings ?? []).map((setting) => setting.key));
+              if (WORKSPACE_SETTINGS_BATCH_KEYS.some((key) => !savedKeys.has(key))) {
+                failureMessage = notificationText.settingsConfirmSavedFailed;
+              }
+            }
+          } catch {
+            failureMessage = notificationText.commonSaveFailed;
+          }
+
+          if (failureMessage) {
+            toast.error(failureMessage);
+            if (!workspacePendingSaveRef.current) restoreLastSavedWorkspace();
+            continue;
+          }
+
+          lastSavedWorkspaceRef.current = pending;
+          if (!workspacePendingSaveRef.current) {
+            toast.success(notificationText.commonSaved);
+            router.refresh();
+          }
         }
-        const savedKeys = new Set((body.settings ?? []).map((setting) => setting.key));
-        if (WORKSPACE_SETTINGS_BATCH_KEYS.some((key) => !savedKeys.has(key))) {
-          restoreLastSavedWorkspace();
-          toast.error(notificationText.settingsConfirmSavedFailed);
-          return;
-        }
-        if (sequence !== workspaceSaveSequenceRef.current) return;
-        lastSavedWorkspaceRef.current = {
-          signature: workspaceDraftSignature,
-          draft: workspaceDraft,
-        };
-        toast.success(notificationText.commonSaved);
-        router.refresh();
-      } catch {
-        restoreLastSavedWorkspace();
-        toast.error(notificationText.commonSaveFailed);
       } finally {
-        if (workspaceInFlightSignatureRef.current === workspaceDraftSignature) {
-          workspaceInFlightSignatureRef.current = null;
-        }
+        workspaceSaveRunningRef.current = false;
       }
     });
   }, [
