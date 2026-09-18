@@ -5,6 +5,7 @@ import type { PasswordAltchaService } from '@/modules/auth/passwordAltcha';
 import type { PasswordChangeService } from '@/modules/auth/passwordChange';
 import type { StaffSecurityService } from '@/modules/staff-security/service';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
+import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import type { AppSession, SessionUser } from '@/shared/types/session';
 
 type CheckRateLimit =
@@ -310,6 +311,41 @@ describe('email/password login HTTP boundary', () => {
     expect(fakes.getSetting).toHaveBeenCalledWith('doctor_staff_second_factor_required', 'doctor', {
       organizationId: '00000000-0000-4000-8000-000000000301',
     });
+  });
+
+  /**
+   * Владелец 16.09: «надо не пропускать». Отказ резолвера членства — ошибка базы или неоднозначное
+   * членство — раньше был неотличим от «клиника фактора не требует», и вход продолжался паролем без
+   * обязательного второго фактора. Теперь отказ заканчивается отказом входа, а не пропуском фактора.
+   */
+  it('отказ резолвера клиники не пропускает вход без второго фактора', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue(user);
+    fakes.getSecurityStatus.mockResolvedValue({
+      enrolled: false,
+      recoveryConfirmed: false,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 1,
+    });
+    // Резолвер берётся НАСТОЯЩИЙ, поверх порта, который падает: иначе проверка держалась бы на
+    // подменённом обещании и не заметила бы, что отказ зависимости превратили в штатное «членства
+    // нет» внутри самого резолвера — а это ровно тот путь, которым вход снова стал бы password-only.
+    const membershipOverRefusingPort = createOrganizationMembershipService({
+      membershipPort: {
+        listActiveForWorkspaceResolution: async () => {
+          throw new Error('membership_lookup_unavailable');
+        },
+      } as unknown as Parameters<typeof createOrganizationMembershipService>[0]['membershipPort'],
+    });
+    fakes.resolveOrganizationForUser.mockImplementation(
+      membershipOverRefusingPort.resolveOrganizationForUser,
+    );
+
+    const response = await login(request());
+
+    expect(response.status).toBe(500);
+    expect(fakes.setSession).not.toHaveBeenCalled();
   });
 
   it('allows a correct password on its matching explicit staff portal', async () => {

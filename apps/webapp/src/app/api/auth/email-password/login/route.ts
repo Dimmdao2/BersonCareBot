@@ -65,12 +65,16 @@ async function clinicRequiresStaffSecondFactor(
   deps: ReturnType<typeof buildAppDeps>,
   userId: string,
 ): Promise<boolean> {
-  const organizationMembership = deps.organizationMembership;
-  if (!organizationMembership) return false;
+  // Порт членства собирается всегда (в бою — поверх базы, в тестах — в памяти), поэтому проверки
+  // «а есть ли он» здесь нет: она умела отвечать только «нет клиники» и тем самым ТИХО пропускала
+  // вход без обязательного второго фактора, если бы проводка когда-нибудь распалась. Отказ резолвера
+  // — ошибка базы или неоднозначное членство — поднимается исключением и заканчивается отказом входа
+  // (500), а не пропуском фактора. `ok: false` означает ровно одно: активного членства нет, то есть
+  // клиники, которая могла бы требовать фактор, нет тоже.
   const membership = await runWithDbBootstrapPrincipal(
     { source: 'api/auth/email-password/login:staff-workspace-resolve' },
     () =>
-      organizationMembership.resolveOrganizationForUser({
+      deps.organizationMembership.resolveOrganizationForUser({
         platformUserId: userId,
       }),
   );
