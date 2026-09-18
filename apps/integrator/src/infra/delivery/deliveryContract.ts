@@ -20,7 +20,8 @@ export type OutgoingDeliveryKind =
   | 'operator_health_digest'
   | 'appointment_reminder'
   | 'auth_email_otp'
-  | 'outbound_message';
+  | 'outbound_message'
+  | 'booking_lifecycle';
 
 /** Kinds whose rows are already complete transport intents and need no product-specific worker logic. */
 export const GENERIC_TRANSPORT_QUEUE_KINDS = new Set<string>([

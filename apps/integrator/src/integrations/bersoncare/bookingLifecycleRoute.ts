@@ -607,8 +607,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   const appointmentId = payload.canonicalAppointmentId;
   if (eventType === 'booking.deleted') {
     if (appointmentId) {
-      try {
-        await syncCanonicalAppointmentToCalendar(
+      await syncCanonicalAppointmentToCalendar(
           {
             action: resolveCalendarAction(payload, 'canceled'),
             appointmentId,
@@ -621,9 +620,6 @@ async function trySyncCanonicalBookingToGoogleCalendar(
           },
           { dispatchPort, db: createDbPort() },
         );
-      } catch (err) {
-        logger.warn({ err, appointmentId, eventType }, 'canonical GCal delete failed');
-      }
       return;
     }
     return;
@@ -645,8 +641,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
       : eventType === 'booking.reschedule_requested'
         ? 'reschedule_pending'
         : 'none';
-  try {
-    await syncCanonicalAppointmentToCalendar(
+  await syncCanonicalAppointmentToCalendar(
       {
         action: resolveCalendarAction(payload, computedAction),
         appointmentId,
@@ -660,9 +655,6 @@ async function trySyncCanonicalBookingToGoogleCalendar(
       },
       { dispatchPort, db: createDbPort() },
     );
-  } catch (err) {
-    logger.warn({ err, appointmentId, eventType }, 'canonical GCal sync failed');
-  }
 }
 
 /**
@@ -818,10 +810,11 @@ function bookingLifecycleSteps(input: {
           ),
         ),
       );
-      const cancelledPushVariant = resolvePatientPushVariant(payload, 'cancelled');
-      if (cancelledPushVariant) {
-        steps.push(patientPushStep(`booking-cancelled:${bookingId}`, cancelledPushVariant));
-      }
+    }
+    // Persistent inbox is a lifecycle fact; only the external push delivery is suppressed.
+    const cancelledPushVariant = resolvePatientPushVariant(payload, 'cancelled');
+    if (cancelledPushVariant) {
+      steps.push(patientPushStep(`booking-cancelled:${bookingId}`, cancelledPushVariant));
     }
     if (shouldNotifyDoctor(payload)) {
       steps.push(

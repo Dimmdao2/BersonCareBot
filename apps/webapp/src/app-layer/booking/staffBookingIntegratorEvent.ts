@@ -60,8 +60,8 @@ export async function emitStaffCanonicalBookingEvent(opts: {
   /** D13a(добор): план напоминаний для путей персонала — читается вебаппом из настроек клиники. */
   reminderPlan?: AppointmentReminderPlan;
 }): Promise<'sent' | 'skipped'> {
-  // R21: if suppression is active, skip the integrator event entirely (patient notification).
-  if (opts.suppressPatientNotification) return 'skipped';
+  // This flag is an external-channel preference, not permission to lose the canonical lifecycle
+  // fact. The integrator keeps calendar/reminders/inbox and suppresses only the push leg.
   if (!opts.syncPort) return 'skipped';
   const bookingRow = opts.bookingRow ?? null;
   const bookingId = bookingRow?.id ?? opts.appointment.id;

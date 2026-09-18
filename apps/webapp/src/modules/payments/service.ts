@@ -86,6 +86,9 @@ export function createPaymentsService(deps: {
 }) {
   type AppointmentRefundResult = { ok: true; refundedMinor: number };
   const appointmentRefundsInFlight = new Map<string, Promise<AppointmentRefundResult>>();
+  // Compatibility wake-ups are not the durable payment continuation (the SQL root owns that),
+  // but a request which visibly failed before returning should be allowed to retry its wake-up.
+  const pendingCompatibilityPaymentHandoffs = new Set<string>();
 
   async function loadSettings(organizationId?: string): Promise<BookingPaymentSettings> {
     return deps.config.getBookingPaymentSettings(organizationId);
@@ -813,16 +816,29 @@ export function createPaymentsService(deps: {
         payloadJson: verified.payload,
       });
 
-      // Доставка — после коммита корня и только за проведённый платёж: повтор уведомления приходит
-      // с `outcome: 'already_processed'` и никого повторно не уведомляет.
-      if (settled.outcome === 'captured' && settled.paymentId) {
+      // The production root persists the lifecycle work atomically with settlement. This callback
+      // remains only as an injected compatibility wake-up for callers that provide one; it must
+      // never be the sole durable continuation and therefore is safe to repeat after a committed
+      // provider event.
+      const shouldRunCompatibilityWake =
+        settled.outcome === 'captured' ||
+        (settled.outcome === 'already_processed' &&
+          settled.paymentId !== null &&
+          pendingCompatibilityPaymentHandoffs.has(settled.paymentId));
+      if (shouldRunCompatibilityWake && settled.paymentId) {
         const paymentId = settled.paymentId;
         if (deps.onAppointmentPaymentConfirmed && settled.confirmedAppointmentIds.length > 0) {
-          await deps.onAppointmentPaymentConfirmed({
-            appointmentIds: settled.confirmedAppointmentIds,
-            paymentId,
-            platformUserId: settled.platformUserId,
-          });
+          try {
+            await deps.onAppointmentPaymentConfirmed({
+              appointmentIds: settled.confirmedAppointmentIds,
+              paymentId,
+              platformUserId: settled.platformUserId,
+            });
+            pendingCompatibilityPaymentHandoffs.delete(paymentId);
+          } catch (error) {
+            pendingCompatibilityPaymentHandoffs.add(paymentId);
+            throw error;
+          }
         }
         const patientPackageId = parsePatientPackageProductRef(settled.productRef);
         if (patientPackageId && deps.onPackagePaymentCaptured) {

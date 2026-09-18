@@ -141,6 +141,10 @@ async function startResident(): Promise<void> {
           contentPort: workerDeps.contentPort,
           isTelegramMenuOnButtonPress: workerDeps.isTelegramMenuOnButtonPress,
         },
+        bookingLifecycle: {
+          idempotencyPort: workerDeps.idempotencyPort,
+          ...(workerDeps.webappEventsPort ? { webappEventsPort: workerDeps.webappEventsPort } : {}),
+        },
       }),
     runOperatorHealthDigestWake: () =>
       runFixedCadenceWake({

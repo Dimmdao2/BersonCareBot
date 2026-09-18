@@ -197,24 +197,14 @@ export async function runPatientWebPushNotify(
     const bookingId = bookingIdFromLifecycleStableKey(body.stableKey);
     const chatText = lifecycleChatText(lifecycleCopy);
     if (bookingId && chatText) {
-      try {
-        await appendPatientInboundAdminMessage(deps.patientInboundChatPort, {
-          platformUserId: uid,
-          text: chatText,
-          integratorMessageId: bookingLifecycleChatIntegratorMessageId(body.variant, bookingId),
-          source: 'appointment_lifecycle',
-        });
-      } catch (err) {
-        logger.warn(
-          {
-            err,
-            event: 'patient_web_push.booking_chat_append_failed',
-            platformUserId: uid,
-            stableKey: body.stableKey,
-          },
-          'booking lifecycle chat append failed',
-        );
-      }
+      // The chat row is the durable patient-visible fact. Do not acknowledge the lifecycle step
+      // merely because the optional external web-push channel is suppressed or unavailable.
+      await appendPatientInboundAdminMessage(deps.patientInboundChatPort, {
+        platformUserId: uid,
+        text: chatText,
+        integratorMessageId: bookingLifecycleChatIntegratorMessageId(body.variant, bookingId),
+        source: 'appointment_lifecycle',
+      });
     }
   }
 

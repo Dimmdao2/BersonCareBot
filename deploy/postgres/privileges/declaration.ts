@@ -26942,6 +26942,19 @@ const REV10_CONTEXT = {
         operations: ['SELECT' as const, 'INSERT' as const, 'DELETE' as const],
         evidence: 'D20 enqueue root inserts idempotently and prunes expired sent rows' as const }],
     }),
+    'app.enqueue_captured_booking_payment_lifecycle()': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: [], purpose: 'atomically enqueue reclaimable booking lifecycle work after payment settlement',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.be_payment_provider_events', columns: ['organization_id', 'provider_id', 'intent_ref', 'event_type', 'processed_at'], operations: ['SELECT' as const], evidence: 'payment settlement trigger guard' as const },
+        { relation: 'public.be_payment_intents', columns: ['id', 'organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id'], operations: ['SELECT' as const], evidence: 'resolve settled booking intent' as const },
+        { relation: 'public.be_payments', columns: ['id', 'organization_id', 'payment_intent_id'], operations: ['SELECT' as const], evidence: 'stable captured payment event id' as const },
+        { relation: 'public.be_appointments', columns: ['id', 'organization_id', 'chain_id', 'platform_user_id', 'appointment_reminder_offsets_minutes'], operations: ['SELECT' as const], evidence: 'payment chain lifecycle projection' as const },
+        { relation: 'public.patient_bookings', columns: ['id', 'organization_id', 'platform_user_id', 'booking_type', 'city', 'category', 'slot_start', 'slot_end', 'contact_name', 'contact_phone', 'contact_email', 'city_code_snapshot', 'service_title_snapshot', 'canonical_appointment_id'], operations: ['SELECT' as const], evidence: 'canonical patient lifecycle payload' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one idempotent durable lifecycle row per settled appointment' as const },
+      ],
+    }),
     // The single declared enqueue root for outbound messages (owner ruling 19.08: one universal
     // mechanism taking a context, not one function per message kind). Runtime roles get EXECUTE
     // only -- no table grant on public.outgoing_delivery_queue is added for app_patient/app_staff.

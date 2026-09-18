@@ -81,6 +81,9 @@ import {
   isOutboundMessagePolicyDenied,
 } from '../../adapters/outboundMessagePolicy.js';
 import { isProviderAttemptFailure } from '../../adapters/dispatchPort.js';
+import { handleBookingLifecycleEvent } from '../../../integrations/bersoncare/bookingLifecycleRoute.js';
+import { parseBookingLifecycleEvent } from '../../../integrations/bersoncare/bookingLifecycleSchema.js';
+import type { IdempotencyPort, WebappEventsPort } from '../../../kernel/contracts/index.js';
 
 export type OutgoingDeliveryWorkerDeps = {
   db: DbPort;
@@ -91,6 +94,10 @@ export type OutgoingDeliveryWorkerDeps = {
     module: 'mailings';
   }) => Promise<boolean>;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
+  bookingLifecycle?: {
+    idempotencyPort: IdempotencyPort;
+    webappEventsPort?: WebappEventsPort;
+  };
 };
 
 async function applyDeliverySuccessOutcome(writePort: DbWritePort, queueId: string): Promise<void> {
@@ -670,6 +677,20 @@ export async function processOutgoingDeliveryRow(
 ): Promise<void> {
   const { db, writePort, dispatchOutgoing, resolveWorkspaceModuleEnabled, doctorBroadcastMenu } =
     deps;
+  if (row.kind === 'booking_lifecycle') {
+    const parsed = parseBookingLifecycleEvent(row.payloadJson.event);
+    if (!parsed.success) throw new Error('INVALID_BOOKING_LIFECYCLE_QUEUE_PAYLOAD');
+    if (!deps.bookingLifecycle) throw new Error('BOOKING_LIFECYCLE_WORKER_UNCONFIGURED');
+    await handleBookingLifecycleEvent(parsed.data, { dispatchOutgoing }, {
+      idempotencyPort: deps.bookingLifecycle.idempotencyPort,
+      ...(deps.bookingLifecycle.webappEventsPort
+        ? { webappEventsPort: deps.bookingLifecycle.webappEventsPort }
+        : {}),
+    });
+    // No provider boundary was crossed: a crash in this state is safely reclaimable.
+    await queueMarkSent(db, row.id);
+    return;
+  }
   const intent = parseIntentFromPayload(row.payloadJson);
   if (!intent) {
     await queueMarkDead(db, row.id, 'BAD_PAYLOAD');
@@ -1203,6 +1224,7 @@ export async function runOutgoingDeliveryWorkerTick(input: {
   resolveWorkspaceModuleEnabled?: OutgoingDeliveryWorkerDeps['resolveWorkspaceModuleEnabled'];
   batchSize: number;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
+  bookingLifecycle?: OutgoingDeliveryWorkerDeps['bookingLifecycle'];
 }): Promise<{ claimed: number; processed: number; errors: number }> {
   // The claim/reset step below is tenant-agnostic dispatch (rows were already org-filtered at
   // enqueue time); wrap the whole tick in infra when DB_PRINCIPAL_CONTEXT_MODE is locked, so it doesn't reject
@@ -1219,6 +1241,7 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
   resolveWorkspaceModuleEnabled?: OutgoingDeliveryWorkerDeps['resolveWorkspaceModuleEnabled'];
   batchSize: number;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
+  bookingLifecycle?: OutgoingDeliveryWorkerDeps['bookingLifecycle'];
 }): Promise<{ claimed: number; processed: number; errors: number }> {
   const pendingOutcomeQueueIds = await listPendingSpecialistTaskReminderOutcomes(
     input.db,
@@ -1270,6 +1293,7 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
           ...(input.doctorBroadcastMenu !== undefined
             ? { doctorBroadcastMenu: input.doctorBroadcastMenu }
             : {}),
+          ...(input.bookingLifecycle !== undefined ? { bookingLifecycle: input.bookingLifecycle } : {}),
         });
         processed += 1;
       } catch (err) {
