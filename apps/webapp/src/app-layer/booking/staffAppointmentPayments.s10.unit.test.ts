@@ -20,7 +20,7 @@ const org = 'org-s10';
 const patient = 'patient-s10';
 const input = { organizationId: org, appointmentId: 'a', platformUserId: patient, createdBy: 'doctor', returnUrl: '/app' };
 
-function harness(onlineMinor = 0, slots = 1) {
+function harness(onlineMinor = 0, slots = 1, providerConfigured = true) {
   const refunds: Parameters<PaymentsPort['createRefund']>[0][] = [];
   const history: PaymentHistoryEventRecord[] = [];
   const externalRefunds = new Map<string, number>();
@@ -63,25 +63,75 @@ function harness(onlineMinor = 0, slots = 1) {
   const payments = createPaymentsService({
     port: port as unknown as PaymentsPort,
     config: { getBookingPaymentSettings: async () => ({ enabled: true, defaultProviderId: 'yookassa', fiscalVatCode: '1',
-      providers: [{ id: 'yookassa', label: 'YooKassa', enabled: true, shopId: 'sandbox', apiKey: 'test-only' }] }) },
+      providers: providerConfigured ? [{ id: 'yookassa', label: 'YooKassa', enabled: true, shopId: 'sandbox', apiKey: 'test-only' }] : [] }) },
     bookingEngine: { getAppointment: async (id) => appointment(id), listAppointmentsByChainId: async () => [], transitionAppointmentStatus: vi.fn() },
     captureUnitOfWork: { run: async (_org, fn) => fn(), runSerializedPostCommit: async (_org, _key, fn) => fn() },
   });
   const staff = createStaffAppointmentPaymentsService({ payments,
     patientBooking: { getBookingByCanonicalAppointment: vi.fn(async () => ({ serviceTitleSnapshot: 'Visit', priceMinorSnapshot: 10_000 } as PatientBookingRecord)) },
-    patientPayments: inMemoryPatientPaymentsPort,
+    patientPayments: {
+      ...inMemoryPatientPaymentsPort,
+      // pgPatientPayments returns newest ledger entries first; the in-memory port returns
+      // insertion order. Exercise retries against the runtime ordering at this boundary.
+      listAppointmentPayments: async (appointmentId, patientUserId) =>
+        [...await inMemoryPatientPaymentsPort.listAppointmentPayments(appointmentId, patientUserId)].reverse(),
+    },
     bookingEngine: { listAppointmentFinancialSnapshots: async (_org, ids) => ids.map(appointmentId => ({
       appointmentId, priceMinor: 10_000, priceCurrency: 'RUB', prepaymentMode: 'fixed_minor',
       prepaymentRequiredMinor: 10_000, prepaymentPaidMinor: onlineMinor / slots, paymentDeadlineAt: null,
       prepaymentPercentBps: null, prepaymentAmountMinor: 10_000,
     } satisfies AppointmentFinancialSnapshotRecord)) },
   });
-  return { staff, payments, externalRefunds };
+  return { staff, payments, externalRefunds, history };
 }
 
 beforeEach(() => { __resetInMemoryPatientPaymentsForTest(); vi.clearAllMocks(); });
 
 describe('S10 independent money acceptance', () => {
+  // PAY-APPT-30: the absence of online acquiring cannot prevent actual cash collection.
+  it('S11 K11: accepts prepayment, partial and full cash without an online provider', async () => {
+    const { staff } = harness(0, 1, false);
+    for (const [purpose, amountMinor] of [['prepayment', 2000], ['partial', 3000], ['full', 5000]] as const) {
+      expect(await staff.createPayment({ ...input, action: 'cash', purpose, amountMinor })).toMatchObject({ ok: true });
+    }
+    expect((await staff.getPaymentState(input)).manualPaidMinor).toBe(10_000);
+  });
+
+  // S11 brief explicitly requires safe route retries for each money producer family.
+  it('S11 K7: retrying the same partial cash request does not collect the money twice', async () => {
+    const { staff } = harness();
+    const request = { ...input, action: 'cash' as const, purpose: 'partial' as const, amountMinor: 3000 };
+    await staff.createPayment(request);
+    await staff.createPayment(request);
+    expect((await staff.getPaymentState(input)).manualPaidMinor).toBe(3000);
+  });
+
+  it('S11 K5: repeated retention of the same payment emits one immutable history fact', async () => {
+    const { payments, history } = harness(10_000);
+    const cancel = { appointmentId: 'a', organizationId: org, prepaymentRetained: true, prepaymentRefunded: false };
+    await payments.applyCancelPaymentOutcome(cancel);
+    await payments.applyCancelPaymentOutcome(cancel);
+    expect(history.filter(event => event.eventType === 'prepayment_retained')).toHaveLength(1);
+  });
+
+  it('S11 K7: retrying a cash refund without an optional request ID does not return money twice', async () => {
+    const { staff } = harness();
+    await staff.createPayment({ ...input, action: 'cash', amountMinor: 10_000 });
+    const request = { ...input, method: 'cash' as const, amountMinor: 3000 };
+    await staff.refundPayment(request);
+    await staff.refundPayment(request);
+    expect((await staff.getPaymentState(input)).manualPaidMinor).toBe(7000);
+  });
+
+  it('S11 K4: a provider refund failure records no successful money fact', async () => {
+    const { payments, history, externalRefunds } = harness(10_000);
+    provider.refund.mockRejectedValueOnce(new Error('provider unavailable'));
+    await expect(payments.refundAppointmentPayment({ organizationId: org, appointmentId: 'a', amountMinor: 3000 }))
+      .rejects.toThrow('provider unavailable');
+    expect(history.filter(event => event.eventType === 'refund_succeeded')).toEqual([]);
+    expect([...externalRefunds.values()]).toEqual([]);
+  });
+
   it('K1: collected cash cannot exceed the remaining appointment debt', async () => {
     const { staff } = harness();
     await staff.createPayment({ ...input, action: 'cash', amountMinor: 6_000 });

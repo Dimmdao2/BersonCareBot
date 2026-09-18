@@ -174,6 +174,33 @@ describe('patient web-push relay delivery truth', () => {
 });
 
 describe('S11 persistent lifecycle inbox is independent of external push', () => {
+  // Owner oracle: PAT-NOTIF-01/02/03 — one persistent fact per occurrence, even with no
+  // transports; a later occurrence must remain visible. The fake replaces only storage.
+  it.each(['reminder_due', 'cash_payment', 'refund_succeeded', 'prepayment_retained', 'visit_completed'] as const)(
+    'persists %s without channels and deduplicates replay without losing the next occurrence', async (variant) => {
+      const messages = new Map<string, string>();
+      const port = patientInboxPort(async (input) => {
+        const key = input.integratorMessageId;
+        if (!key) throw new Error('durable occurrence key missing');
+        const created = !messages.has(key);
+        messages.set(key, input.text ?? '');
+        return { id: key, created };
+      });
+      const notifyDeps = lifecycleDeps(port);
+      const event = lifecycleBody({
+        variant, intentType: variant === 'reminder_due' ? 'appointment_reminder' : 'appointment_lifecycle',
+        bookingId: 'appointment-1', occurrenceId: 'occurrence-1', nowIso: '2027-01-02T10:00:00.000Z',
+      });
+      await runPatientWebPushNotify(event, notifyDeps);
+      expect([...messages.values()].filter(Boolean)).toHaveLength(1);
+      await runPatientWebPushNotify({ ...event, suppressExternalPush: false }, notifyDeps);
+      expect([...messages.values()].filter(Boolean)).toHaveLength(1);
+      await runPatientWebPushNotify({ ...event, occurrenceId: 'occurrence-2' }, notifyDeps);
+      expect([...messages.values()].filter(Boolean)).toHaveLength(2);
+      expect(relayOutboundMock).not.toHaveBeenCalled();
+    },
+  );
+
   it('appends the lifecycle fact when external push is suppressed', async () => {
     const appendWebappMessage = vi.fn(async () => ({ id: 'message-1', created: true }));
 
