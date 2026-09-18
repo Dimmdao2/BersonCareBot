@@ -30,6 +30,8 @@ type Props = {
   href?: string;
   onClick?: () => void;
   opensDetails?: boolean;
+  /** Hide the chevron for interactive metric filters that do not open a detail surface. */
+  showDetailsIndicator?: boolean;
   className?: string;
   valueClassName?: string;
   hintClassName?: string;
@@ -58,6 +60,7 @@ export function DoctorStatCard({
   href,
   onClick,
   opensDetails,
+  showDetailsIndicator = true,
   className,
   valueClassName,
   hintClassName,
@@ -237,7 +240,9 @@ export function DoctorStatCard({
   // теряли последнюю букву), поэтому здесь шеврон не в grid-колонке, а наложен абсолютным
   // позиционированием поверх правого паддинга карточки — по высоте он центрируется относительно
   // ВСЕЙ карточки (подпись + число), а не по строке числа.
-  const content = isStacked ? (
+  const content = !showDetailsIndicator ? (
+    <div className="w-full min-w-0">{inner}</div>
+  ) : isStacked ? (
     <div className="relative w-full min-w-0">
       {inner}
       <span

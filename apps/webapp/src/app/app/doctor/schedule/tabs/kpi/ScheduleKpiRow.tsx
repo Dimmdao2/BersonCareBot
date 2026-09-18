@@ -10,10 +10,10 @@ import type { ScheduleKpiFilterKey } from '../scheduleCalendarTypes';
 // ---------------------------------------------------------------------------
 
 const KPI_ITEMS: Array<{ key: ScheduleKpiFilterKey | 'recordsInPeriod'; label: string }> = [
-  { key: 'recordsInPeriod', label: 'Записей всего' },
+  { key: 'recordsInPeriod', label: 'Всего' },
   { key: 'futureInPeriod', label: 'Впереди' },
-  { key: 'firstVisitInPeriod', label: 'Первичных' },
-  { key: 'bySubscriptionInPeriod', label: 'По абонементу' },
+  { key: 'firstVisitInPeriod', label: 'Первичные' },
+  { key: 'bySubscriptionInPeriod', label: 'Абонементы' },
   { key: 'cancellationsInPeriod', label: 'Отмены' },
   { key: 'reschedulesInPeriod', label: 'Переносы' },
 ];
@@ -61,7 +61,7 @@ export function KpiRowTab({
           Период: {periodLabel}
         </p>
       ) : null}
-      <div className="grid grid-cols-2 gap-2" data-testid="cal-kpi-row">
+      <div className="grid grid-cols-2 gap-1.5" data-testid="cal-kpi-row">
       {KPI_ITEMS.map(({ key, label }) => {
         const value = kpis?.[key] ?? 0;
         // «Записей всего» — не обычный фильтр: она отражает состояние «фильтров нет» (выделена по
@@ -81,7 +81,7 @@ export function KpiRowTab({
           <DoctorStatCard
             key={key}
             id={`kpi-${key}`}
-            title={label}
+            title={<span className="whitespace-nowrap">{label}</span>}
             value={
               valuesHidden ? null : kpisLoading && kpis === null ? (
                 <span className="text-sm text-muted-foreground">…</span>
@@ -91,6 +91,8 @@ export function KpiRowTab({
             }
             onClick={handleClick}
             selected={selected}
+            showDetailsIndicator={false}
+            className="py-2 pr-2.5 pl-2.5"
             testId={`kpi-${key}`}
           />
         );

@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
 import { DayPicker } from 'react-day-picker';
 import { ru } from 'react-day-picker/locale';
-import { CalendarDays, Columns3, Filter, List, Search } from 'lucide-react';
+import { CalendarDays, Columns3, Columns4, Filter, List, Search } from 'lucide-react';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
@@ -439,14 +439,6 @@ export function ScheduleCalendarTab({
       setMobileVisibleDateState((current) => (current === dateKey ? current : dateKey));
     }
   }, []);
-
-  useEffect(() => {
-    if (!isActive || !isMobileViewport || view !== 'weekgrid') return;
-    queueMicrotask(() => {
-      setCalendarLoading(true);
-      setViewState('3days');
-    });
-  }, [isActive, isMobileViewport, view]);
 
   // ─── Drill-down day ────────────────────────────────────────────────────────
 
@@ -1254,19 +1246,14 @@ export function ScheduleCalendarTab({
     [],
   );
 
-  /**
-   * Владелец 15.09: «вижу что съехало слово список - давай там иконку списка рисовать без слова».
-   * Четыре подписи в ряд не помещались в ширину правой панели, и «Список» переносился на свою
-   * строку. Режим списка — единственный не-календарный, поэтому именно он уходит в иконку;
-   * подпись остаётся доступной как `aria-label` и всплывающая подсказка.
-   */
+  /** «Список» остаётся компактной иконкой; подпись доступна через aria-label/title. */
   const scheduleViewOptions: Array<{
     key: CalV26View | 'list';
     label: string;
     iconOnly?: boolean;
   }> = [
     { key: '3days', label: '3 дня' },
-    ...(isMobileViewport ? [] : [{ key: 'weekgrid' as const, label: 'Неделя' }]),
+    { key: 'weekgrid', label: 'Неделя' },
     { key: 'month', label: 'Месяц' },
     { key: 'list', label: 'Список', iconOnly: true },
   ];
@@ -1283,48 +1270,57 @@ export function ScheduleCalendarTab({
    * же: какой отрезок времени показан. Теперь это одна карточка в две строки; рамка, заголовок и
    * межблочный зазор экономятся в пользу фильтров ниже.
    *
-   * «Список» — один из вариантов длины периода, отдельной иконки календаря нет. «Неделя» на
-   * мобильном не предлагается (владелец 15.09: «только без недели») — недельная сетка там всё
-   * равно не живёт, отдельный эффект разворачивает `weekgrid` обратно в `3days` на узком экране.
+   * «Список» — один из вариантов длины периода, отдельной иконки календаря нет. По более новому
+   * решению владельца 19.09 недельная сетка снова доступна и на мобильном.
    *
    * Заголовок блока скрыт на десктопе (`xl:hidden`, владелец 15.09) — в постоянно открытой
    * панели он лишний шум; в модалке (планшет и мобильный) остаётся: там блоки идут подряд без
    * контекста страницы.
    */
   const renderSchedulePeriodBlock = (slotKey: 'aside' | 'modal') => (
-    <section className={doctorSectionCardClass}>
-      <h2 className={cn(doctorSectionTitleClass, 'xl:hidden')}>Период</h2>
-      <div className="flex flex-wrap gap-1" role="group" aria-label="Режим отображения">
-        {scheduleViewOptions.map(({ key, label, iconOnly }) => {
-          const active =
-            key === 'list' ? renderMode === 'list' : renderMode === 'calendar' && view === key;
-          return (
-            <Button
-              key={key}
-              type="button"
-              size="sm"
-              variant={active ? 'default' : 'outline'}
-              className={active ? undefined : INACTIVE_TOOLBAR_BUTTON_CLASS}
-              onClick={() => {
-                setFiltersPanelOpen(false);
-                if (view === 'day') {
-                  setDrillBackView(null);
-                  onDeepLinkChange('from', null);
-                }
-                if (key === 'list') {
-                  setRenderMode('list');
-                  return;
-                }
-                setRenderMode('calendar');
-                setView(key);
-              }}
-              data-testid={key === 'list' ? 'render-btn-list' : `view-btn-${key}`}
-              {...(iconOnly ? { 'aria-label': label, title: label } : {})}
-            >
-              {iconOnly ? <List className="size-4" aria-hidden /> : label}
-            </Button>
-          );
-        })}
+    <section className={cn(doctorSectionCardClass, slotKey === 'modal' && 'gap-2 p-3')}>
+      <div className="flex min-w-0 items-center gap-2">
+        <h2 className={cn(doctorSectionTitleClass, 'shrink-0 xl:hidden')}>Период</h2>
+        <div
+          className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1"
+          role="group"
+          aria-label="Режим отображения"
+        >
+          {scheduleViewOptions.map(({ key, label, iconOnly }) => {
+            const active =
+              key === 'list' ? renderMode === 'list' : renderMode === 'calendar' && view === key;
+            return (
+              <Button
+                key={key}
+                type="button"
+                size="sm"
+                variant={active ? 'default' : 'outline'}
+                className={cn(
+                  'h-8 px-2 text-xs',
+                  !active && INACTIVE_TOOLBAR_BUTTON_CLASS,
+                  iconOnly && 'w-8 px-0',
+                )}
+                onClick={() => {
+                  setFiltersPanelOpen(false);
+                  if (view === 'day') {
+                    setDrillBackView(null);
+                    onDeepLinkChange('from', null);
+                  }
+                  if (key === 'list') {
+                    setRenderMode('list');
+                    return;
+                  }
+                  setRenderMode('calendar');
+                  setView(key);
+                }}
+                data-testid={key === 'list' ? 'render-btn-list' : `view-btn-${key}`}
+                {...(iconOnly ? { 'aria-label': label, title: label } : {})}
+              >
+                {iconOnly ? <List className="size-4" aria-hidden /> : label}
+              </Button>
+            );
+          })}
+        </div>
       </div>
       {/* Drill-down «День»: показываем если сейчас day (клик по дню в месяце) */}
       {view === 'day' ? (
@@ -2519,7 +2515,9 @@ export function ScheduleCalendarTab({
                   ? 'Список. Переключить на три дня'
                   : view === 'month'
                     ? 'Месяц. Переключить на список'
-                    : 'Три дня. Переключить на месяц'
+                    : view === 'weekgrid'
+                      ? 'Неделя. Переключить на месяц'
+                      : 'Три дня. Переключить на неделю'
               }
               onClick={() => {
                 setFiltersPanelOpen(false);
@@ -2537,13 +2535,15 @@ export function ScheduleCalendarTab({
                   setDrillBackView(null);
                   onDeepLinkChange('from', null);
                 }
-                setView('month');
+                setView(view === '3days' ? 'weekgrid' : 'month');
               }}
             >
               {renderMode === 'list' ? (
                 <List className="size-4" aria-hidden />
               ) : view === 'month' ? (
                 <CalendarDays className="size-4" aria-hidden />
+              ) : view === 'weekgrid' ? (
+                <Columns4 className="size-4" aria-hidden />
               ) : (
                 <Columns3 className="size-4" aria-hidden />
               )}
@@ -3206,7 +3206,7 @@ export function ScheduleCalendarTab({
         title="Фильтры"
         size="lg"
         variant="panel"
-        bodyClassName="p-4"
+        bodyClassName="p-3"
       >
         <div id="schedule-filters-panel" className="flex flex-col gap-3">
           {/* Владелец 15.09: «в модалке мобильного пусть будет так же две верхние строки — выбор
