@@ -20359,8 +20359,26 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "grants": [
       {
         "role": "app_staff",
-        "operations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+        "operations": ["SELECT", "DELETE"],
         "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": ["INSERT"],
+        "columns": [
+          "conversation_id",
+          "organization_id",
+          "staff_user_id",
+          "target_message_id"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": ["UPDATE"],
+        "columns": [
+          "marked_at",
+          "target_message_id"
+        ]
       }
     ]
   },
