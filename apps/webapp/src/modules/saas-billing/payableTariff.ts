@@ -16,6 +16,17 @@ export function isFreeTariffPrice(priceMinor: number | null | undefined): boolea
 }
 
 /**
+ * Нулевой тариф — закрытое предложение платформы: его назначает только администратор конкретной
+ * организации. Все активные периоды должны быть бесплатными; смешанная матрица остаётся обычным
+ * публичным тарифом, потому что в ней есть доступный для покупки период.
+ */
+export function isAdminAssignedOnlyTariff(
+  periodPrices: readonly { priceMinor: number }[],
+): boolean {
+  return periodPrices.length > 0 && periodPrices.every((row) => isFreeTariffPrice(row.priceMinor));
+}
+
+/**
  * Решение владельца 18.08.2026, дословно: «клиент получает то что оплачено. То что не оплачено не
  * получает. Вот и все».
  *

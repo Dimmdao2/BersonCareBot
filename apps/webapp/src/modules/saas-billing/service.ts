@@ -39,6 +39,7 @@ function requireProratedPurchaseInvoiceExpiresAt(invoice: { expiresAt: string | 
 }
 import {
   SAAS_BILLING_TARIFF_NOT_PAYABLE,
+  isAdminAssignedOnlyTariff,
   isFreeTariffPrice,
   purchasedTariffId,
 } from './payableTariff';
@@ -1197,8 +1198,17 @@ export function createSaasBillingService(dependencies: {
       const pendingTariffId = subscription?.pendingTariffId ?? null;
       const purchasedTariffChoiceId = purchasedTariffId({ tariffId: currentTariffId, pendingTariffId });
       const purchasedChoice = choices.find((choice) => choice.id === purchasedTariffChoiceId) ?? null;
+      const visibleChoices = choices
+        .filter(
+          (choice) =>
+            !isAdminAssignedOnlyTariff(choice.periodPrices) || choice.id === assignedTariffId,
+        )
+        .map((choice) => ({
+          ...choice,
+          isSelfServiceSelectable: !isAdminAssignedOnlyTariff(choice.periodPrices),
+        }));
       return {
-        choices,
+        choices: visibleChoices,
         currentTariffId,
         pendingTariffId,
         // #1069 owner decision 2026-09-05 (period grid) — the (tariff, period) pair currently
@@ -1239,6 +1249,12 @@ export function createSaasBillingService(dependencies: {
       const choices = await dependencies.repository.listActiveTariffChoices();
       const targetChoice = choices.find((choice) => choice.id === input.tariffId);
       if (!targetChoice) throw new Error('saas_billing_tariff_not_found');
+      // Нулевые тарифы выдаёт только платформенный администратор. Проверка живёт на серверной
+      // двери, поэтому подстановка известного UUID в clinic API не превращает закрытый тариф в
+      // публичный выбор.
+      if (isAdminAssignedOnlyTariff(targetChoice.periodPrices)) {
+        throw new Error('saas_billing_tariff_not_found');
+      }
       if (!targetChoice.periodPrices.some((row) => row.billingPeriodCode === input.billingPeriodCode)) {
         throw new Error('saas_billing_period_not_priced_for_tariff');
       }

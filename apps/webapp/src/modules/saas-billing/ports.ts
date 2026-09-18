@@ -489,9 +489,9 @@ export type SaasBillingRepositoryPort = {
     | { outcome: 'payment_required' }
   >;
   /**
-   * Active public tariff choices for the caller's own clinic billing screen. `periodPrices` is
-   * what the free-tariff rule (`payableTariff.ts`) and the picker UI read — a tariff no longer has
-   * one price, so the caller resolves the amount for whichever period it is quoting/selecting.
+   * Active tariff catalog for the clinic-billing service. The service removes zero-priced
+   * admin-only tariffs from self-service output, except for the one already assigned to the
+   * caller's organization. `periodPrices` is also the source for the selected period amount.
    */
   listActiveTariffChoices(): Promise<
     Array<{

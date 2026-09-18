@@ -71,6 +71,8 @@ export type ClinicTariffChangeState = {
      * selectable period; the picker below reads it directly instead of trusting a client amount.
      */
     periodPrices: Array<{ billingPeriodCode: string; priceMinor: number }>;
+    /** False for a zero-priced tariff assigned directly by the platform administrator. */
+    isSelfServiceSelectable: boolean;
   }>;
   currentTariffId: string | null;
   pendingTariffId: string | null;
@@ -94,15 +96,32 @@ export function PayTariffButton({
   tariffChange: ClinicTariffChangeState;
   billingEmail: string | null;
 }) {
-  const [pending, setPending] = useState(false);
-  const [selectedTariffId, setSelectedTariffId] = useState(
-    tariffChange.pendingTariffId ?? tariffChange.currentTariffId ?? '',
+  const selfServiceChoices = tariffChange.choices.filter(
+    (choice) => choice.isSelfServiceSelectable,
   );
+  const initialSelectedTariffId =
+    selfServiceChoices.find((choice) => choice.id === tariffChange.pendingTariffId)?.id ??
+    selfServiceChoices.find((choice) => choice.id === tariffChange.currentTariffId)?.id ??
+    selfServiceChoices[0]?.id ??
+    '';
+  const initialSelectedTariff = selfServiceChoices.find(
+    (choice) => choice.id === initialSelectedTariffId,
+  );
+  const [pending, setPending] = useState(false);
+  const [selectedTariffId, setSelectedTariffId] = useState(initialSelectedTariffId);
   const [pendingTariffId, setPendingTariffId] = useState(tariffChange.pendingTariffId);
   // #1069 owner decision 2026-09-05 (period grid) — the pair being purchased is `tariffId` +
   // `billingPeriodCode`; the amount is never sent, only looked up here to label the option.
   const [selectedBillingPeriodCode, setSelectedBillingPeriodCode] = useState(
-    tariffChange.pendingBillingPeriodCode ?? tariffChange.currentBillingPeriodCode ?? '',
+    initialSelectedTariff?.periodPrices.some(
+      (row) => row.billingPeriodCode === tariffChange.pendingBillingPeriodCode,
+    )
+      ? (tariffChange.pendingBillingPeriodCode ?? '')
+      : initialSelectedTariff?.periodPrices.some(
+            (row) => row.billingPeriodCode === tariffChange.currentBillingPeriodCode,
+          )
+        ? (tariffChange.currentBillingPeriodCode ?? '')
+        : (initialSelectedTariff?.periodPrices[0]?.billingPeriodCode ?? ''),
   );
   const [billingEmail, setBillingEmail] = useState(initialBillingEmail ?? '');
   const [savedBillingEmail, setSavedBillingEmail] = useState(initialBillingEmail ?? '');
@@ -183,9 +202,18 @@ export function PayTariffButton({
       const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!body?.ok) toast.error(formatError(body?.error));
       else {
+        const fallbackTariff =
+          selfServiceChoices.find((choice) => choice.id === tariffChange.currentTariffId) ??
+          selfServiceChoices[0];
         setPendingTariffId(null);
-        setSelectedTariffId(tariffChange.currentTariffId ?? '');
-        setSelectedBillingPeriodCode(tariffChange.currentBillingPeriodCode ?? '');
+        setSelectedTariffId(fallbackTariff?.id ?? '');
+        setSelectedBillingPeriodCode(
+          fallbackTariff?.periodPrices.some(
+            (row) => row.billingPeriodCode === tariffChange.currentBillingPeriodCode,
+          )
+            ? (tariffChange.currentBillingPeriodCode ?? '')
+            : (fallbackTariff?.periodPrices[0]?.billingPeriodCode ?? ''),
+        );
       }
     } catch {
       toast.error(formatError(undefined));
@@ -236,7 +264,7 @@ export function PayTariffButton({
           <SelectValue placeholder="Выберите тариф" />
         </SelectTrigger>
         <SelectContent>
-          {tariffChange.choices.map((choice) => (
+          {selfServiceChoices.map((choice) => (
             <SelectItem key={choice.id} value={choice.id} label={choice.name}>
               {choice.name}
             </SelectItem>
