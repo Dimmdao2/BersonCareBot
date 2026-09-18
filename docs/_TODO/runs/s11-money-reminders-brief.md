@@ -20,6 +20,10 @@ lifecycle→Notifications passage:
 3. Успешный возврат по записи — provider/automatic и cash: возврат и durable lifecycle job атомарны; запрос
    возврата или provider failure не являются успешным patient fact.
 4. Удержание предоплаты: immutable `prepayment_retained` history fact и durable lifecycle job атомарны.
+5. Состоявшийся визит: существующий переход канонической записи в `completed` или `visit_confirmed` через
+   `transitionAppointmentStatus`/`status_changed` создаёт один durable patient-visible fact. Это не новый статус и
+   не новая бизнес-механика — пациент уже видит состоявшийся визит в истории; здесь закрывается только разрыв
+   доставки этого существующего факта в «Уведомления».
 
 Один доменный факт даёт одну запись `patientNotifications` со стабильным ключом от immutable occurrence/ledger/
 history id. Повтор route, worker, webhook или provider callback не создаёт дубль. Transient consumer failure
@@ -36,9 +40,8 @@ best-effort/`after()`/прямую отправку и не заводи вто�
 параллельной схемы. Payload несёт идентификаторы факта; отображаемые данные replay читает из канонических таблиц
 после commit и fail-closed связывает organization, patient, appointment и money/reminder fact.
 
-`completed`/`visit_confirmed` в этот bounded-этап не добавлять: предыдущий аудит не нашёл согласованного
-patient-visible producer/event contract. Зафиксируй точное текущее состояние отдельной строкой в evidence, без
-самовольного текста или нового продуктового события; финальный lead сверит это с PAT-NOTIF-01.
+Для визита переиспользуй общий immutable `be_appointment_history_events` факт и существующую терминологию статуса;
+не добавляй второй visit journal и не меняй правила переходов/FSM.
 
 ## Проверки
 
