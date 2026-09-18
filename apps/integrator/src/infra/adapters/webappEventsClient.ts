@@ -131,6 +131,32 @@ export function createWebappEventsPort(deps: {
   }
 
   return {
+    async processBookingLifecycle(input) {
+      const result = await postSignedJson({
+        path: '/api/integrator/appointments/lifecycle',
+        body: input.body,
+        idempotencyKey: input.idempotencyKey,
+      });
+      return {
+        ok: result.ok,
+        status: result.status,
+        ...(result.error ? { error: result.error } : {}),
+      };
+    },
+
+    async processCapturedBookingPayment(input) {
+      const result = await postSignedJson({
+        path: '/api/integrator/appointments/payment-captured',
+        body: input.body,
+        idempotencyKey: input.idempotencyKey,
+      });
+      return {
+        ok: result.ok,
+        status: result.status,
+        ...(result.error ? { error: result.error } : {}),
+      };
+    },
+
     async getWorkspaceModuleStatus(input: { organizationId: string; module: 'mailings' }) {
       const body = JSON.stringify(input);
       return postSignedJson({

@@ -423,8 +423,8 @@ function shouldCancelPendingReminders(payload: BookingLifecyclePayloadValidated)
 /** D14(2): webapp's field (including explicit `null`) wins; absent field keeps the old per-event default. */
 function resolvePatientPushVariant(
   payload: BookingLifecyclePayloadValidated,
-  defaultVariant: 'created' | 'cancelled' | 'rescheduled',
-): 'created' | 'cancelled' | 'rescheduled' | null {
+  defaultVariant: 'created' | 'awaiting_payment' | 'cancelled' | 'rescheduled',
+): 'created' | 'awaiting_payment' | 'cancelled' | 'rescheduled' | null {
   return payload.patientPushVariant !== undefined ? payload.patientPushVariant : defaultVariant;
 }
 
@@ -565,13 +565,23 @@ async function sendBookingWebPush(input: {
   organizationId: string;
   webappEventsPort?: WebappEventsPort;
   phoneNormalized: string | null;
+  platformUserId?: string;
+  bookingId: string;
+  occurrenceId?: string;
   intentType: 'appointment_lifecycle' | 'appointment_reminder';
   slotStartIso: string;
   stableKey: string;
-  variant?: 'created' | 'cancelled' | 'rescheduled';
+  variant?: 'created' | 'awaiting_payment' | 'cancelled' | 'rescheduled' | 'payment_captured';
+  paymentCheckoutUrl?: string;
+  paymentDeadlineAt?: string;
+  suppressExternalPush?: boolean;
   nowIso?: string;
 }): Promise<void> {
-  if (!input.webappEventsPort?.notifyPatientWebPush || !input.phoneNormalized) return;
+  if (
+    !input.webappEventsPort?.notifyPatientWebPush ||
+    (!input.phoneNormalized && !input.platformUserId)
+  )
+    return;
   const base = env.APP_BASE_URL.replace(/\/$/, '');
   const openUrl =
     input.intentType === 'appointment_lifecycle'
@@ -579,10 +589,16 @@ async function sendBookingWebPush(input: {
       : `${base}/app/patient/booking`;
   const body = JSON.stringify({
     organizationId: input.organizationId,
-    phoneNormalized: input.phoneNormalized,
+    ...(input.phoneNormalized ? { phoneNormalized: input.phoneNormalized } : {}),
+    ...(input.platformUserId ? { platformUserId: input.platformUserId } : {}),
+    bookingId: input.bookingId,
+    ...(input.occurrenceId ? { occurrenceId: input.occurrenceId } : {}),
     topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
     intentType: input.intentType,
     ...(input.variant ? { variant: input.variant } : {}),
+    ...(input.paymentCheckoutUrl ? { paymentCheckoutUrl: input.paymentCheckoutUrl } : {}),
+    ...(input.paymentDeadlineAt ? { paymentDeadlineAt: input.paymentDeadlineAt } : {}),
+    ...(input.suppressExternalPush === true ? { suppressExternalPush: true } : {}),
     slotStartIso: input.slotStartIso,
     openUrl,
     stableKey: input.stableKey,
@@ -605,8 +621,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   const appointmentId = payload.canonicalAppointmentId;
   if (eventType === 'booking.deleted') {
     if (appointmentId) {
-      try {
-        await syncCanonicalAppointmentToCalendar(
+      await syncCanonicalAppointmentToCalendar(
           {
             action: resolveCalendarAction(payload, 'canceled'),
             appointmentId,
@@ -615,13 +630,10 @@ async function trySyncCanonicalBookingToGoogleCalendar(
             endAt: payload.slotEnd,
             clientName: payload.contactName,
             serviceTitle: payload.serviceTitleSnapshot ?? null,
-            phoneNormalized: normalizeRuPhoneE164(payload.contactPhone),
+            phoneNormalized: normalizeRuPhoneE164(payload.contactPhone ?? ''),
           },
           { dispatchPort, db: createDbPort() },
         );
-      } catch (err) {
-        logger.warn({ err, appointmentId, eventType }, 'canonical GCal delete failed');
-      }
       return;
     }
     return;
@@ -643,8 +655,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
       : eventType === 'booking.reschedule_requested'
         ? 'reschedule_pending'
         : 'none';
-  try {
-    await syncCanonicalAppointmentToCalendar(
+  await syncCanonicalAppointmentToCalendar(
       {
         action: resolveCalendarAction(payload, computedAction),
         appointmentId,
@@ -653,14 +664,11 @@ async function trySyncCanonicalBookingToGoogleCalendar(
         endAt: payload.slotEnd,
         clientName: payload.contactName,
         serviceTitle: payload.serviceTitleSnapshot ?? null,
-        phoneNormalized: normalizeRuPhoneE164(payload.contactPhone),
+        phoneNormalized: normalizeRuPhoneE164(payload.contactPhone ?? ''),
         titleMarker: resolveCalendarTitleMarker(payload, computedTitleMarker),
       },
       { dispatchPort, db: createDbPort() },
     );
-  } catch (err) {
-    logger.warn({ err, appointmentId, eventType }, 'canonical GCal sync failed');
-  }
 }
 
 /**
@@ -716,7 +724,7 @@ function bookingLifecycleSteps(input: {
 
   const patientPushStep = (
     stableKey: string,
-    variant: 'created' | 'cancelled' | 'rescheduled',
+    variant: 'created' | 'awaiting_payment' | 'cancelled' | 'rescheduled' | 'payment_captured',
   ): BookingLifecycleStep => ({
     name: 'patient_web_push',
     run: () =>
@@ -724,10 +732,18 @@ function bookingLifecycleSteps(input: {
         organizationId: payload.organizationId,
         ...(webappEventsPort ? { webappEventsPort } : {}),
         phoneNormalized: contactPhone,
+        ...(payload.userId ? { platformUserId: payload.userId } : {}),
+        bookingId,
+        ...(payload.occurrenceId ? { occurrenceId: payload.occurrenceId } : {}),
         intentType: 'appointment_lifecycle',
         variant,
+        ...(payload.paymentCheckoutUrl
+          ? { paymentCheckoutUrl: payload.paymentCheckoutUrl }
+          : {}),
+        ...(payload.paymentDeadlineAt ? { paymentDeadlineAt: payload.paymentDeadlineAt } : {}),
         slotStartIso: payload.slotStart,
         stableKey,
+        suppressExternalPush: payload.suppressPatientNotification === true,
       }),
   });
 
@@ -742,7 +758,7 @@ function bookingLifecycleSteps(input: {
         ...(payload.canonicalAppointmentId
           ? { appointmentId: payload.canonicalAppointmentId }
           : {}),
-        platformUserId: payload.userId,
+        ...(payload.userId ? { platformUserId: payload.userId } : {}),
         bookingId,
         slotStartIso: payload.slotStart,
         phoneNormalized: contactPhone,
@@ -786,9 +802,44 @@ function bookingLifecycleSteps(input: {
       );
     }
     steps.push(
+      // Inbox is a product fact, not an external channel. The web-push passage appends it
+      // before applying recipient channel selection; an explicit message suppression only
+      // suppresses external delivery.
+      patientPushStep(`booking-created:${bookingId}`, 'created'),
       remindersStep({
         ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
         cancelPending: shouldCancelPendingReminders(payload) && !payload.reminderPlan?.enabled,
+      }),
+      calendarStep,
+    );
+    return steps;
+  }
+
+  if (eventType === 'booking.awaiting_payment') {
+    const steps: BookingLifecycleStep[] = [];
+    if (payload.suppressPatientNotification !== true) {
+      steps.push(
+        patientMessageStep(
+          `booking-awaiting-payment:${payload.occurrenceId ?? bookingId}`,
+          async () => payload.patientMessageText!,
+        ),
+      );
+    }
+    if (shouldNotifyDoctor(payload)) {
+      steps.push(
+        doctorMessageStep(`booking-awaiting-payment:${payload.occurrenceId ?? bookingId}`, async () =>
+          doctorCreatedText(payload, await displayTimeZone()),
+        ),
+      );
+    }
+    steps.push(
+      patientPushStep(
+        `booking-awaiting-payment:${payload.occurrenceId ?? bookingId}`,
+        'awaiting_payment',
+      ),
+      remindersStep({
+        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
+        cancelPending: false,
       }),
       calendarStep,
     );
@@ -811,10 +862,16 @@ function bookingLifecycleSteps(input: {
           ),
         ),
       );
-      const cancelledPushVariant = resolvePatientPushVariant(payload, 'cancelled');
-      if (cancelledPushVariant) {
-        steps.push(patientPushStep(`booking-cancelled:${bookingId}`, cancelledPushVariant));
-      }
+    }
+    // Persistent inbox is a lifecycle fact; only the external push delivery is suppressed.
+    const cancelledPushVariant = resolvePatientPushVariant(payload, 'cancelled');
+    if (cancelledPushVariant) {
+      steps.push(
+        patientPushStep(
+          `booking-cancelled:${payload.occurrenceId ?? bookingId}`,
+          cancelledPushVariant,
+        ),
+      );
     }
     if (shouldNotifyDoctor(payload)) {
       steps.push(
@@ -828,17 +885,20 @@ function bookingLifecycleSteps(input: {
   }
 
   if (eventType === 'booking.rescheduled') {
-    const steps: BookingLifecycleStep[] = [
-      patientMessageStep(`booking-rescheduled:${bookingId}`, async () =>
-        resolvePatientMessageText(
-          payload,
-          patientRescheduledText(payload, await displayTimeZone()),
+    const steps: BookingLifecycleStep[] = [];
+    if (payload.suppressPatientNotification !== true) {
+      steps.push(
+        patientMessageStep(`booking-rescheduled:${payload.occurrenceId ?? bookingId}`, async () =>
+          resolvePatientMessageText(
+            payload,
+            patientRescheduledText(payload, await displayTimeZone()),
+          ),
         ),
-      ),
-    ];
+      );
+    }
     if (shouldNotifyDoctor(payload)) {
       steps.push(
-        doctorMessageStep(`booking-rescheduled:${bookingId}`, async () =>
+        doctorMessageStep(`booking-rescheduled:${payload.occurrenceId ?? bookingId}`, async () =>
           resolveDoctorMessageText(
             payload,
             doctorRescheduledText(payload, await displayTimeZone()),
@@ -848,7 +908,12 @@ function bookingLifecycleSteps(input: {
     }
     const rescheduledPushVariant = resolvePatientPushVariant(payload, 'rescheduled');
     if (rescheduledPushVariant) {
-      steps.push(patientPushStep(`booking-rescheduled:${bookingId}`, rescheduledPushVariant));
+      steps.push(
+        patientPushStep(
+          `booking-rescheduled:${payload.occurrenceId ?? bookingId}`,
+          rescheduledPushVariant,
+        ),
+      );
     }
     steps.push(
       remindersStep({
@@ -892,6 +957,7 @@ function bookingLifecycleSteps(input: {
       );
     }
     steps.push(
+      patientPushStep(`booking-payment:${bookingId}`, 'payment_captured'),
       remindersStep({
         ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
         cancelPending: false,

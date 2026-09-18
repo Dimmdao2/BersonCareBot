@@ -324,6 +324,16 @@ export type SupportQuestionCanonicalWrite = {
 
 /** Port for signed integrator-to-webapp operations. */
 export type WebappEventsPort = {
+  /** Durable appointment/history job: webapp rebuilds one canonical lifecycle event after commit. */
+  processBookingLifecycle?(input: {
+    body: string;
+    idempotencyKey: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
+  /** Durable payment-level job: webapp rebuilds the canonical multi-slot projection and messages. */
+  processCapturedBookingPayment?(input: {
+    body: string;
+    idempotencyKey: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
   /** Canonical webapp-owned workspace preference read used by delivery-time gates. */
   getWorkspaceModuleStatus?(input: {
     organizationId: string;

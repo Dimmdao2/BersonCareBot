@@ -81,6 +81,9 @@ import {
   isOutboundMessagePolicyDenied,
 } from '../../adapters/outboundMessagePolicy.js';
 import { isProviderAttemptFailure } from '../../adapters/dispatchPort.js';
+import { handleBookingLifecycleEvent } from '../../../integrations/bersoncare/bookingLifecycleRoute.js';
+import { parseBookingLifecycleEvent } from '../../../integrations/bersoncare/bookingLifecycleSchema.js';
+import type { IdempotencyPort, WebappEventsPort } from '../../../kernel/contracts/index.js';
 
 export type OutgoingDeliveryWorkerDeps = {
   db: DbPort;
@@ -91,6 +94,10 @@ export type OutgoingDeliveryWorkerDeps = {
     module: 'mailings';
   }) => Promise<boolean>;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
+  bookingLifecycle?: {
+    idempotencyPort: IdempotencyPort;
+    webappEventsPort?: WebappEventsPort;
+  };
 };
 
 async function applyDeliverySuccessOutcome(writePort: DbWritePort, queueId: string): Promise<void> {
@@ -190,6 +197,7 @@ async function finalizeClaimedRowFailure(
   const message = err instanceof Error ? err.message : String(err);
   const safeError = truncateDeliveryErrorMessage(message);
   if (row.attemptCount >= row.maxAttempts) {
+    await recordBookingLifecycleReplayDeadIncident(row);
     await queueMarkDead(db, row.id, safeError);
     return;
   }
@@ -199,6 +207,45 @@ async function finalizeClaimedRowFailure(
     retryDelaySecondsAfterFailure(row.attemptCount, row.kind),
     safeError,
   );
+}
+
+async function recordBookingLifecycleReplayDeadIncident(
+  row: OutgoingDeliveryQueueRow,
+): Promise<void> {
+  if (row.kind !== 'booking_lifecycle') return;
+  const bookingLifecycle = row.payloadJson.bookingLifecycle;
+  const paymentCaptured = row.payloadJson.paymentCaptured;
+  const isBookingLifecycle =
+    Boolean(bookingLifecycle) &&
+    typeof bookingLifecycle === 'object' &&
+    !Array.isArray(bookingLifecycle);
+  const isPaymentCaptured =
+    Boolean(paymentCaptured) && typeof paymentCaptured === 'object' && !Array.isArray(paymentCaptured);
+  if (!isBookingLifecycle && !isPaymentCaptured) return;
+  const direction = isBookingLifecycle
+    ? 'booking_lifecycle_replay'
+    : 'booking_payment_lifecycle_replay';
+  const integration = isBookingLifecycle ? 'webapp_booking_lifecycle' : 'webapp_payment_captured';
+  const errorClass = isBookingLifecycle
+    ? 'booking_lifecycle_replay_dead'
+    : 'payment_captured_replay_dead';
+  const errorDetail = isBookingLifecycle
+    ? 'booking_lifecycle_terminal_replay_failure'
+    : 'payment_captured_terminal_replay_failure';
+  try {
+    await recordOperatorFailureIncident({
+      direction,
+      integration,
+      errorClass,
+      // Stable and deliberately low-cardinality: no identifiers, raw payload, PII, or error text.
+      errorDetail,
+    });
+  } catch (err) {
+    logger.warn(
+      { err, rowId: row.id, direction, errorClass },
+      'booking_lifecycle_replay_dead_incident_record_failed',
+    );
+  }
 }
 
 function asChatIdFromRecipient(recipient: unknown): number | null {
@@ -670,6 +717,54 @@ export async function processOutgoingDeliveryRow(
 ): Promise<void> {
   const { db, writePort, dispatchOutgoing, resolveWorkspaceModuleEnabled, doctorBroadcastMenu } =
     deps;
+  if (row.kind === 'booking_lifecycle') {
+    const durableLifecycle = row.payloadJson.bookingLifecycle;
+    if (durableLifecycle && typeof durableLifecycle === 'object' && !Array.isArray(durableLifecycle)) {
+      if (!deps.bookingLifecycle?.webappEventsPort?.processBookingLifecycle) {
+        throw new Error('BOOKING_LIFECYCLE_WORKER_UNCONFIGURED');
+      }
+      const result = await deps.bookingLifecycle.webappEventsPort.processBookingLifecycle({
+        body: JSON.stringify(durableLifecycle),
+        idempotencyKey: row.eventId,
+      });
+      if (!result.ok) {
+        throw new Error(
+          `WEBAPP_BOOKING_LIFECYCLE_FAILED:${result.status}:${result.error ?? ''}`,
+        );
+      }
+      await queueMarkSent(db, row.id);
+      return;
+    }
+    const durablePayment = row.payloadJson.paymentCaptured;
+    if (durablePayment && typeof durablePayment === 'object' && !Array.isArray(durablePayment)) {
+      if (!deps.bookingLifecycle?.webappEventsPort?.processCapturedBookingPayment) {
+        throw new Error('BOOKING_LIFECYCLE_PAYMENT_WORKER_UNCONFIGURED');
+      }
+      const result = await deps.bookingLifecycle.webappEventsPort.processCapturedBookingPayment({
+        body: JSON.stringify(durablePayment),
+        idempotencyKey: row.eventId,
+      });
+      if (!result.ok) {
+        throw new Error(
+          `WEBAPP_CAPTURED_PAYMENT_LIFECYCLE_FAILED:${result.status}:${result.error ?? ''}`,
+        );
+      }
+      await queueMarkSent(db, row.id);
+      return;
+    }
+    const parsed = parseBookingLifecycleEvent(row.payloadJson.event);
+    if (!parsed.success) throw new Error('INVALID_BOOKING_LIFECYCLE_QUEUE_PAYLOAD');
+    if (!deps.bookingLifecycle) throw new Error('BOOKING_LIFECYCLE_WORKER_UNCONFIGURED');
+    await handleBookingLifecycleEvent(parsed.data, { dispatchOutgoing }, {
+      idempotencyPort: deps.bookingLifecycle.idempotencyPort,
+      ...(deps.bookingLifecycle.webappEventsPort
+        ? { webappEventsPort: deps.bookingLifecycle.webappEventsPort }
+        : {}),
+    });
+    // No provider boundary was crossed: a crash in this state is safely reclaimable.
+    await queueMarkSent(db, row.id);
+    return;
+  }
   const intent = parseIntentFromPayload(row.payloadJson);
   if (!intent) {
     await queueMarkDead(db, row.id, 'BAD_PAYLOAD');
@@ -1203,6 +1298,7 @@ export async function runOutgoingDeliveryWorkerTick(input: {
   resolveWorkspaceModuleEnabled?: OutgoingDeliveryWorkerDeps['resolveWorkspaceModuleEnabled'];
   batchSize: number;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
+  bookingLifecycle?: OutgoingDeliveryWorkerDeps['bookingLifecycle'];
 }): Promise<{ claimed: number; processed: number; errors: number }> {
   // The claim/reset step below is tenant-agnostic dispatch (rows were already org-filtered at
   // enqueue time); wrap the whole tick in infra when DB_PRINCIPAL_CONTEXT_MODE is locked, so it doesn't reject
@@ -1219,6 +1315,7 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
   resolveWorkspaceModuleEnabled?: OutgoingDeliveryWorkerDeps['resolveWorkspaceModuleEnabled'];
   batchSize: number;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
+  bookingLifecycle?: OutgoingDeliveryWorkerDeps['bookingLifecycle'];
 }): Promise<{ claimed: number; processed: number; errors: number }> {
   const pendingOutcomeQueueIds = await listPendingSpecialistTaskReminderOutcomes(
     input.db,
@@ -1270,6 +1367,7 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
           ...(input.doctorBroadcastMenu !== undefined
             ? { doctorBroadcastMenu: input.doctorBroadcastMenu }
             : {}),
+          ...(input.bookingLifecycle !== undefined ? { bookingLifecycle: input.bookingLifecycle } : {}),
         });
         processed += 1;
       } catch (err) {

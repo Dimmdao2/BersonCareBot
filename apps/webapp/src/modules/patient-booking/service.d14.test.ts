@@ -2,16 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPatientBookingService } from './service';
 import type { PatientBookingRecord } from './types';
 import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
-import {
-  buildPatientCancelledMessageText,
-  buildPatientRescheduledMessageText,
-} from './patientMessageText';
-
-/**
- * D14, часть 4: пациентские отмена/перенос (в отличие от врачебных — те уже покрыты D14 частями 1-2)
- * должны слать `cancelPendingReminders`, `patientPushVariant` и `patientMessageText` в событие
- * интегратора. До этой правки `cancelBooking` не клал ни одно из трёх полей.
- */
 
 function fakeRecord(overrides: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
@@ -146,93 +136,7 @@ function buildService(input: {
   return service;
 }
 
-describe('D14: пациентская отмена шлёт cancelPendingReminders/patientPushVariant/patientMessageText', () => {
-  it('cancelBooking кладёт все три поля', async () => {
-    const events: Array<Record<string, unknown>> = [];
-    const service = buildService({ events, getAppDisplayTimeZone: async () => 'Europe/Moscow' });
-
-    const result = await service.cancelBooking({ userId: 'user-1', bookingId: 'booking-1' });
-
-    expect(result.ok).toBe(true);
-    expect(events).toHaveLength(1);
-    expect(events[0]!.cancelPendingReminders).toBe(true);
-    expect(events[0]!.patientPushVariant).toBe('cancelled');
-    // Текст закреплён у сборщика сообщений; здесь проверяется, что в событие попал именно он.
-    expect(events[0]!.patientMessageText).toBe(
-      buildPatientCancelledMessageText({ slotStart: '2027-03-10T09:00:00.000Z' }, 'Europe/Moscow'),
-    );
-  });
-
-  it('регрессия: если поля пропадут, тест краснеет', async () => {
-    const events: Array<Record<string, unknown>> = [];
-    const service = buildService({ events });
-
-    await service.cancelBooking({ userId: 'user-1', bookingId: 'booking-1' });
-
-    expect(events[0]!.cancelPendingReminders).toBe(true);
-    expect(events[0]!.patientPushVariant).toBe('cancelled');
-    expect(typeof events[0]!.patientMessageText).toBe('string');
-  });
-});
-
-describe('D14: пациентский перенос шлёт cancelPendingReminders/patientPushVariant/patientMessageText', () => {
-  it('rescheduleBooking кладёт все три поля', async () => {
-    const events: Array<Record<string, unknown>> = [];
-    const service = buildService({ events, getAppDisplayTimeZone: async () => 'Europe/Moscow' });
-
-    const result = await service.rescheduleBooking({
-      userId: 'user-1',
-      bookingId: 'booking-1',
-      slotStart: '2027-03-11T09:00:00.000Z',
-      slotEnd: '2027-03-11T09:30:00.000Z',
-    });
-
-    expect(result.ok).toBe(true);
-    expect(events).toHaveLength(1);
-    expect(events[0]!.cancelPendingReminders).toBe(true);
-    expect(events[0]!.patientPushVariant).toBe('rescheduled');
-    expect(events[0]!.patientMessageText).toBe(
-      buildPatientRescheduledMessageText(
-        { slotStart: '2027-03-11T09:00:00.000Z', bookingType: 'in_person' },
-        'Europe/Moscow',
-        resolvePatientTerms({ appointmentLabel: undefined }),
-      ),
-    );
-  });
-});
-
-describe('D14, часть 5: пациентская отмена/перенос шлёт doctorNotify/doctorMessageText/calendarAction/calendarTitleMarker', () => {
-  it('cancelBooking кладёт врачебный текст и действие/пометку календаря', async () => {
-    const events: Array<Record<string, unknown>> = [];
-    const service = buildService({ events, getAppDisplayTimeZone: async () => 'Europe/Moscow' });
-
-    await service.cancelBooking({ userId: 'user-1', bookingId: 'booking-1' });
-
-    expect(events[0]!.doctorNotify).toBe(true);
-    expect(typeof events[0]!.doctorMessageText).toBe('string');
-    expect(events[0]!.calendarAction).toBe('updated');
-    expect(events[0]!.calendarTitleMarker).toBe('cancelled');
-  });
-
-  it('rescheduleBooking кладёт врачебный текст и действие/пометку календаря', async () => {
-    const events: Array<Record<string, unknown>> = [];
-    const service = buildService({ events, getAppDisplayTimeZone: async () => 'Europe/Moscow' });
-
-    await service.rescheduleBooking({
-      userId: 'user-1',
-      bookingId: 'booking-1',
-      slotStart: '2027-03-11T09:00:00.000Z',
-      slotEnd: '2027-03-11T09:30:00.000Z',
-    });
-
-    expect(events[0]!.doctorNotify).toBe(true);
-    expect(typeof events[0]!.doctorMessageText).toBe('string');
-    expect(events[0]!.calendarAction).toBe('updated');
-    expect(events[0]!.calendarTitleMarker).toBe('none');
-  });
-});
-
-describe('пациентский lifecycle не ломается на post-commit эффектах', () => {
+describe('пациентский lifecycle пишет только канонический переход', () => {
   it('отмена без пакета не вызывает package outcome', async () => {
     const events: Array<Record<string, unknown>> = [];
     const applyCancelPackageOutcome = vi.fn(async () => ({ ok: true as const }));
@@ -249,28 +153,31 @@ describe('пациентский lifecycle не ломается на post-commi
     expect(applyCancelPackageOutcome).not.toHaveBeenCalled();
   });
 
-  it('ошибка чтения настроек не превращает выполненную отмену в API-ошибку', async () => {
+  it('cancel does not invoke the retired post-commit notification settings reader', async () => {
     const events: Array<Record<string, unknown>> = [];
+    const getBookingLifecycleNotificationSettings = vi.fn(async () => {
+      throw new Error('settings_unavailable');
+    });
     const service = buildService({
       events,
-      getBookingLifecycleNotificationSettings: async () => {
-        throw new Error('settings_unavailable');
-      },
+      getBookingLifecycleNotificationSettings,
     });
 
     const result = await service.cancelBooking({ userId: 'user-1', bookingId: 'booking-1' });
 
     expect(result.ok).toBe(true);
-    expect(events).toHaveLength(1);
+    expect(events).toHaveLength(0);
+    expect(getBookingLifecycleNotificationSettings).not.toHaveBeenCalled();
   });
 
-  it('ошибка чтения настроек не превращает выполненный перенос в API-ошибку', async () => {
+  it('reschedule does not invoke the retired post-commit notification settings reader', async () => {
     const events: Array<Record<string, unknown>> = [];
+    const getBookingLifecycleNotificationSettings = vi.fn(async () => {
+      throw new Error('settings_unavailable');
+    });
     const service = buildService({
       events,
-      getBookingLifecycleNotificationSettings: async () => {
-        throw new Error('settings_unavailable');
-      },
+      getBookingLifecycleNotificationSettings,
     });
 
     const result = await service.rescheduleBooking({
@@ -281,6 +188,7 @@ describe('пациентский lifecycle не ломается на post-commi
     });
 
     expect(result.ok).toBe(true);
-    expect(events).toHaveLength(1);
+    expect(events).toHaveLength(0);
+    expect(getBookingLifecycleNotificationSettings).not.toHaveBeenCalled();
   });
 });

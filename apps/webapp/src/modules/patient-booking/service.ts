@@ -27,23 +27,10 @@ import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from './can
 import type { OutboundMessageQueuePort } from '@/modules/messaging/outboundMessageQueuePort';
 import type { BookingCreatedEffectsPort } from '@/modules/booking-notifications/bookingCreatedEffectsPort';
 import {
-  buildBookingNotificationsSent,
-  resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
 } from './bookingLifecycleNotifications';
 import type { PatientBookingRecord } from './types';
 import type { BeAppointment } from '@/modules/booking-engine/types';
-import { appointmentReminderPlanForOffsets } from '@/modules/booking-notifications/appointmentReminderSchedule';
-import {
-  buildPatientCancelledMessageText,
-  buildPatientRescheduledMessageText,
-} from './patientMessageText';
-import {
-  buildDoctorCancelledMessageText,
-  buildDoctorRescheduledMessageText,
-} from './doctorMessageText';
-import { resolveBookingCalendarSyncFields } from './bookingCalendarSyncFields';
-import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 import type { AppointmentMessageTerms } from '@/modules/system-settings/patientTerms';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
@@ -538,105 +525,9 @@ export function createPatientBookingService(input: {
         }
       }
 
-      const idempotencyKey = `booking.rescheduled:${row.id}:${rescheduleInput.slotStart}`;
-      let integratorStatus: 'sent' | 'failed' = 'failed';
-      let lifecycleNotificationSettings: BookingLifecycleNotificationsSettings | null = null;
-      try {
-        lifecycleNotificationSettings =
-          (await input.getBookingLifecycleNotificationSettings?.()) ?? null;
-      } catch (err) {
-        console.error(
-          '[patient-booking] reschedule notification settings read failed (reschedule already committed)',
-          { bookingId: row.id, err },
-        );
-      }
-      const rescheduleNotify = resolveBookingNotifyTargets(
-        'booking.rescheduled',
-        result.bookingPolicy,
-        lifecycleNotificationSettings,
-      );
-      try {
-        const appointment = await loadCanonicalAppointment(
-          input.bookingEngine,
-          row.canonicalAppointmentId,
-        );
-        const reminderPlan = appointmentReminderPlanForOffsets(
-          appointment.appointmentReminderOffsetsMinutes,
-        );
-        const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
-        const terms = await input.getAppointmentTerms(orgId);
-        await input.syncPort.emitBookingEvent({
-          eventType: 'booking.rescheduled',
-          idempotencyKey,
-          payload: {
-            organizationId: orgId,
-            bookingId: row.id,
-            userId: row.userId as string,
-            bookingType: row.bookingType,
-            city: row.city ?? undefined,
-            category: row.category,
-            slotStart: rescheduleInput.slotStart,
-            slotEnd: rescheduleInput.slotEnd,
-            contactName: row.contactName,
-            contactPhone: row.contactPhone,
-            contactEmail: row.contactEmail ?? undefined,
-            cityCodeSnapshot: row.cityCodeSnapshot,
-            serviceTitleSnapshot: row.serviceTitleSnapshot,
-            canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
-            reminderPlan,
-            cancelPendingReminders: true,
-            patientPushVariant: 'rescheduled',
-            patientMessageText: buildPatientRescheduledMessageText(
-              { slotStart: rescheduleInput.slotStart, bookingType: row.bookingType },
-              timeZone,
-              terms,
-            ),
-            doctorNotify: rescheduleNotify.notifyStaff,
-            doctorMessageText: buildDoctorRescheduledMessageText(
-              {
-                slotStart: rescheduleInput.slotStart,
-                contactName: row.contactName,
-                contactPhone: row.contactPhone,
-              },
-              timeZone,
-            ),
-            ...resolveBookingCalendarSyncFields('booking.rescheduled'),
-          },
-        });
-        integratorStatus = 'sent';
-      } catch {
-        // Best-effort notifications.
-      }
-
-      let notificationOutcomeFailed = false;
-      try {
-        await input.appointmentLifecycle.patchLatestRescheduleNotifications(
-          row.canonicalAppointmentId,
-          orgId,
-          buildBookingNotificationsSent({
-            eventType: 'booking.rescheduled',
-            idempotencyKey,
-            notifyPatient: rescheduleNotify.notifyPatient,
-            notifyStaff: rescheduleNotify.notifyStaff,
-            integratorStatus,
-          }),
-        );
-      } catch (err) {
-        notificationOutcomeFailed = true;
-        console.error(
-          '[patient-booking] reschedule notification patch failed (reschedule already committed)',
-          {
-            bookingId: row.id,
-            canonicalAppointmentId: row.canonicalAppointmentId,
-            err,
-          },
-        );
-      }
-
       return {
         ok: true,
         booking: updatedRow ?? row,
-        ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
         ...(paymentOutcomeFailed ? { paymentOutcomeFailed: true as const } : {}),
       };
     },
@@ -692,7 +583,6 @@ export function createPatientBookingService(input: {
 
         let paymentOutcomeFailed = false;
         let membershipOutcomeFailed = false;
-        let notificationOutcomeFailed = false;
 
         if (input.payments && appointment.paymentRef) {
           try {
@@ -755,91 +645,9 @@ export function createPatientBookingService(input: {
         });
         invalidateSlotsCache();
 
-        const idempotencyKey = `booking.cancelled:${row.id}`;
-        let integratorStatus: 'sent' | 'failed' = 'failed';
-        let lifecycleNotificationSettings: BookingLifecycleNotificationsSettings | null = null;
-        try {
-          lifecycleNotificationSettings =
-            (await input.getBookingLifecycleNotificationSettings?.()) ?? null;
-        } catch (err) {
-          console.error(
-            '[patient-booking] cancel notification settings read failed (cancel already committed)',
-            { bookingId: row.id, err },
-          );
-        }
-        const cancelNotify = resolveBookingNotifyTargets(
-          'booking.cancelled',
-          lifecycleResult.bookingPolicy,
-          lifecycleNotificationSettings,
-        );
-        try {
-          const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
-          await input.syncPort.emitBookingEvent({
-            eventType: 'booking.cancelled',
-            idempotencyKey,
-            payload: {
-              organizationId: orgId,
-              bookingId: row.id,
-              userId: row.userId as string,
-              bookingType: row.bookingType,
-              city: row.city ?? undefined,
-              category: row.category,
-              slotStart: row.slotStart,
-              slotEnd: row.slotEnd,
-              contactName: row.contactName,
-              contactPhone: row.contactPhone,
-              contactEmail: row.contactEmail ?? undefined,
-              reason: cancelInput.reason,
-              cityCodeSnapshot: row.cityCodeSnapshot,
-              serviceTitleSnapshot: row.serviceTitleSnapshot,
-              canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
-              cancelPendingReminders: true,
-              patientPushVariant: 'cancelled',
-              patientMessageText: buildPatientCancelledMessageText(
-                { slotStart: row.slotStart, reason: cancelInput.reason },
-                timeZone,
-              ),
-              doctorNotify: cancelNotify.notifyStaff,
-              doctorMessageText: buildDoctorCancelledMessageText(
-                { slotStart: row.slotStart, contactName: row.contactName },
-                timeZone,
-              ),
-              ...resolveBookingCalendarSyncFields('booking.cancelled'),
-            },
-          });
-          integratorStatus = 'sent';
-        } catch {
-          // Best-effort.
-        }
-
-        try {
-          await input.appointmentLifecycle.patchLatestCancellationNotifications(
-            row.canonicalAppointmentId,
-            orgId,
-            buildBookingNotificationsSent({
-              eventType: 'booking.cancelled',
-              idempotencyKey,
-              notifyPatient: cancelNotify.notifyPatient,
-              notifyStaff: cancelNotify.notifyStaff,
-              integratorStatus,
-            }),
-          );
-        } catch (err) {
-          notificationOutcomeFailed = true;
-          console.error(
-            '[patient-booking] cancel notification patch failed (cancel already committed)',
-            {
-              bookingId: row.id,
-              canonicalAppointmentId: row.canonicalAppointmentId,
-              err,
-            },
-          );
-        }
-
         return {
           ok: true,
           lateCancellation: lifecycleResult.eligibility.reasonCode === 'late',
-          ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
           ...(paymentOutcomeFailed ? { paymentOutcomeFailed: true as const } : {}),
           ...(membershipOutcomeFailed ? { membershipOutcomeFailed: true as const } : {}),
         };

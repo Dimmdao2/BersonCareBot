@@ -190,9 +190,11 @@ function quoteIdentifier(value) {
 
 /**
  * Migration validation may need an ACL that a subsequent declaration reconcile would provide to
- * a newly introduced DDL owner. This deliberately renders only declared `app` schema usage/create
- * access: it is not a target-access reconcile and cannot widen table, function, role, or runtime
- * login privileges. CREATE is transaction-scoped by the owner-ordered runner.
+ * a newly introduced DDL owner. It renders only declared `app` schema usage/create access and
+ * declared EXECUTE grants for migration owners. Function grants are conditional because a prior
+ * statement in the same transaction may create their identity; the owner-ordered runner rerenders
+ * this projection between statements. It is not a target-access reconcile and cannot widen table,
+ * role, or runtime-login privileges. CREATE is transaction-scoped by the owner-ordered runner.
  */
 function generateMigrationOwnerAccessSql(declaration, dbName, ownerList) {
   const database = declaration.databases[dbName];
@@ -218,9 +220,27 @@ function generateMigrationOwnerAccessSql(declaration, dbName, ownerList) {
       );
     }
   }
+  const functionGrants = Object.entries(declaration.portContext?.functions ?? {})
+    .filter(([, fn]) => !fn.databases || fn.databases.includes(dbName))
+    .flatMap(([signature, fn]) =>
+      owners
+        .filter((owner) => fn.execute.includes(owner))
+        .map((owner) => ({ signature, owner })),
+    );
   return [
     '-- transaction-scoped migration owner access from the canonical declaration',
     `GRANT CREATE, USAGE ON SCHEMA "app" TO ${owners.map(quoteIdentifier).join(', ')};`,
+    ...(functionGrants.length === 0
+      ? []
+      : [
+          'DO $bcb_migration_owner_access$ BEGIN',
+          ...functionGrants.flatMap(({ signature, owner }) => [
+            `  IF pg_catalog.to_regprocedure(${JSON.stringify(signature).replaceAll('"', "'")}) IS NOT NULL THEN`,
+            `    EXECUTE pg_catalog.format('GRANT EXECUTE ON FUNCTION %s TO %I', pg_catalog.to_regprocedure(${JSON.stringify(signature).replaceAll('"', "'")}), ${JSON.stringify(owner).replaceAll('"', "'")});`,
+            '  END IF;',
+          ]),
+          'END $bcb_migration_owner_access$;',
+        ]),
     '',
   ].join('\n');
 }

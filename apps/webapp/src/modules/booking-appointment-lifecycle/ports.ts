@@ -28,6 +28,7 @@ export type MarkNoShowInput = {
   staffComment?: string;
   manualOverride?: boolean;
   notificationsSent?: Record<string, unknown>;
+  suppressPatientNotification?: boolean;
 };
 
 export type AppointmentRescheduleRecord = {
@@ -96,6 +97,7 @@ export type RescheduleAppointmentInput = {
    */
   platformUserId?: string | null;
   cityCode?: string | null;
+  suppressPatientNotification?: boolean;
 };
 
 export type CancelAppointmentInput = {
@@ -107,6 +109,7 @@ export type CancelAppointmentInput = {
   staffComment?: string;
   manualOverride?: boolean;
   decisionType?: CancellationDecisionType;
+  suppressPatientNotification?: boolean;
 };
 
 export type AppointmentLifecyclePort = {

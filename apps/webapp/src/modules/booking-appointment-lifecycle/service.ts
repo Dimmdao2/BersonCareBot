@@ -144,6 +144,7 @@ export function createBookingAppointmentLifecycleService(deps: {
       serviceId?: string | null;
       cityCode?: string | null;
       notificationsSent?: Record<string, unknown>;
+      suppressPatientNotification?: boolean;
     }) {
       const appt = await deps.lifecyclePort.getAppointment(
         input.appointmentId,
@@ -206,6 +207,7 @@ export function createBookingAppointmentLifecycleService(deps: {
             notifyStaff: policy.notifyStaff,
           },
         },
+        suppressPatientNotification: input.suppressPatientNotification,
       });
 
       return { ok: true as const, appointment: updated, eligibility, bookingPolicy: policy };
@@ -217,6 +219,7 @@ export function createBookingAppointmentLifecycleService(deps: {
       userId: string;
       reason?: string;
       notificationsSent?: Record<string, unknown>;
+      suppressPatientNotification?: boolean;
     }) {
       const appt = await deps.lifecyclePort.getAppointment(
         input.appointmentId,
@@ -265,6 +268,7 @@ export function createBookingAppointmentLifecycleService(deps: {
             notifyStaff: policy.notifyStaff,
           },
         },
+        suppressPatientNotification: input.suppressPatientNotification,
       });
 
       return { ok: true as const, appointment: updated, eligibility, bookingPolicy: policy };
@@ -280,6 +284,7 @@ export function createBookingAppointmentLifecycleService(deps: {
       staffComment?: string;
       manualOverride?: boolean;
       notificationsSent?: Record<string, unknown>;
+      suppressPatientNotification?: boolean;
     }) {
       const appt = await deps.lifecyclePort.getAppointment(
         input.appointmentId,
@@ -312,6 +317,7 @@ export function createBookingAppointmentLifecycleService(deps: {
         prepaymentRetained: input.decisionType === 'retain_prepayment',
         prepaymentRefunded: input.decisionType === 'refund_prepayment',
         notificationsSent: input.notificationsSent,
+        suppressPatientNotification: input.suppressPatientNotification,
       });
 
       return {
@@ -340,6 +346,7 @@ export function createBookingAppointmentLifecycleService(deps: {
       /** APPT-FORM-13: смена пациента записи в пределах той же клиники. */
       platformUserId?: string | null;
       notificationsSent?: Record<string, unknown>;
+      suppressPatientNotification?: boolean;
     }) {
       const appt = await deps.lifecyclePort.getAppointment(
         input.appointmentId,
@@ -383,6 +390,7 @@ export function createBookingAppointmentLifecycleService(deps: {
           now,
         }).isFree,
         notificationsSent: input.notificationsSent,
+        suppressPatientNotification: input.suppressPatientNotification,
       });
 
       return {
@@ -414,6 +422,7 @@ export function createBookingAppointmentLifecycleService(deps: {
       reason?: string;
       staffComment?: string;
       notificationsSent?: Record<string, unknown>;
+      suppressPatientNotification?: boolean;
     }): Promise<
       | { ok: true; appointment: BeAppointment; noShowRecord: AppointmentNoShowRecord }
       | { ok: false; error: 'not_found' | 'state_conflict' }
@@ -435,6 +444,7 @@ export function createBookingAppointmentLifecycleService(deps: {
         staffComment: input.staffComment,
         manualOverride: true,
         notificationsSent: input.notificationsSent,
+        suppressPatientNotification: input.suppressPatientNotification,
       });
 
       // Read back the no-show history record (the latest one written in the same transaction)

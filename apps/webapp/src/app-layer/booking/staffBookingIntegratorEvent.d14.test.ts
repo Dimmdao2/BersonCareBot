@@ -164,3 +164,30 @@ describe('D14, часть 5: врачебные события шлют doctorNo
     expect(captured[0]!.calendarTitleMarker).toBe('cancelled');
   });
 });
+
+describe('S11: настройки внешнего сообщения не гасят lifecycle', () => {
+  it('всё равно публикует отмену для inbox, календаря и напоминаний при suppressPatientNotification', async () => {
+    const emitBookingEvent = vi.fn<BookingSyncPort['emitBookingEvent']>(async () => undefined);
+
+    await expect(
+      emitStaffCanonicalBookingEvent({
+        syncPort: { emitBookingEvent } as BookingSyncPort,
+        eventType: 'booking.cancelled',
+        appointment: fakeAppointment(),
+        suppressPatientNotification: true,
+        cancelPendingReminders: true,
+        patientPushVariant: 'cancelled',
+      }),
+    ).resolves.toBe('sent');
+
+    expect(emitBookingEvent).toHaveBeenCalledOnce();
+    expect(emitBookingEvent.mock.calls[0]![0]).toMatchObject({
+      eventType: 'booking.cancelled',
+      payload: {
+        suppressPatientNotification: true,
+        cancelPendingReminders: true,
+        patientPushVariant: 'cancelled',
+      },
+    });
+  });
+});

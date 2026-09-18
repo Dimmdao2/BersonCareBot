@@ -161,12 +161,30 @@ describe('booking payment provider webhook capture', () => {
     expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(1);
   });
 
-  // ТЕСТ АУДИТА СНЯТ ВЕДУЩИМ (F2 аудита S8). Он требовал, чтобы повтор вебхука провайдера заново
-  // проигрывал доставку, упавшую ПОСЛЕ коммита расчёта. Поведение до S8 было ровно таким же:
-  // обратный вызов и тогда шёл только при `outcome === 'captured'`, а повтор приходит с
-  // `already_processed`. То есть это не регрессия кандидата, а предсуществующий пробел
-  // надёжности, который чинится журналом доставки, а не правкой этого этапа. Вынесен владельцу
-  // вопросом в план.
+  it('replays durable lifecycle work after settlement committed but the first handoff failed', async () => {
+    const onAppointmentPaymentConfirmed = vi
+      .fn(async () => undefined)
+      .mockRejectedValueOnce(new Error('process_interrupted_after_settlement'));
+    const { service } = buildService(
+      [
+        captured,
+        {
+          ...alreadyProcessed,
+          paymentId: PAYMENT_ID,
+          platformUserId: PATIENT_ID,
+          confirmedAppointmentIds: [APPOINTMENT_ID],
+        },
+      ],
+      onAppointmentPaymentConfirmed,
+    );
+
+    // The money commit already happened. A provider retry is the only input available after a
+    // process crash, so it must make the still-pending lifecycle work observable again.
+    await expect(deliver(service)).rejects.toThrow('process_interrupted_after_settlement');
+    await expect(deliver(service)).resolves.toEqual({ ok: true, duplicate: true });
+
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledTimes(2);
+  });
 
   it('does not re-notify on a retry that still names the settled payment', async () => {
     // The outcome, not the presence of a payment id, decides whether anything new happened: a door

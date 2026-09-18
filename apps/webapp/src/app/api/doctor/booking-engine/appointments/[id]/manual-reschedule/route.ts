@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { applyStaffRescheduleSideEffects } from '@/app-layer/booking/staffAppointmentLifecycleEffects';
 import { staffBookingContactNameFromAppointment } from '@/app-layer/booking/staffBookingIntegratorEvent';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
-import { appointmentReminderPlanForOffsets } from '@/modules/booking-notifications/appointmentReminderSchedule';
 import {
   assertStaffMayRewriteFinancials,
   resolveStaffAppointmentFinancials,
@@ -41,6 +38,7 @@ const bodySchema = z.object({
   priceMinor: z.number().int().min(0).nullable().optional(),
   prepayment: prepaymentOverrideSchema.nullable().optional(),
   deliveryFormat: z.enum(['in_person', 'online']).optional(),
+  notifyPatient: z.boolean().optional(),
 });
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -85,7 +83,6 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: 'lifecycle_unavailable' }, { status: 503 });
   }
   const actorType = gate.ctx.session.user.role === 'admin' ? 'admin' : 'specialist';
-  const syncPort = createBookingSyncPort();
   let bookingRow = deps.patientBooking
     ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
     : null;
@@ -120,6 +117,7 @@ export async function POST(request: Request, context: RouteContext) {
           deliveryFormat: parsed.data.deliveryFormat,
           ...(patientChanged ? { platformUserId: parsed.data.platformUserId ?? null } : {}),
           manualOverride: true,
+          suppressPatientNotification: parsed.data.notifyPatient === false,
         }),
     );
   } catch (err) {
@@ -264,24 +262,6 @@ export async function POST(request: Request, context: RouteContext) {
     appointment.endAt !== currentAppointment.endAt ||
     appointment.durationMinutes !== currentAppointment.durationMinutes;
   if (!timeChanged) return NextResponse.json({ ok: true, appointment: currentAppointment });
-  const { loadBookingLifecycleNotificationsFromSystemSettings } =
-    await import('@/modules/booking-notifications/settings');
-  const lifecycleNotificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings(
-    (key, scope) => deps.systemSettings.getSetting(key, scope),
-  );
-  const reminderPlan = appointmentReminderPlanForOffsets(
-    currentAppointment.appointmentReminderOffsetsMinutes,
-  );
-  await applyStaffRescheduleSideEffects({
-    lifecycle,
-    organizationId: gate.ctx.organizationId,
-    appointment: currentAppointment,
-    reschedulePolicy: result.reschedulePolicy,
-    syncPort,
-    bookingRow,
-    lifecycleNotificationSettings,
-    reminderPlan,
-  });
   if (deps.payments) {
     await deps.payments.recordReschedulePaymentCarryOver({
       appointmentId,

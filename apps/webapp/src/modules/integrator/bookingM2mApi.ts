@@ -145,6 +145,16 @@ export function createBookingSyncPort(options?: { defer?: DeferOutsideResponse }
         await deliverBookingLifecycleEvent(event);
         return;
       }
+      if (
+        input.eventType === 'booking.created' ||
+        input.eventType === 'booking.cancelled' ||
+        input.eventType === 'booking.rescheduled'
+      ) {
+        // These facts are atomically produced by canonical appointment/history triggers.  A
+        // post-commit HTTP call is no longer an alternative producer: it can race the worker and
+        // loses the fact on process death.  Payment replay keeps its explicit synchronous path.
+        return;
+      }
       // Человек уже получил ответ; отказ отправки ниже НЕ проглатывается пустым `catch {}`, как
       // раньше на каждом вызывающем, а называется в журнале своим именем и с ключом события —
       // иначе трёхсекундное ожидание отказа было ещё и невидимым.

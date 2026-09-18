@@ -219,6 +219,26 @@ describe('booking.created: упавший шаг не отменяет оста�
     expect(recipientsOf(retry.dispatchOutgoing)).toEqual([]);
   });
 
+  it('keeps a transient calendar failure retryable instead of acknowledging the step', async () => {
+    const port = persistentIdempotencyPort();
+    syncCanonicalAppointmentToCalendarMock
+      .mockRejectedValueOnce(new Error('calendar_temporarily_unavailable'))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(
+      handleBookingLifecycleEvent(createdEvent(), dispatchPort(), {
+        idempotencyPort: port,
+        webappEventsPort: webappEventsPort(async () => ({ ok: true, status: 200 })),
+      }),
+    ).rejects.toThrow('google_calendar');
+
+    await handleBookingLifecycleEvent(createdEvent(), dispatchPort(), {
+      idempotencyPort: port,
+      webappEventsPort: webappEventsPort(async () => ({ ok: true, status: 200 })),
+    });
+    expect(syncCanonicalAppointmentToCalendarMock).toHaveBeenCalledTimes(2);
+  });
+
   it('отказ материализации напоминаний открывает операторский инцидент, а не тонет в 502', async () => {
     await expect(
       handleBookingLifecycleEvent(createdEvent(), dispatchPort(), {

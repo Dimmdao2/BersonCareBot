@@ -63,6 +63,7 @@ export async function POST(request: Request, context: RouteContext) {
         reason: parsed.data.reason,
         staffComment: parsed.data.staffComment,
         manualOverride: true,
+        suppressPatientNotification: parsed.data.notifyPatient === false,
       }),
   );
   if (!result.ok) {
@@ -73,12 +74,8 @@ export async function POST(request: Request, context: RouteContext) {
     organizationId: gate.ctx.organizationId,
     appointmentId,
     actorId: gate.ctx.session.user.userId,
-    actorType,
     decisionType: parsed.data.decisionType,
     reason: parsed.data.reason,
-    notifyPatient: parsed.data.notifyPatient,
-    appointment: result.appointment,
-    cancelPolicy: result.cancelPolicy,
   });
   return NextResponse.json({ ok: true, appointment: result.appointment, ...flags });
 }

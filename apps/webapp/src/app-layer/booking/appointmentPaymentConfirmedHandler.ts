@@ -1,4 +1,5 @@
 import type { BookingEnginePort } from '@/modules/booking-engine/ports';
+import type { PaymentsPort } from '@/modules/payments/ports';
 import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
@@ -13,10 +14,69 @@ import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { bookingServiceTitleForMessage } from '@/modules/patient-booking/bookingCategoryLabels';
 
 type AppointmentPaymentConfirmedInput = {
+  /** Present only on the signed durable M2M path; direct lifecycle callers keep their existing shape. */
+  organizationId?: string;
   appointmentIds: readonly string[];
   paymentId: string;
   platformUserId: string | null;
 };
+
+export class CapturedBookingPaymentBindingError extends Error {
+  constructor() {
+    super('captured_booking_payment_binding_invalid');
+  }
+}
+
+/**
+ * The signed M2M transport authenticates its caller, not the identifiers in a durable payload.
+ * Re-read the payment root under the tenant principal before any projection side effect.
+ */
+export function createCapturedBookingPaymentBindingValidator(deps: {
+  payments: Pick<PaymentsPort, 'findPaymentById' | 'countAppointmentsByPaymentRef'>;
+  bookingEngine: Pick<BookingEnginePort, 'getAppointment'>;
+}) {
+  return async (input: AppointmentPaymentConfirmedInput): Promise<void> => {
+    if (!input.organizationId) throw new CapturedBookingPaymentBindingError();
+    const organizationId = input.organizationId;
+    const appointmentIds = new Set(input.appointmentIds);
+    if (appointmentIds.size !== input.appointmentIds.length) {
+      throw new CapturedBookingPaymentBindingError();
+    }
+
+    const payment = await deps.payments.findPaymentById(input.paymentId, organizationId);
+    if (
+      !payment ||
+      payment.organizationId !== organizationId ||
+      payment.appointmentId === null ||
+      !appointmentIds.has(payment.appointmentId)
+    ) {
+      throw new CapturedBookingPaymentBindingError();
+    }
+
+    const appointments = await Promise.all(
+      input.appointmentIds.map((appointmentId) => deps.bookingEngine.getAppointment(appointmentId)),
+    );
+    if (
+      appointments.some(
+        (appointment) =>
+          !appointment ||
+          appointment.organizationId !== organizationId ||
+          appointment.paymentRef !== input.paymentId ||
+          appointment.platformUserId !== input.platformUserId,
+      )
+    ) {
+      throw new CapturedBookingPaymentBindingError();
+    }
+
+    const paymentAppointmentCount = await deps.payments.countAppointmentsByPaymentRef(
+      input.paymentId,
+      organizationId,
+    );
+    if (paymentAppointmentCount !== input.appointmentIds.length) {
+      throw new CapturedBookingPaymentBindingError();
+    }
+  };
+}
 
 export function createAppointmentPaymentConfirmedHandler(deps: {
   patientBookings: Pick<
@@ -35,7 +95,9 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
         updated ?? (await deps.patientBookings.getByCanonicalAppointmentId(appointmentId));
       if (row?.status === 'confirmed') confirmed.push({ appointmentId, row });
     }
-    if (confirmed.length === 0) return;
+    if (confirmed.length !== input.appointmentIds.length) {
+      throw new Error('booking_payment_projection_incomplete');
+    }
 
     const appointments = await Promise.all(
       confirmed.map(async ({ appointmentId, row }) => {
@@ -51,13 +113,6 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
       { notifyPatient: true, notifyStaff: true },
       notificationSettings,
     );
-    // Правка ведущего: этот выход стоял здесь до S8 и остаётся. Отключённые уведомления гасили
-    // событие целиком — вместе с напоминаниями и календарной синхронизацией, которые оно везёт.
-    // Это отдельный дефект, и он вынесен владельцу вопросом, а не чинится заодно: S8 обязан
-    // изменить ТОЛЬКО количество сообщений, иначе клиника с выключенными уведомлениями внезапно
-    // начнёт рассылать напоминания.
-    if (!paymentNotify.notifyPatient && !paymentNotify.notifyStaff) return;
-
     const timeZone = await getAppDisplayTimeZone();
     // Слоты перечисляются в сообщении по времени приёма, а не в порядке, в котором их вернула
     // цепочка: человек читает «вы записаны на …» как расписание.
@@ -110,9 +165,9 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
           ...(carriesDoctorMessage ? { doctorMessageText } : {}),
           ...resolveBookingCalendarSyncFields('booking.payment_captured'),
         },
-        // Ждём НАМЕРЕННО: бросок отсюда уходит вызывающему вебхука платежей, и повтор вебхука —
-        // единственное, что доигрывает это событие. Отложить его = потерять повтор.
-        waitForDelivery: true,
+        // Delivery preference only controls the two external message legs. Calendar and reminder
+        // materialisation remain lifecycle effects, so no clinic preference may suppress them.
+        // The lifecycle receiver owns independent step deduplication and retries.
       });
     }
   };

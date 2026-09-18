@@ -379,9 +379,11 @@ import { inMemoryIntegratorDeliveryTargetsPort } from '@/infra/repos/inMemoryInt
 import { createPatientBookingService } from '@/modules/patient-booking/service';
 import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
 import { enqueueAccountMergeLoginNotification } from '@/modules/auth/accountMergeNotification';
-import { createBookingCreatedEffects } from '@/app-layer/booking/bookingCreatedEffects';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
-import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
+import {
+  createAppointmentPaymentConfirmedHandler,
+  createCapturedBookingPaymentBindingValidator,
+} from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
 import { loadBookingLifecycleNotificationsFromSystemSettings } from '@/modules/booking-notifications/settings';
 import { pgPatientBookingsPort } from '@/infra/repos/pgPatientBookings';
 import { inMemoryPatientBookingsPort } from '@/infra/repos/inMemoryPatientBookings';
@@ -1149,6 +1151,13 @@ const onAppointmentPaymentConfirmed = bookingEngineService
       bookingSync: bookingSyncPortForPayments,
     })
   : undefined;
+const capturedBookingPaymentBinding =
+  paymentsPort && bookingEngineService
+    ? createCapturedBookingPaymentBindingValidator({
+        payments: paymentsPort,
+        bookingEngine: bookingEngineService,
+      })
+    : undefined;
 const paymentsService =
   paymentsPort && bookingEngineService
     ? createPaymentsService({
@@ -1183,7 +1192,9 @@ const paymentsService =
               );
             }
           : undefined,
-        onAppointmentPaymentConfirmed,
+        // Captured appointment payments are completed by the durable payment-level queue consumer.
+        // Invoking this here would race it for the same lifecycle step keys after the SQL commit.
+        onAppointmentPaymentConfirmed: undefined,
         syncServicePrepaymentApplicable: async (serviceId, applicable) => {
           if (!bookingEngineCorePort) return;
           const svc = await bookingEngineService.services.getService(serviceId);
@@ -1505,18 +1516,11 @@ const integratorDeliveryTargetsPort = inMemoryRepos
   ? inMemoryIntegratorDeliveryTargetsPort
   : createPgIntegratorDeliveryTargetsPort();
 
-const bookingCreatedEffectsPort = createBookingCreatedEffects({
-  outboundMessageQueue: createPgOutboundMessageQueue(),
-  deliveryTargets: {
-    getTargets: (params) =>
-      getDeliveryTargetsForIntegrator(params, {
-        integratorDeliveryTargets: integratorDeliveryTargetsPort,
-      }),
-  },
-});
-
 patientBookingService = createPatientBookingService({
-  bookingCreatedEffects: bookingCreatedEffectsPort,
+  // Canonical appointment creation now has an atomic lifecycle outbox producer.  Do not retain a
+  // second post-commit patient-message producer beside it; tests may still inject this optional
+  // port to verify the isolated legacy adapter contract.
+  bookingCreatedEffects: undefined,
   // Один объявленный корень постановки исходящего сообщения — письмо-подтверждение записи
   // больше не ждёт SMTP внутри запроса (решение владельца 19.08).
   outboundMessageQueue: createPgOutboundMessageQueue(),
@@ -2325,6 +2329,10 @@ function _buildAppDeps() {
     resolvePatientPublicOrigin,
     bookingEngine: bookingEngineService,
     bookingSync: bookingSyncPortForPayments,
+    /** Durable payment-lifecycle worker re-enters the same projection and notification passage. */
+    appointmentPaymentConfirmed: onAppointmentPaymentConfirmed,
+    /** Signed M2M payloads are bound to the canonical payment root before replay. */
+    capturedBookingPaymentBinding,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
     bookingEnginePort,
     bookingScheduling: bookingSchedulingService,

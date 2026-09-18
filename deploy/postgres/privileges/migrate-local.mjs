@@ -647,6 +647,16 @@ const statements = [
           "SELECT session_user, current_user, has_schema_privilege(current_user, 'public', 'CREATE') AS can_create_public;",
           migration ? `\\i ${migration}` : sql,
           'RESET ROLE;',
+          ...(drizzleFolder && owners.length > 0
+            ? [
+                // A previous statement may have introduced a declared function whose next
+                // statement needs EXECUTE (for example CREATE TRIGGER). Re-enter postgres only
+                // to render that declaration-owned ACL, then resume as the NOLOGIN migrator.
+                'RESET SESSION AUTHORIZATION;',
+                renderPreflightMigrationOwnerAccess(db, owners),
+                `SET LOCAL SESSION AUTHORIZATION ${qMigrator};`,
+              ]
+            : []),
         ];
     return [
       ...execution,

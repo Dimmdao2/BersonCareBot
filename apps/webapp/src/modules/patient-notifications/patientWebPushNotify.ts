@@ -55,15 +55,35 @@ export const integratorPatientWebPushNotifyBodySchema = z
     platformUserId: z.string().uuid().optional(),
     topicCode: z.string().min(1).max(120).default(REMINDER_NOTIFICATION_TOPIC_APPOINTMENT),
     intentType: z.enum(['appointment_lifecycle', 'appointment_reminder', 'news']),
-    variant: z.enum(['created', 'cancelled', 'rescheduled']).optional(),
+    variant: z
+      .enum(['created', 'awaiting_payment', 'cancelled', 'rescheduled', 'payment_captured'])
+      .optional(),
+    bookingId: z.string().min(1).max(240).optional(),
+    occurrenceId: z.string().min(1).max(240).optional(),
+    paymentCheckoutUrl: z.string().url().optional(),
+    paymentDeadlineAt: z.string().min(1).max(64).optional(),
     slotStartIso: z.string().min(1).max(64).optional(),
     openUrl: z.string().min(1).max(4000),
     stableKey: z.string().min(1).max(240),
+    /** Lifecycle facts must reach the persistent inbox even when push is disabled. */
+    suppressExternalPush: z.boolean().optional(),
     broadcastTitle: z.string().max(500).optional(),
     nowIso: z.string().max(64).optional(),
   })
   .refine((body) => Boolean(body.platformUserId || body.phoneNormalized), {
     message: 'missing_user_ref',
+  })
+  .superRefine((body, ctx) => {
+    if (
+      body.variant === 'awaiting_payment' &&
+      (!body.paymentCheckoutUrl || !body.paymentDeadlineAt)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['variant'],
+        message: 'awaiting_payment_binding_required',
+      });
+    }
   });
 
 export type IntegratorPatientWebPushNotifyBody = z.infer<
@@ -118,7 +138,9 @@ function buildPatientNotificationsOpenUrl(appBaseUrl: string): string {
 }
 
 function bookingIdFromLifecycleStableKey(stableKey: string): string | null {
-  const m = stableKey.match(/^booking-(?:created|cancelled|rescheduled):(.+)$/);
+  const m = stableKey.match(
+    /^booking-(?:created|awaiting-payment|cancelled|rescheduled|payment):(.+)$/,
+  );
   return m?.[1] ?? null;
 }
 
@@ -149,6 +171,12 @@ function buildCopy(
     body.variant as AppointmentLifecycleVariant,
     body.slotStartIso,
     timeZone,
+    body.variant === 'awaiting_payment' && body.paymentCheckoutUrl && body.paymentDeadlineAt
+      ? {
+          checkoutUrl: body.paymentCheckoutUrl,
+          paymentDeadlineAt: body.paymentDeadlineAt,
+        }
+      : undefined,
   );
 }
 
@@ -187,32 +215,22 @@ export async function runPatientWebPushNotify(
     body.slotStartIso &&
     deps.patientInboundChatPort
   ) {
-    const lifecycleCopy = buildAppointmentLifecyclePushCopy(
-      body.variant as AppointmentLifecycleVariant,
-      body.slotStartIso,
-      timeZone,
-    );
-    const bookingId = bookingIdFromLifecycleStableKey(body.stableKey);
-    const chatText = lifecycleChatText(lifecycleCopy);
+    const lifecycleCopy = buildCopy(body, timeZone);
+    const bookingId = body.bookingId ?? bookingIdFromLifecycleStableKey(body.stableKey);
+    const chatText = lifecycleCopy ? lifecycleChatText(lifecycleCopy) : '';
     if (bookingId && chatText) {
-      try {
-        await appendPatientInboundAdminMessage(deps.patientInboundChatPort, {
-          platformUserId: uid,
-          text: chatText,
-          integratorMessageId: bookingLifecycleChatIntegratorMessageId(body.variant, bookingId),
-          source: 'appointment_lifecycle',
-        });
-      } catch (err) {
-        logger.warn(
-          {
-            err,
-            event: 'patient_web_push.booking_chat_append_failed',
-            platformUserId: uid,
-            stableKey: body.stableKey,
-          },
-          'booking lifecycle chat append failed',
-        );
-      }
+      // The chat row is the durable patient-visible fact. Do not acknowledge the lifecycle step
+      // merely because the optional external web-push channel is suppressed or unavailable.
+      await appendPatientInboundAdminMessage(deps.patientInboundChatPort, {
+        platformUserId: uid,
+        text: chatText,
+        integratorMessageId: bookingLifecycleChatIntegratorMessageId(
+          body.variant,
+          bookingId,
+          body.occurrenceId,
+        ),
+        source: 'appointment_lifecycle',
+      });
     }
   }
 
@@ -246,6 +264,9 @@ export async function runPatientWebPushNotify(
   if (resolved === 'muted') return { ok: true, skipped: 'muted' };
   if (!resolved) return { ok: true, skipped: 'no_platform_user' };
 
+  if (body.suppressExternalPush === true) {
+    return { ok: true, skipped: 'web_push_suppressed' };
+  }
   if (!resolved.selectedChannels.includes('web_push')) {
     return {
       ok: true,

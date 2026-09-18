@@ -60,69 +60,45 @@ export async function emitStaffCanonicalBookingEvent(opts: {
   /** D13a(добор): план напоминаний для путей персонала — читается вебаппом из настроек клиники. */
   reminderPlan?: AppointmentReminderPlan;
 }): Promise<'sent' | 'skipped'> {
-  // R21: if suppression is active, skip the integrator event entirely (patient notification).
-  if (opts.suppressPatientNotification) return 'skipped';
   if (!opts.syncPort) return 'skipped';
   const bookingRow = opts.bookingRow ?? null;
   const bookingId = bookingRow?.id ?? opts.appointment.id;
   const userId = bookingRow?.userId ?? opts.appointment.platformUserId ?? opts.appointment.id;
-  const contactName =
-    bookingRow?.contactName ?? staffBookingContactNameFromAppointment(opts.appointment);
-  const contactPhone =
-    bookingRow?.contactPhone ?? opts.appointment.phoneNormalized ?? '+70000000000';
+  const contactName = bookingRow?.contactName ?? staffBookingContactNameFromAppointment(opts.appointment);
+  const contactPhone = bookingRow?.contactPhone ?? opts.appointment.phoneNormalized ?? '+70000000000';
   const bookingType = bookingRow?.bookingType ?? 'in_person';
   const city = bookingRow?.city ?? null;
   const cityCodeSnapshot = bookingRow?.cityCodeSnapshot ?? null;
   const slotStart = opts.appointment.startAt;
   const timeZone = await getAppDisplayTimeZone();
-  // T-F: слово организации читается ЗДЕСЬ, а не в шаблоне. Путь персонала идёт под staff-принципалом
-  // (`/api/doctor/**` за `requireOrganizationWorkspaceContext`), и эта дверь ему открыта — замерено
-  // живьём на DEV 12.09.2026. Соседний `getAppDisplayTimeZone()` читает настройку на том же месте
-  // тем же порядком, второй двери не заводится.
   const terms = await readOrganizationAppointmentTerms(opts.appointment.organizationId);
-  const patientMessageText =
-    opts.eventType === 'booking.created'
-      ? buildPatientCreatedMessageText(
-          { slotStart, bookingType, city, cityCodeSnapshot },
-          timeZone,
-          terms,
-        )
-      : opts.eventType === 'booking.cancelled'
-        ? buildPatientCancelledMessageText({ slotStart }, timeZone)
-        : buildPatientRescheduledMessageText({ slotStart, bookingType }, timeZone, terms);
-  const doctorMessageText =
-    opts.eventType === 'booking.created'
-      ? buildDoctorCreatedMessageText({ slotStart, contactName, contactPhone }, timeZone)
-      : opts.eventType === 'booking.cancelled'
-        ? buildDoctorCancelledMessageText({ slotStart, contactName }, timeZone)
-        : buildDoctorRescheduledMessageText({ slotStart, contactName, contactPhone }, timeZone);
+  const patientMessageText = opts.eventType === 'booking.created'
+    ? buildPatientCreatedMessageText({ slotStart, bookingType, city, cityCodeSnapshot }, timeZone, terms)
+    : opts.eventType === 'booking.cancelled'
+      ? buildPatientCancelledMessageText({ slotStart }, timeZone)
+      : buildPatientRescheduledMessageText({ slotStart, bookingType }, timeZone, terms);
+  const doctorMessageText = opts.eventType === 'booking.created'
+    ? buildDoctorCreatedMessageText({ slotStart, contactName, contactPhone }, timeZone)
+    : opts.eventType === 'booking.cancelled'
+      ? buildDoctorCancelledMessageText({ slotStart, contactName }, timeZone)
+      : buildDoctorRescheduledMessageText({ slotStart, contactName, contactPhone }, timeZone);
   try {
     await opts.syncPort.emitBookingEvent({
       eventType: opts.eventType,
       idempotencyKey: `staff.${opts.eventType}:${opts.appointment.id}:${opts.appointment.startAt}`,
       payload: {
-        organizationId: opts.appointment.organizationId,
-        bookingId,
-        userId,
-        bookingType: bookingRow?.bookingType ?? 'in_person',
-        city: bookingRow?.city ?? undefined,
-        category: bookingRow?.category ?? 'general',
-        slotStart: opts.appointment.startAt,
-        slotEnd: opts.appointment.endAt,
-        contactName,
-        contactPhone,
+        organizationId: opts.appointment.organizationId, bookingId, userId,
+        bookingType: bookingRow?.bookingType ?? 'in_person', city: bookingRow?.city ?? undefined,
+        category: bookingRow?.category ?? 'general', slotStart: opts.appointment.startAt,
+        slotEnd: opts.appointment.endAt, contactName, contactPhone,
         contactEmail: bookingRow?.contactEmail ?? undefined,
         cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
         serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(opts.appointment, bookingRow),
         canonicalAppointmentId: opts.appointment.id,
         ...(opts.reminderPlan ? { reminderPlan: opts.reminderPlan } : {}),
         ...(opts.suppressPatientNotification ? { suppressPatientNotification: true } : {}),
-        ...(opts.cancelPendingReminders !== undefined
-          ? { cancelPendingReminders: opts.cancelPendingReminders }
-          : {}),
-        ...(opts.patientPushVariant !== undefined
-          ? { patientPushVariant: opts.patientPushVariant }
-          : {}),
+        ...(opts.cancelPendingReminders !== undefined ? { cancelPendingReminders: opts.cancelPendingReminders } : {}),
+        ...(opts.patientPushVariant !== undefined ? { patientPushVariant: opts.patientPushVariant } : {}),
         patientMessageText,
         ...(opts.doctorNotify !== undefined ? { doctorNotify: opts.doctorNotify } : {}),
         doctorMessageText,
@@ -130,7 +106,5 @@ export async function emitStaffCanonicalBookingEvent(opts: {
       },
     });
     return 'sent';
-  } catch {
-    return 'skipped';
-  }
+  } catch { return 'skipped'; }
 }

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { runStaffManualNoShowAfterCanonical } from '@/app-layer/booking/staffManualNoShow';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
@@ -53,18 +52,12 @@ export async function POST(request: Request, context: RouteContext) {
         actorId: gate.ctx.session.user.userId,
         reason: parsed.data.reason,
         staffComment: parsed.data.staffComment,
+        suppressPatientNotification: parsed.data.notifyPatient === false,
       }),
   );
   if (!result.ok) {
     const status = result.error === 'not_found' ? 404 : 409;
     return NextResponse.json({ ok: false, error: result.error }, { status });
   }
-  const flags = await runStaffManualNoShowAfterCanonical({
-    deps,
-    organizationId: gate.ctx.organizationId,
-    appointmentId,
-    appointment: result.appointment,
-    notifyPatient: parsed.data.notifyPatient,
-  });
-  return NextResponse.json({ ok: true, appointment: result.appointment, ...flags });
+  return NextResponse.json({ ok: true, appointment: result.appointment });
 }
