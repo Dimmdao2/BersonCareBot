@@ -12,22 +12,12 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
-  Info,
-  LockKeyhole,
   MessageSquare,
   Pencil,
-  Play,
   Plus,
-  Square,
   Trash2,
 } from 'lucide-react';
 import { arrayMove } from '@dnd-kit/sortable';
-import { DateTime } from 'luxon';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/shared/ui/doctor/primitives/collapsible';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -58,7 +48,6 @@ import { DoctorProgramItemDiscussionDialog } from './DoctorProgramItemDiscussion
 import { DoctorLfkCommentsModal } from '@/app/app/doctor/comments/DoctorLfkCommentsModal';
 import {
   formatNormalizedTestDecisionRu,
-  formatTreatmentProgramStageStatusRu,
   formatLfkPostSessionDifficultyRu,
 } from '@/modules/treatment-program/types';
 import { cn } from '@/lib/utils';
@@ -70,7 +59,6 @@ import {
 } from '@/shared/ui/doctor/selectOpaqueValueLabels';
 import { parseTestSetSnapshotTests } from '@/modules/treatment-program/testSetSnapshotView';
 import {
-  expectedStageControlDeadlineIsoForPatientUi,
   isTreatmentProgramInstanceSystemStageGroup,
   sortDoctorInstanceStageGroupsForDisplay,
 } from '@/modules/treatment-program/stage-semantics';
@@ -89,10 +77,7 @@ import {
   INSTANCE_EDITOR_LOAD_SETS_RANGE,
   parseInstanceEditorLoadField,
 } from '@/app/app/doctor/treatment-program-shared/instanceEditorLoadSettings';
-import { InstanceEditorToolbar } from '@/app/app/doctor/treatment-program-shared/InstanceEditorToolbar';
 import { InstanceEditorAddStageDialog } from '@/app/app/doctor/treatment-program-shared/InstanceEditorAddStageDialog';
-import { InstanceEditorStageOrderDialog } from '@/app/app/doctor/treatment-program-shared/InstanceEditorStageOrderDialog';
-import { useInstanceEditorPipelineStageExpansion } from '@/app/app/doctor/treatment-program-shared/useInstanceEditorPipelineStageExpansion';
 import { useInstanceEditorUnsavedGate } from '@/app/app/doctor/treatment-program-shared/InstanceEditorUnsavedChangesDialog';
 import {
   INSTANCE_HEADER_BG_STAGE_EDITABLE,
@@ -102,13 +87,10 @@ import {
 } from '@/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles';
 import {
   TreatmentProgramSortableItemShell,
-  TreatmentProgramPipelineStagesDnd,
-  TreatmentProgramSortablePipelineStage,
   TreatmentProgramStageItemsDnd,
   type TreatmentProgramStageItemsDropPreview,
 } from '@/app/app/doctor/treatment-program-shared/TreatmentProgramDndUi';
 import {
-  computeOrderedItemIdsAfterGroupItemAdjacentSwap,
   planStageItemDndReorder,
   sortByOrderThenId,
 } from '@/app/app/doctor/treatment-program-shared/treatmentProgramReorderHelpers';
@@ -127,13 +109,8 @@ import {
   resolveStageItemExerciseLoad,
   stageItemSnapshotTitle,
 } from '@/app/app/patient/treatment/stageItemSnapshot';
-import {
-  DoctorExerciseActivityCalendar,
-  type DoctorExerciseActivityCalendarDay,
-} from '@/shared/ui/doctor/DoctorExerciseActivityCalendar';
-import { RichTextDocumentTree } from '@/shared/ui/rich-text/RichTextDocumentTree';
-import { parseTiptapRichText } from '@/shared/lib/richText';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
+import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { notificationText } from '@/shared/notifications/notificationText';
 import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
@@ -441,100 +418,64 @@ function DoctorPersonalExerciseTitleForm(props: { item: InstanceStageItemT; edit
   );
 }
 
-function DoctorProgramInstanceItemCard(props: {
+function DoctorProgramInstanceItemEditor(props: {
   stage: InstanceStageT;
   item: InstanceStageItemT;
   testResults: TreatmentProgramTestResultDetailRow[];
   programStatus: TreatmentProgramInstanceStatus;
-  /** Левая колонка «Рекомендации (этап 0)»: без суффикса типа и без выбора группы. */
-  phaseZeroRecommendation?: boolean;
-  /** Стрелки порядка внутри группы (или этап 0 — `null`-группа). */
-  reorderInGroup?: {
-    disableAll: boolean;
-    disableUp: boolean;
-    disableDown: boolean;
-    onMove: (dir: -1 | 1) => void | Promise<void>;
-  };
-  dragHandle?: ReactNode;
 }) {
-  const {
-    stage,
-    item,
-    testResults,
-    programStatus,
-    phaseZeroRecommendation = false,
-    reorderInGroup,
-    dragHandle,
-  } = props;
-  const recPhase0 = phaseZeroRecommendation && item.itemType === 'recommendation';
+  const { stage, item, testResults, programStatus } = props;
   const editLocked = isProgramInstanceEditLocked(programStatus);
   return (
-    <details className="group rounded-lg border border-border/80 bg-background open:shadow-sm">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 marker:content-none [&::-webkit-details-marker]:hidden">
-        {dragHandle ? (
-          <div
-            className="shrink-0"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            {dragHandle}
-          </div>
-        ) : null}
-        {reorderInGroup ? (
-          <div
-            className="shrink-0"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            <DoctorCatalogMediaStaticThumb
-              media={primaryMediaForStageItem(
-                item as Parameters<typeof primaryMediaForStageItem>[0],
-              )}
-              frameClassName="h-8 w-8 rounded shrink-0"
-              sizes="32px"
-              iconClassName="size-4"
-            />
-          </div>
-        ) : null}
-        <p className="min-w-0 flex-1 text-sm font-medium">
-          <span className="truncate">{stageItemSnapshotTitle(item.snapshot, item.itemType)}</span>{' '}
-          {recPhase0 ? null : (
-            <span className="font-normal text-muted-foreground">({item.itemType})</span>
-          )}
-        </p>
-        <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">Развернуть</span>
-        <span className="hidden shrink-0 text-xs text-muted-foreground group-open:inline">
-          Свернуть
-        </span>
-      </summary>
-      <div className="border-t border-border/50 px-3 pb-4 pt-3">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
-          <div className="flex shrink-0 justify-center sm:block sm:w-[70px]">
-            <DoctorInstanceStageItemPreviewBlock item={item} />
-          </div>
-          <div className="min-w-0 flex-1 flex flex-col gap-4">
-            <InstanceStageItemDoctorRow
-              item={item}
-              editLocked={editLocked}
-              groups={stage.groups}
-              testResults={testResults}
-              hideGroupSelect={recPhase0}
-            />
-            <DoctorPersonalExerciseTitleForm item={item} editLocked={editLocked} />
-            {item.itemType === 'exercise' ? (
-              <DoctorInstanceStageItemLoadForm item={item} editLocked={editLocked} />
-            ) : null}
-            {item.itemType === 'clinical_test' ? (
-              <ClinicalTestCatalogSnapshotLines snapshot={item.snapshot} />
-            ) : null}
-          </div>
-        </div>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
+      <div className="flex shrink-0 justify-center sm:block sm:w-[70px]">
+        <DoctorInstanceStageItemPreviewBlock item={item} />
       </div>
-    </details>
+      <div className="flex min-w-0 flex-1 flex-col gap-4">
+        <InstanceStageItemDoctorRow
+          item={item}
+          editLocked={editLocked}
+          groups={stage.groups}
+          testResults={testResults}
+        />
+        <DoctorPersonalExerciseTitleForm item={item} editLocked={editLocked} />
+        {item.itemType === 'exercise' ? (
+          <DoctorInstanceStageItemLoadForm item={item} editLocked={editLocked} />
+        ) : null}
+        {item.itemType === 'clinical_test' ? (
+          <ClinicalTestCatalogSnapshotLines snapshot={item.snapshot} />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DoctorProgramInstanceItemCard(props: {
+  item: InstanceStageItemT;
+  dragHandle?: ReactNode;
+  onOpen: () => void;
+}) {
+  const { item, dragHandle, onOpen } = props;
+  return (
+    <div className="flex min-h-12 items-center gap-2">
+      {dragHandle ? <div className="shrink-0">{dragHandle}</div> : null}
+      <button
+        type="button"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={onOpen}
+      >
+        <DoctorCatalogMediaStaticThumb
+          media={primaryMediaForStageItem(item)}
+          frameClassName="size-8 shrink-0 rounded border border-border/60"
+          sizes="32px"
+          iconClassName="size-4"
+        />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">
+          {stageItemSnapshotTitle(item.snapshot, item.itemType)}
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground">{item.itemType}</span>
+      </button>
+    </div>
   );
 }
 
@@ -627,110 +568,6 @@ function ProgramInstanceCompleteControl(props: {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function DoctorInstancePipelineStageBlock(props: {
-  instanceId: string;
-  stage: TreatmentProgramInstanceDetail['stages'][number];
-  programStatus: TreatmentProgramInstanceStatus;
-  testResults: TreatmentProgramTestResultDetailRow[];
-  onSaved: () => Promise<void>;
-  onRequestAddLibraryItem: (spec: InstanceAddLibraryItemSpec) => void;
-  expanded: boolean;
-  onExpandedChange: (open: boolean) => void;
-}) {
-  const {
-    instanceId,
-    stage,
-    programStatus,
-    testResults,
-    onSaved,
-    onRequestAddLibraryItem,
-    expanded,
-    onExpandedChange,
-  } = props;
-  const [newGroupOpen, setNewGroupOpen] = useState(false);
-  const editLocked = isProgramInstanceEditLocked(programStatus);
-
-  return (
-    <DoctorSection
-      className="overflow-hidden p-0"
-      data-testid={`instance-editor-pipeline-stage-${stage.id}`}
-      data-expanded={expanded ? 'true' : 'false'}
-    >
-      <Collapsible open={expanded} onOpenChange={onExpandedChange}>
-        <div
-          className="border-b border-border/40 px-2 py-1.5"
-          style={{ background: INSTANCE_HEADER_BG_STAGE_EDITABLE }}
-        >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <CollapsibleTrigger
-              type="button"
-              className="flex min-w-0 flex-1 items-start gap-2 pt-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <div className="min-w-0 flex-1">
-                <span className="text-xs font-medium tabular-nums text-muted-foreground">
-                  Этап {stage.sortOrder}
-                </span>
-                <h3 className="mt-0.5 text-sm font-semibold leading-tight text-foreground">
-                  {stage.title}
-                </h3>
-                {stage.description?.trim() ? (
-                  <p className="mt-1 text-xs leading-snug whitespace-pre-wrap text-muted-foreground">
-                    {stage.description.trim()}
-                  </p>
-                ) : null}
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span className="uppercase tracking-wide">
-                    {formatTreatmentProgramStageStatusRu(stage.status)}
-                  </span>
-                  {stage.skipReason ? <span>Причина пропуска: {stage.skipReason}</span> : null}
-                </div>
-              </div>
-              <ChevronDown
-                className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-data-[open]/collapsible:rotate-180"
-                aria-hidden
-              />
-            </CollapsibleTrigger>
-            <div className="flex shrink-0 flex-wrap items-start justify-end gap-1">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className={tplToolbarTextBtnClass}
-                disabled={editLocked}
-                onClick={() => {
-                  if (editLocked) return;
-                  onExpandedChange(true);
-                  setNewGroupOpen(true);
-                }}
-              >
-                + Группа
-              </Button>
-            </div>
-          </div>
-        </div>
-        <CollapsibleContent>
-          <div className="p-3">
-            <StageDoctorControls
-              instanceId={instanceId}
-              stage={stage}
-              programStatus={programStatus}
-              onPatched={onSaved}
-            />
-            <InstanceStageGroupsPanel
-              stage={stage}
-              testResults={testResults}
-              programStatus={programStatus}
-              newGroupOpen={newGroupOpen}
-              onNewGroupOpenChange={setNewGroupOpen}
-              onRequestAddLibraryItem={onRequestAddLibraryItem}
-            />
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    </DoctorSection>
   );
 }
 
@@ -831,7 +668,7 @@ type MobileRecommendationEditDraft = {
   media: RecommendationMediaItem[];
 };
 
-function MobileRecommendationEditor(props: {
+function ProgramRecommendationsEditor(props: {
   instanceId: string;
   stage: InstanceStageT;
   items: InstanceStageItemT[];
@@ -844,8 +681,8 @@ function MobileRecommendationEditor(props: {
     useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(programStatus);
   const orderedItems = useMemo(() => sortByOrderThenId(items), [items]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [organizing, setOrganizing] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<MobileRecommendationEditDraft>({
     title: '',
@@ -857,7 +694,6 @@ function MobileRecommendationEditor(props: {
     {},
   );
 
-  const selected = orderedItems.find((item) => item.id === selectedId) ?? null;
   const editing = orderedItems.find((item) => item.id === editId) ?? null;
   const deleting = orderedItems.find((item) => item.id === deleteId) ?? null;
 
@@ -888,7 +724,7 @@ function MobileRecommendationEditor(props: {
   };
 
   useEffect(() => {
-    if (!manageOpen && !selectedId) return;
+    if (!manageOpen) return;
     const ids = orderedItems.map((item) => item.id).filter((id) => !id.startsWith('draft:'));
     if (ids.length === 0) return;
     const controller = new AbortController();
@@ -910,7 +746,7 @@ function MobileRecommendationEditor(props: {
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [instanceId, manageOpen, orderedItems, selectedId]);
+  }, [instanceId, manageOpen, orderedItems]);
 
   const hasHistory = (item: InstanceStageItemT) =>
     Boolean(item.completedAt) ||
@@ -946,168 +782,72 @@ function MobileRecommendationEditor(props: {
     if (!deleting || deletionLocked(deleting) || editLocked) return;
     deleteItem(deleting.id);
     setDeleteId(null);
-    if (selectedId === deleting.id) setSelectedId(null);
   };
 
-  const recommendationBody = selected
-    ? typeof selected.snapshot.bodyMd === 'string'
-      ? selected.snapshot.bodyMd
-      : ''
-    : '';
-  const recommendationDocument = recommendationBody
-    ? parseTiptapRichText(recommendationBody)
-    : null;
-  const selectedMedia = selected
-    ? pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(selected.snapshot))
-    : null;
-
   return (
-    <DoctorSection
-      className="overflow-hidden p-0 md:hidden"
-      id="doctor-program-instance-phase0-recommendations-mobile"
-    >
-      <div
-        className="flex items-center justify-between gap-2 border-b border-border/25 px-2 py-2"
-        style={{ background: TPL_HEADER_BG_RECOMMENDATIONS }}
+    <>
+      <DoctorSection
+        className="overflow-hidden p-0"
+        id="doctor-program-instance-phase0-recommendations"
       >
-        <h3 className="min-w-0 flex-1 text-sm font-semibold leading-tight text-foreground">
-          Общие рекомендации
-        </h3>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            size="icon"
-            className="size-8"
-            aria-label="Добавить рекомендацию"
-            disabled={editLocked}
-            onClick={onAdd}
-          >
-            <Plus className="size-4" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            className="size-8"
-            aria-label="Изменить рекомендации"
-            disabled={editLocked || orderedItems.length === 0}
-            onClick={() => setManageOpen(true)}
-          >
-            <Pencil className="size-4" aria-hidden />
-          </Button>
-        </div>
-      </div>
-      <div className="p-2">
+        <button
+          type="button"
+          className="block w-full px-3 py-3 text-left transition-[filter] hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          style={{ background: TPL_HEADER_BG_RECOMMENDATIONS }}
+          onClick={() => setManageOpen(true)}
+        >
+          <span className="text-sm font-semibold leading-tight text-foreground">
+            Общие рекомендации: {orderedItems.length}
+          </span>
+        </button>
+      </DoctorSection>
+
+      <DoctorModal
+        open={manageOpen}
+        onClose={() => {
+          setManageOpen(false);
+          setOrganizing(false);
+        }}
+        title="Общие рекомендации"
+        size="lg"
+        bodyVariant="list"
+        variant="panel"
+        headerAction={
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              size="icon"
+              className="size-8"
+              aria-label="Добавить рекомендацию"
+              disabled={editLocked}
+              onClick={onAdd}
+            >
+              <Plus className="size-4" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant={organizing ? 'default' : 'outline'}
+              className="size-8"
+              aria-label="Изменить порядок и видимость рекомендаций"
+              aria-pressed={organizing}
+              disabled={editLocked || orderedItems.length === 0}
+              onClick={() => setOrganizing((current) => !current)}
+            >
+              <Pencil className="size-4" aria-hidden />
+            </Button>
+          </div>
+        }
+      >
         {orderedItems.length === 0 ? (
-          <p className="px-1 py-2 text-sm text-muted-foreground">Нет рекомендаций.</p>
-        ) : (
-          <ul className="m-0 flex list-none flex-col divide-y divide-border/60 p-0">
-            {orderedItems.map((item) => {
-              const media = pickRecommendationRowPreviewMedia(
-                parseRecommendationMediaFromSnapshot(item.snapshot),
-              );
-              const active = item.status !== 'disabled';
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="flex min-h-14 w-full items-center gap-2 px-1 py-1.5 text-left"
-                    onClick={() => setSelectedId(item.id)}
-                  >
-                    {media ? (
-                      <DoctorCatalogMediaStaticThumb
-                        media={media}
-                        frameClassName="size-11 rounded-md border border-border/60"
-                        sizes="44px"
-                      />
-                    ) : null}
-                    <span className="line-clamp-2 min-w-0 flex-1 text-sm font-medium leading-snug">
-                      {stageItemSnapshotTitle(item.snapshot, item.itemType)}
-                    </span>
-                    {active ? (
-                      <Eye className="size-5 shrink-0 text-emerald-600" aria-label="Показывается" />
-                    ) : (
-                      <EyeOff
-                        className="size-5 shrink-0 text-muted-foreground"
-                        aria-label="Скрыто"
-                      />
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {selected ? stageItemSnapshotTitle(selected.snapshot, selected.itemType) : ''}
-            </DialogTitle>
-          </DialogHeader>
-          {selected ? (
-            <div className="space-y-3">
-              {selectedMedia ? (
-                <a href={selectedMedia.mediaUrl} target="_blank" rel="noreferrer" className="block">
-                  <DoctorCatalogMediaStaticThumb
-                    media={selectedMedia}
-                    frameClassName="aspect-video w-full rounded-lg border border-border"
-                    sizes="(max-width: 640px) 92vw, 480px"
-                  />
-                </a>
-              ) : null}
-              <div className="markdown-preview text-sm">
-                {recommendationDocument ? (
-                  <RichTextDocumentTree document={recommendationDocument} />
-                ) : recommendationBody ? (
-                  <p className="whitespace-pre-wrap">{recommendationBody}</p>
-                ) : (
-                  <p className="text-muted-foreground">Описание не заполнено.</p>
-                )}
-              </div>
-            </div>
-          ) : null}
-          <DialogFooter className="flex-row flex-nowrap justify-between gap-2">
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={
-                !selected || editLocked || saving || (selected ? deletionLocked(selected) : true)
-              }
-              title={
-                selected && deletionLocked(selected)
-                  ? 'Есть комментарии или отметки выполнения'
-                  : undefined
-              }
-              onClick={() => selected && setDeleteId(selected.id)}
-            >
-              Удалить
-            </Button>
-            <Button
-              type="button"
-              disabled={!selected || editLocked || saving}
-              onClick={() => selected && openRecommendationEdit(selected)}
-            >
-              Редактировать
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Общие рекомендации</DialogTitle>
-            <DialogDescription>Перетащите строки, чтобы изменить порядок.</DialogDescription>
-          </DialogHeader>
+          <p className="px-4 py-4 text-sm text-muted-foreground">Нет рекомендаций.</p>
+        ) : organizing ? (
           <TreatmentProgramStageItemsDnd
             sortableItemIds={orderedItems.map((item) => item.id)}
             disabled={editLocked || saving}
             onReorder={reorder}
           >
-            <div className="space-y-2">
+            <div className="space-y-2 p-3">
               {orderedItems.map((item) => {
                 const media = pickRecommendationRowPreviewMedia(
                   parseRecommendationMediaFromSnapshot(item.snapshot),
@@ -1120,71 +860,67 @@ function MobileRecommendationEditor(props: {
                     id={item.id}
                     disabled={editLocked || saving}
                     className="rounded-lg border border-border bg-background p-2"
-                    dragHandleClassName="size-11"
+                    dragHandleClassName="size-10"
                   >
                     {(dragHandle) => (
-                      <div className="flex min-h-[4.75rem] items-center gap-2">
+                      <div className="flex min-h-14 items-center gap-2">
                         {dragHandle}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <DoctorCatalogMediaStaticThumb
-                              media={media}
-                              frameClassName="size-10 rounded-md border border-border/60"
-                              sizes="40px"
-                            />
-                            <p className="min-w-0 flex-1 truncate text-sm font-medium">
-                              {stageItemSnapshotTitle(item.snapshot, item.itemType)}
-                            </p>
-                          </div>
-                          <div className="mt-1 flex justify-end gap-1">
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="size-9"
-                              aria-label={active ? 'Скрыть' : 'Показать'}
-                              disabled={editLocked || saving}
-                              onClick={() =>
-                                patchAndSave(item.id, {
-                                  status: active ? 'disabled' : 'active',
-                                })
-                              }
-                            >
-                              {active ? (
-                                <Eye className="size-5 text-emerald-600" />
-                              ) : (
-                                <EyeOff className="size-5 text-muted-foreground" />
-                              )}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="size-9"
-                              aria-label="Редактировать"
-                              disabled={editLocked || saving}
-                              onClick={() => openRecommendationEdit(item)}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="size-9 text-destructive"
-                              aria-label="Удалить"
-                              disabled={editLocked || saving || deleteDisabled}
-                              title={
-                                deleteDisabled
-                                  ? 'Есть комментарии или отметки выполнения'
-                                  : undefined
-                              }
-                              onClick={() => setDeleteId(item.id)}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </div>
-                        </div>
+                        <DoctorCatalogMediaStaticThumb
+                          media={media}
+                          frameClassName="size-8 shrink-0 rounded border border-border/60"
+                          sizes="32px"
+                        />
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 truncate text-left text-sm font-medium"
+                          onClick={() => openRecommendationEdit(item)}
+                        >
+                          {stageItemSnapshotTitle(item.snapshot, item.itemType)}
+                        </button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-8"
+                          aria-label={active ? 'Скрыть' : 'Показать'}
+                          disabled={editLocked || saving}
+                          onClick={() =>
+                            patchAndSave(item.id, {
+                              status: active ? 'disabled' : 'active',
+                            })
+                          }
+                        >
+                          {active ? (
+                            <Eye className="size-4 text-emerald-600" strokeWidth={1.5} />
+                          ) : (
+                            <EyeOff className="size-4 text-muted-foreground" strokeWidth={1.5} />
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-8"
+                          aria-label="Редактировать"
+                          disabled={editLocked || saving}
+                          onClick={() => openRecommendationEdit(item)}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-8 text-destructive"
+                          aria-label="Удалить"
+                          disabled={editLocked || saving || deleteDisabled}
+                          title={
+                            deleteDisabled ? 'Есть комментарии или отметки выполнения' : undefined
+                          }
+                          onClick={() => setDeleteId(item.id)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
                       </div>
                     )}
                   </TreatmentProgramSortableItemShell>
@@ -1192,13 +928,50 @@ function MobileRecommendationEditor(props: {
               })}
             </div>
           </TreatmentProgramStageItemsDnd>
-          <DialogFooter className="flex-row flex-nowrap justify-end">
-            <Button type="button" onClick={() => setManageOpen(false)}>
-              Готово
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        ) : (
+          <ul className="m-0 list-none divide-y divide-border/60 p-0">
+            {orderedItems.map((item) => {
+              const media = pickRecommendationRowPreviewMedia(
+                parseRecommendationMediaFromSnapshot(item.snapshot),
+              );
+              const active = item.status !== 'disabled';
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className="flex min-h-12 w-full items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    onClick={() => openRecommendationEdit(item)}
+                  >
+                    {media ? (
+                      <DoctorCatalogMediaStaticThumb
+                        media={media}
+                        frameClassName="size-8 shrink-0 rounded border border-border/60"
+                        sizes="32px"
+                      />
+                    ) : null}
+                    <span className="line-clamp-2 min-w-0 flex-1 text-sm font-medium leading-snug">
+                      {stageItemSnapshotTitle(item.snapshot, item.itemType)}
+                    </span>
+                    {active ? (
+                      <Eye
+                        className="size-4 shrink-0 text-emerald-600"
+                        strokeWidth={1.5}
+                        aria-label="Показывается"
+                      />
+                    ) : (
+                      <EyeOff
+                        className="size-4 shrink-0 text-muted-foreground"
+                        strokeWidth={1.5}
+                        aria-label="Скрыто"
+                      />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </DoctorModal>
 
       <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditId(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
@@ -1307,134 +1080,24 @@ function MobileRecommendationEditor(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </DoctorSection>
+    </>
   );
 }
 
-function mobileStageDurationLabel(stage: InstanceStageT, timeZone: string): string | null {
-  const parts: string[] = [];
-  if (stage.expectedDurationText?.trim()) parts.push(stage.expectedDurationText.trim());
-  else if (stage.expectedDurationDays != null) parts.push(`${stage.expectedDurationDays} дн.`);
-  if (stage.status === 'in_progress' && stage.expectedDurationDays != null) {
-    const dueIso = expectedStageControlDeadlineIsoForPatientUi(stage, DateTime.now(), timeZone);
-    if (dueIso) {
-      parts.push(
-        `до ${new Intl.DateTimeFormat('ru-RU', {
-          day: 'numeric',
-          month: 'long',
-          timeZone,
-        }).format(new Date(dueIso))}`,
-      );
-    }
-  }
-  return parts.length > 0 ? parts.join(' · ') : null;
-}
-
-function MobileStageCalendarDialog(props: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  patientUserId: string;
-  instanceId: string;
-  stage: InstanceStageT | null;
-  timeZone: string;
-}) {
-  const { open, onOpenChange, patientUserId, instanceId, stage, timeZone } = props;
-  const now = DateTime.now().setZone(timeZone);
-  const [year, setYear] = useState(now.year);
-  const [month, setMonth] = useState(now.month);
-  const [days, setDays] = useState<DoctorExerciseActivityCalendarDay[]>([]);
-  const [state, setState] = useState<'loading' | 'error' | 'ready'>('loading');
-
-  useEffect(() => {
-    if (!open || !stage) return;
-    const last = new Date(year, month, 0).getDate();
-    const pad = (value: number) => String(value).padStart(2, '0');
-    const from = `${year}-${pad(month)}-01`;
-    const to = `${year}-${pad(month)}-${pad(last)}`;
-    const controller = new AbortController();
-    queueMicrotask(() => setState('loading'));
-    void fetch(
-      `/api/doctor/patients/${encodeURIComponent(patientUserId)}/exercise-calendar?from=${from}&to=${to}&instanceId=${encodeURIComponent(instanceId)}&stageId=${encodeURIComponent(stage.id)}`,
-      { signal: controller.signal },
-    )
-      .then(async (response) => {
-        if (!response.ok) throw new Error('calendar');
-        return (await response.json()) as {
-          ok?: boolean;
-          days?: DoctorExerciseActivityCalendarDay[];
-        };
-      })
-      .then((payload) => {
-        if (!payload.ok || !Array.isArray(payload.days)) throw new Error('calendar');
-        setDays(payload.days);
-        setState('ready');
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setDays([]);
-        setState('error');
-      });
-    return () => controller.abort();
-  }, [instanceId, month, open, patientUserId, stage, year]);
-
-  const currentMonth = year === now.year && month === now.month;
-  const navigate = (delta: -1 | 1) => {
-    if (delta === 1 && currentMonth) return;
-    const next = new Date(year, month - 1 + delta, 1);
-    setYear(next.getFullYear());
-    setMonth(next.getMonth() + 1);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Календарь выполнения</DialogTitle>
-          <DialogDescription>{stage?.title ?? ''}</DialogDescription>
-        </DialogHeader>
-        <DoctorExerciseActivityCalendar
-          days={days}
-          year={year}
-          month={month}
-          state={state}
-          disableNext={currentMonth}
-          onMonthChange={navigate}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function MobileProgramStagesEditor(props: {
+function ProgramStagesEditor(props: {
   detail: TreatmentProgramInstanceDetail;
   pipelineStages: InstanceStageT[];
-  stageZeroId: string | null;
   testResults: TreatmentProgramTestResultDetailRow[];
-  appDisplayTimeZone: string;
   onAddGroupItem: (spec: InstanceAddLibraryItemSpec) => void;
   onRefresh: () => Promise<void>;
 }) {
-  const {
-    detail,
-    pipelineStages,
-    stageZeroId,
-    testResults,
-    appDisplayTimeZone,
-    onAddGroupItem,
-    onRefresh,
-  } = props;
-  const { setStageOrder, addGroupCreate, patchStageMetadata, isDirty, saveDraft } =
-    useInstanceEditorDraft();
-  const { saving: draftSaving } = useInstanceEditorDraft();
+  const { detail, pipelineStages, testResults, onAddGroupItem, onRefresh } = props;
+  const { addGroupCreate, patchStageMetadata } = useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(detail.status);
-  const [groupTarget, setGroupTarget] = useState<{ stageId: string; groupId: string } | null>(null);
+  const [openStageId, setOpenStageId] = useState<string | null>(null);
   const [newGroupStageId, setNewGroupStageId] = useState<string | null>(null);
   const [newGroupTitle, setNewGroupTitle] = useState('');
   const [stageEditId, setStageEditId] = useState<string | null>(null);
-  const [stageInfoId, setStageInfoId] = useState<string | null>(null);
-  const [calendarStageId, setCalendarStageId] = useState<string | null>(null);
-  const [statusTarget, setStatusTarget] = useState<InstanceStageT | null>(null);
-  const [statusSaving, setStatusSaving] = useState(false);
   const [stageDraft, setStageDraft] = useState({
     title: '',
     description: '',
@@ -1444,33 +1107,19 @@ function MobileProgramStagesEditor(props: {
     durationText: '',
   });
 
+  const openStage = pipelineStages.find((stage) => stage.id === openStageId) ?? null;
   const editingStage = pipelineStages.find((stage) => stage.id === stageEditId) ?? null;
-  const infoStage = pipelineStages.find((stage) => stage.id === stageInfoId) ?? null;
-  const calendarStage = pipelineStages.find((stage) => stage.id === calendarStageId) ?? null;
-  const groupStage = groupTarget
-    ? (pipelineStages.find((stage) => stage.id === groupTarget.stageId) ?? null)
-    : null;
-  const group = groupStage?.groups.find((row) => row.id === groupTarget?.groupId) ?? null;
 
-  useEffect(() => {
-    if (!editingStage) return;
+  const openStageEdit = (stage: InstanceStageT) => {
     setStageDraft({
-      title: editingStage.title,
-      description: editingStage.description ?? '',
-      goals: editingStage.goals ?? '',
-      objectives: editingStage.objectives ?? '',
-      days:
-        editingStage.expectedDurationDays == null ? '' : String(editingStage.expectedDurationDays),
-      durationText: editingStage.expectedDurationText ?? '',
+      title: stage.title,
+      description: stage.description ?? '',
+      goals: stage.goals ?? '',
+      objectives: stage.objectives ?? '',
+      days: stage.expectedDurationDays == null ? '' : String(stage.expectedDurationDays),
+      durationText: stage.expectedDurationText ?? '',
     });
-  }, [editingStage]);
-
-  const reorderStages = (activeId: string, overId: string) => {
-    const ids = pipelineStages.map((stage) => stage.id);
-    const from = ids.indexOf(activeId);
-    const to = ids.indexOf(overId);
-    if (from < 0 || to < 0 || !stageZeroId) return;
-    setStageOrder([stageZeroId, ...arrayMove(ids, from, to)]);
+    setStageEditId(stage.id);
   };
 
   const createGroup = () => {
@@ -1502,217 +1151,90 @@ function MobileProgramStagesEditor(props: {
     setStageEditId(null);
   };
 
-  const activateStage = async () => {
-    if (!statusTarget || editLocked || statusSaving) return;
-    setStatusSaving(true);
-    try {
-      if (isDirty) {
-        const saved = await saveDraft({ confirmActiveProgramChange: false });
-        if (!saved.ok) {
-          if (!saved.cancelled) toast.error(notificationText.commonSaveFailed);
-          return;
-        }
-      }
-      const response = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/stages/${encodeURIComponent(statusTarget.id)}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'in_progress' }),
-        },
-      );
-      const payload = (await response.json().catch(() => null)) as {
-        ok?: boolean;
-        error?: string;
-      } | null;
-      if (!response.ok || !payload?.ok) {
-        toast.error(readSafeApiErrorText(payload, notificationText.commonGenericError));
-        return;
-      }
-      setStatusTarget(null);
-      await onRefresh();
-      toast.success(notificationText.commonSaved);
-    } finally {
-      setStatusSaving(false);
-    }
-  };
-
   return (
-    <div className="flex min-w-0 flex-col gap-3 md:hidden">
-      <TreatmentProgramPipelineStagesDnd
-        stageIds={pipelineStages.map((stage) => stage.id)}
-        disabled={editLocked || draftSaving}
-        onReorder={reorderStages}
-      >
-        <div className="flex min-w-0 flex-col gap-3">
-          {pipelineStages.map((stage) => {
-            const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stage.groups);
-            const duration = mobileStageDurationLabel(stage, appDisplayTimeZone);
-            return (
-              <TreatmentProgramSortablePipelineStage
-                key={stage.id}
-                id={stage.id}
-                disabled={editLocked || draftSaving}
-                dragHandleClassName="size-8"
-              >
-                {(dragHandle) => (
-                  <DoctorSection className="overflow-hidden p-0">
-                    <div
-                      className="border-b border-border/40 px-2 py-2"
-                      style={{ background: INSTANCE_HEADER_BG_STAGE_EDITABLE }}
-                    >
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        {dragHandle}
-                        <span className="min-w-0 flex-1 text-xs font-medium tabular-nums text-muted-foreground">
-                          Этап {stage.sortOrder}
-                        </span>
-                        <Button
-                          type="button"
-                          size="icon"
-                          className="size-8"
-                          aria-label={`Добавить группу в этап ${stage.sortOrder}`}
-                          disabled={editLocked}
-                          onClick={() => setNewGroupStageId(stage.id)}
-                        >
-                          <Plus className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          className="size-8"
-                          aria-label={`Редактировать этап ${stage.sortOrder}`}
-                          disabled={editLocked}
-                          onClick={() => setStageEditId(stage.id)}
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="secondary"
-                          className="size-8 text-foreground"
-                          aria-label={`Информация об этапе ${stage.sortOrder}`}
-                          onClick={() => setStageInfoId(stage.id)}
-                        >
-                          <Info className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className={cn(
-                            'size-8 border',
-                            stage.status === 'in_progress' || stage.status === 'available'
-                              ? 'border-primary/30 bg-primary/10 text-primary'
-                              : 'border-border bg-background/60 text-foreground',
-                          )}
-                          aria-label={
-                            stage.status === 'in_progress'
-                              ? 'Открыть календарь выполнения'
-                              : stage.status === 'locked'
-                                ? 'Разблокировать и сделать этап активным'
-                                : 'Сделать этап активным'
-                          }
-                          onClick={() => {
-                            if (stage.status === 'in_progress') setCalendarStageId(stage.id);
-                            else setStatusTarget(stage);
-                          }}
-                        >
-                          {stage.status === 'locked' ? (
-                            <LockKeyhole className="size-4 fill-current" />
-                          ) : stage.status === 'in_progress' || stage.status === 'available' ? (
-                            <Play className="size-4 fill-current" />
-                          ) : (
-                            <Square className="size-3.5 fill-current text-zinc-600" />
-                          )}
-                        </Button>
-                      </div>
-                      <h3 className="mt-2 text-sm font-semibold leading-snug text-foreground">
-                        {stage.title}
-                      </h3>
-                      {duration ? (
-                        <p className="mt-1 text-xs text-muted-foreground">{duration}</p>
-                      ) : null}
-                    </div>
-                    <div className="p-2">
-                      {sortedGroups.length === 0 ? (
-                        <p className="px-1 py-2 text-sm text-muted-foreground">Нет групп.</p>
-                      ) : (
-                        <div className="divide-y divide-border/60">
-                          {sortedGroups.map((stageGroup) => {
-                            const groupItems = sortByOrderThenId(
-                              stage.items.filter((item) => item.groupId === stageGroup.id),
-                            );
-                            return (
-                              <button
-                                key={stageGroup.id}
-                                type="button"
-                                className="block w-full px-1 py-2 text-left"
-                                onClick={() =>
-                                  setGroupTarget({ stageId: stage.id, groupId: stageGroup.id })
-                                }
-                              >
-                                <span className="block text-sm font-medium leading-snug">
-                                  {stageGroup.title}
-                                </span>
-                                {stageGroup.scheduleText?.trim() ? (
-                                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                                    {stageGroup.scheduleText.trim()}
-                                  </span>
-                                ) : null}
-                                {groupItems.length > 0 ? (
-                                  <span className="mt-2 flex min-w-0 gap-1 overflow-x-auto">
-                                    {groupItems.map((item) => (
-                                      <DoctorCatalogMediaStaticThumb
-                                        key={item.id}
-                                        media={primaryMediaForStageItem(item)}
-                                        frameClassName="size-10 rounded-md border border-border/60"
-                                        sizes="40px"
-                                      />
-                                    ))}
-                                  </span>
-                                ) : null}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </DoctorSection>
-                )}
-              </TreatmentProgramSortablePipelineStage>
-            );
-          })}
-        </div>
-      </TreatmentProgramPipelineStagesDnd>
+    <div className="flex min-w-0 flex-col gap-3">
+      {pipelineStages.map((stage) => {
+        const exerciseCount = stage.items.filter((item) => item.itemType === 'exercise').length;
+        return (
+          <DoctorSection
+            key={stage.id}
+            className="overflow-hidden p-0"
+            data-testid={`instance-editor-pipeline-stage-${stage.id}`}
+          >
+            <button
+              type="button"
+              className="block w-full px-3 py-3 text-left transition-[filter] hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              style={{ background: INSTANCE_HEADER_BG_STAGE_EDITABLE }}
+              onClick={() => setOpenStageId(stage.id)}
+            >
+              <span className="block text-xs font-medium tabular-nums text-muted-foreground">
+                Этап {stage.sortOrder}: {exerciseCount} упр.
+              </span>
+              <span className="mt-1 block text-sm font-semibold leading-snug text-foreground">
+                {stage.title}
+              </span>
+            </button>
+          </DoctorSection>
+        );
+      })}
 
-      <Dialog
-        open={group !== null}
-        onOpenChange={(open) => {
-          if (!open) setGroupTarget(null);
-        }}
+      <DoctorModal
+        open={openStage !== null}
+        onClose={() => setOpenStageId(null)}
+        title={
+          <DoctorModalStackedTitle
+            label={`Этап ${openStage?.sortOrder ?? 0} из ${pipelineStages.length}`}
+            entity={openStage?.title}
+          />
+        }
+        size="content"
+        variant="panel"
+        headerAction={
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              size="icon"
+              className="size-8"
+              aria-label="Добавить группу"
+              disabled={!openStage || editLocked}
+              onClick={() => openStage && setNewGroupStageId(openStage.id)}
+            >
+              <Plus className="size-4" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="size-8"
+              aria-label="Редактировать этап"
+              disabled={!openStage || editLocked}
+              onClick={() => openStage && openStageEdit(openStage)}
+            >
+              <Pencil className="size-4" aria-hidden />
+            </Button>
+          </div>
+        }
       >
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{group?.title ?? 'Группа'}</DialogTitle>
-            {group?.scheduleText?.trim() ? (
-              <DialogDescription>{group.scheduleText.trim()}</DialogDescription>
-            ) : null}
-          </DialogHeader>
-          {groupStage && group ? (
+        {openStage ? (
+          <div className="flex min-w-0 flex-col gap-3 p-4">
+            <StageDoctorControls
+              instanceId={detail.id}
+              stage={openStage}
+              programStatus={detail.status}
+              onPatched={onRefresh}
+              showEditButton={false}
+            />
             <InstanceStageGroupsPanel
-              stage={groupStage}
-              visibleGroupId={group.id}
+              stage={openStage}
               testResults={testResults}
               programStatus={detail.status}
               newGroupOpen={false}
               onNewGroupOpenChange={() => undefined}
               onRequestAddLibraryItem={onAddGroupItem}
             />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+          </div>
+        ) : null}
+      </DoctorModal>
 
       <Dialog
         open={newGroupStageId !== null}
@@ -1824,81 +1346,6 @@ function MobileProgramStagesEditor(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={infoStage !== null} onOpenChange={(open) => !open && setStageInfoId(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{infoStage?.title ?? 'Информация об этапе'}</DialogTitle>
-          </DialogHeader>
-          {infoStage ? (
-            <div className="space-y-3 text-sm">
-              {mobileStageDurationLabel(infoStage, appDisplayTimeZone) ? (
-                <p className="text-muted-foreground">
-                  {mobileStageDurationLabel(infoStage, appDisplayTimeZone)}
-                </p>
-              ) : null}
-              {infoStage.description?.trim() ? (
-                <p className="whitespace-pre-wrap">{infoStage.description.trim()}</p>
-              ) : null}
-              {infoStage.goals?.trim() ? (
-                <div>
-                  <p className="mb-1 font-medium">Цель</p>
-                  {parseTiptapRichText(infoStage.goals) ? (
-                    <RichTextDocumentTree document={parseTiptapRichText(infoStage.goals)!} />
-                  ) : (
-                    <p className="whitespace-pre-wrap">{infoStage.goals}</p>
-                  )}
-                </div>
-              ) : null}
-              {infoStage.objectives?.trim() ? (
-                <div>
-                  <p className="mb-1 font-medium">Задачи</p>
-                  {parseTiptapRichText(infoStage.objectives) ? (
-                    <RichTextDocumentTree document={parseTiptapRichText(infoStage.objectives)!} />
-                  ) : (
-                    <p className="whitespace-pre-wrap">{infoStage.objectives}</p>
-                  )}
-                </div>
-              ) : null}
-              {!infoStage.description?.trim() &&
-              !infoStage.goals?.trim() &&
-              !infoStage.objectives?.trim() ? (
-                <p className="text-muted-foreground">Описание не заполнено.</p>
-              ) : null}
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={statusTarget !== null} onOpenChange={(open) => !open && setStatusTarget(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {statusTarget?.status === 'locked'
-                ? 'Разблокировать и сделать этап активным?'
-                : 'Сделать этап активным?'}
-            </DialogTitle>
-            <DialogDescription>Текущий активный этап будет завершён.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-row flex-nowrap justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setStatusTarget(null)}>
-              Отмена
-            </Button>
-            <Button type="button" disabled={statusSaving} onClick={() => void activateStage()}>
-              {statusSaving ? 'Сохранение…' : 'Сделать активным'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <MobileStageCalendarDialog
-        open={calendarStage !== null}
-        onOpenChange={(open) => !open && setCalendarStageId(null)}
-        patientUserId={detail.patientUserId}
-        instanceId={detail.id}
-        stage={calendarStage}
-        timeZone={appDisplayTimeZone}
-      />
     </div>
   );
 }
@@ -1979,7 +1426,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     baseline,
     refreshBaseline,
   } = props;
-  const { displayDetail, setItemReorder } = useInstanceEditorDraft();
+  const { displayDetail } = useInstanceEditorDraft();
   const detail = displayDetail;
   const [testResults, setTestResults] =
     useState<TreatmentProgramTestResultDetailRow[]>(initialTestResults);
@@ -2019,7 +1466,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   });
   const [instanceDiscussionOpen, setInstanceDiscussionOpen] = useState(false);
   const [addStageDialogOpen, setAddStageDialogOpen] = useState(false);
-  const [stageOrderDialogOpen, setStageOrderDialogOpen] = useState(false);
 
   const sortedStages = useMemo(
     () => [...detail.stages].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)),
@@ -2033,13 +1479,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
       pipelineStages[0] ??
       null,
     [pipelineStages],
-  );
-  const { isStageExpanded, setStageExpanded } = useInstanceEditorPipelineStageExpansion(
-    pipelineStages.map((stage) => ({
-      id: stage.id,
-      sortOrder: stage.sortOrder,
-      status: stage.status,
-    })),
   );
   const stageZero = useMemo(
     () => sortedStages.find((s) => s.sortOrder === 0) ?? null,
@@ -2075,24 +1514,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
       if (data.attemptAcceptMap !== undefined) setAttemptAcceptMap(data.attemptAcceptMap);
     }
   }, [detail.id]);
-
-  const reorderPhaseZeroItem = useCallback(
-    (itemId: string, dir: -1 | 1) => {
-      if (!stageZero) return;
-      const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(
-        stageZero.items,
-        null,
-        itemId,
-        dir,
-        {
-          itemInReorderBand: (it) => it.itemType === 'recommendation',
-        },
-      );
-      if (!ordered) return;
-      setItemReorder(stageZero.id, ordered);
-    },
-    [stageZero, setItemReorder],
-  );
 
   useEffect(() => {
     const resultId = initialFocusTestResultId?.trim();
@@ -2146,7 +1567,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
             {formatProgramAssignmentMeta(detail.createdAt, appDisplayTimeZone)}
           </p>
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 md:grid-cols-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
           {programCommentsEnabled ? (
             <Button
               type="button"
@@ -2173,7 +1594,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
           <Button
             type="button"
             size="icon"
-            className="size-9 md:hidden"
+            className="size-9"
             aria-label="Добавить этап"
             disabled={isProgramInstanceEditLocked(detail.status)}
             onClick={() => setAddStageDialogOpen(true)}
@@ -2182,27 +1603,10 @@ function TreatmentProgramInstanceDetailClientBody(props: {
           </Button>
         </div>
       </DoctorSection>
-      <div className="hidden md:block">
-        <InstanceEditorToolbar
-          stageNumber={currentStage?.sortOrder ?? null}
-          stageTitle={currentStage?.title ?? 'Этапы не добавлены'}
-          programStatus={detail.status}
-          pipelineStageCount={pipelineStages.length}
-          onAddStageClick={() => setAddStageDialogOpen(true)}
-          onChangeStageOrderClick={() => setStageOrderDialogOpen(true)}
-        />
-      </div>
       <InstanceEditorAddStageDialog
         open={addStageDialogOpen}
         onOpenChange={setAddStageDialogOpen}
         programStatus={detail.status}
-      />
-      <InstanceEditorStageOrderDialog
-        open={stageOrderDialogOpen}
-        onOpenChange={setStageOrderDialogOpen}
-        programStatus={detail.status}
-        stageZeroId={stageZero?.id ?? null}
-        pipelineStages={pipelineStages.map((s) => ({ id: s.id, title: s.title }))}
       />
       {programCommentsEnabled ? (
         <DoctorLfkCommentsModal
@@ -2216,7 +1620,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         />
       ) : null}
       {stageZero ? (
-        <MobileRecommendationEditor
+        <ProgramRecommendationsEditor
           instanceId={detail.id}
           stage={stageZero}
           items={phaseZeroRecommendations}
@@ -2231,74 +1635,17 @@ function TreatmentProgramInstanceDetailClientBody(props: {
           }
         />
       ) : (
-        <DoctorSection className="overflow-hidden p-0 md:hidden">
-          <div
-            className="border-b border-border/25 px-2 py-2"
-            style={{ background: TPL_HEADER_BG_RECOMMENDATIONS }}
-          >
-            <h3 className="text-sm font-semibold">Общие рекомендации</h3>
+        <DoctorSection className="overflow-hidden p-0">
+          <div className="px-3 py-3" style={{ background: TPL_HEADER_BG_RECOMMENDATIONS }}>
+            <h3 className="text-sm font-semibold">Общие рекомендации: 0</h3>
           </div>
-          <p className="p-3 text-sm text-muted-foreground">Нет рекомендаций.</p>
         </DoctorSection>
       )}
-      <DoctorSection
-        className="hidden overflow-hidden p-0 md:block"
-        id="doctor-program-instance-phase0-recommendations"
-      >
-        <div
-          className="flex items-center justify-between gap-2 border-b border-border/25 px-2 py-2"
-          style={{ background: TPL_HEADER_BG_RECOMMENDATIONS }}
-        >
-          <h3 className="text-sm font-semibold leading-tight text-foreground">
-            Общие рекомендации (этап 0)
-          </h3>
-          {stageZero ? (
-            <TreatmentProgramAddItemSquareButton
-              disabled={isProgramInstanceEditLocked(detail.status)}
-              onClick={() =>
-                setAddLibrarySpec({
-                  stageId: stageZero.id,
-                  context: 'phase_zero_recommendations',
-                  customGroupId: null,
-                })
-              }
-            />
-          ) : null}
-        </div>
-        <div className="p-3">
-          {!stageZero ? (
-            <p className="text-sm text-muted-foreground">В программе нет этапа с номером 0.</p>
-          ) : phaseZeroRecommendations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Нет рекомендаций на этапе 0.</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {phaseZeroRecommendations.map((item, idx) => (
-                <DoctorProgramInstanceItemCard
-                  key={item.id}
-                  stage={stageZero}
-                  item={item}
-                  testResults={testResults}
-                  programStatus={detail.status}
-                  phaseZeroRecommendation
-                  reorderInGroup={{
-                    disableAll: isProgramInstanceEditLocked(detail.status),
-                    disableUp: idx <= 0,
-                    disableDown: idx >= phaseZeroRecommendations.length - 1,
-                    onMove: (dir) => void reorderPhaseZeroItem(item.id, dir),
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </DoctorSection>
 
-      <MobileProgramStagesEditor
+      <ProgramStagesEditor
         detail={detail}
         pipelineStages={pipelineStages}
-        stageZeroId={stageZero?.id ?? null}
         testResults={testResults}
-        appDisplayTimeZone={appDisplayTimeZone}
         onAddGroupItem={(spec) => setAddLibrarySpec(spec)}
         onRefresh={refresh}
       />
@@ -2411,21 +1758,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         </DoctorSection>
       ) : null}
 
-      <div id="doctor-program-instance-pipeline" className="hidden min-w-0 flex-col gap-4 md:flex">
-        {pipelineStages.map((stage) => (
-          <DoctorInstancePipelineStageBlock
-            key={`${stage.id}:${stage.sortOrder}`}
-            instanceId={detail.id}
-            stage={stage}
-            programStatus={detail.status}
-            testResults={testResults}
-            onSaved={refresh}
-            onRequestAddLibraryItem={(spec) => setAddLibrarySpec(spec)}
-            expanded={isStageExpanded(stage.id)}
-            onExpandedChange={(open) => setStageExpanded(stage.id, open)}
-          />
-        ))}
-      </div>
       <InstanceAddLibraryItemDialog
         open={addLibrarySpec !== null}
         onOpenChange={(o) => {
@@ -2483,6 +1815,7 @@ function InstanceStageGroupsPanel(props: {
   } = useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(programStatus);
   const [title, setTitle] = useState('');
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [groupEdit, setGroupEdit] = useState<{
     id: string;
     title: string;
@@ -2499,6 +1832,7 @@ function InstanceStageGroupsPanel(props: {
   const hasUngrouped = visibleGroupId === undefined && ungrouped.length > 0;
   const hasGroups = sortedGroups.length > 0;
   const isEmptyStage = !hasUngrouped && !hasGroups && displayStage.items.length === 0;
+  const editingItem = displayStage.items.find((item) => item.id === editingItemId) ?? null;
 
   const editingGroupMeta = groupEdit ? stage.groups.find((g) => g.id === groupEdit.id) : null;
   const editingIsSystem = editingGroupMeta
@@ -2516,18 +1850,6 @@ function InstanceStageGroupsPanel(props: {
     newOrder[idx] = b;
     newOrder[j] = a;
     setGroupReorder(stage.id, newOrder);
-  };
-
-  const reorderItemInStageGroup = (groupId: string | null, itemId: string, dir: -1 | 1) => {
-    if (editLocked) return;
-    const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(
-      stage.items,
-      groupId,
-      itemId,
-      dir,
-    );
-    if (!ordered) return;
-    setItemReorder(stage.id, ordered);
   };
 
   const handleItemDnd = (activeId: string, overId: string) => {
@@ -2779,17 +2101,8 @@ function InstanceStageGroupsPanel(props: {
                               );
                               const card = (
                                 <DoctorProgramInstanceItemCard
-                                  stage={stage}
                                   item={item}
-                                  testResults={testResults}
-                                  programStatus={programStatus}
-                                  reorderInGroup={{
-                                    disableAll: editLocked,
-                                    disableUp: idx <= 0,
-                                    disableDown: idx >= gItems.length - 1,
-                                    onMove: (dir) =>
-                                      void reorderItemInStageGroup(g.id, item.id, dir),
-                                  }}
+                                  onOpen={() => setEditingItemId(item.id)}
                                 />
                               );
                               if (!dndEligible) {
@@ -2814,18 +2127,9 @@ function InstanceStageGroupsPanel(props: {
                                   >
                                     {(dragHandle) => (
                                       <DoctorProgramInstanceItemCard
-                                        stage={stage}
                                         item={item}
-                                        testResults={testResults}
-                                        programStatus={programStatus}
                                         dragHandle={dragHandle}
-                                        reorderInGroup={{
-                                          disableAll: editLocked,
-                                          disableUp: idx <= 0,
-                                          disableDown: idx >= gItems.length - 1,
-                                          onMove: (dir) =>
-                                            void reorderItemInStageGroup(g.id, item.id, dir),
-                                        }}
+                                        onOpen={() => setEditingItemId(item.id)}
                                       />
                                     )}
                                   </TreatmentProgramSortableItemShell>
@@ -2869,18 +2173,9 @@ function InstanceStageGroupsPanel(props: {
                               >
                                 {(dragHandle) => (
                                   <DoctorProgramInstanceItemCard
-                                    stage={stage}
                                     item={item}
-                                    testResults={testResults}
-                                    programStatus={programStatus}
                                     dragHandle={dragHandle}
-                                    reorderInGroup={{
-                                      disableAll: editLocked,
-                                      disableUp: idx <= 0,
-                                      disableDown: idx >= ungrouped.length - 1,
-                                      onMove: (dir) =>
-                                        void reorderItemInStageGroup(null, item.id, dir),
-                                    }}
+                                    onOpen={() => setEditingItemId(item.id)}
                                   />
                                 )}
                               </TreatmentProgramSortableItemShell>
@@ -2903,6 +2198,26 @@ function InstanceStageGroupsPanel(props: {
           }}
         </TreatmentProgramStageItemsDnd>
       )}
+      <DoctorModal
+        open={editingItem !== null}
+        onClose={() => setEditingItemId(null)}
+        title={
+          editingItem ? stageItemSnapshotTitle(editingItem.snapshot, editingItem.itemType) : ''
+        }
+        size="lg"
+        variant="panel"
+      >
+        {editingItem ? (
+          <div className="p-4">
+            <DoctorProgramInstanceItemEditor
+              stage={stage}
+              item={editingItem}
+              testResults={testResults}
+              programStatus={programStatus}
+            />
+          </div>
+        ) : null}
+      </DoctorModal>
       <Dialog open={newGroupOpen} modal={false} onOpenChange={onNewGroupOpenChange}>
         <DialogContent>
           <DialogHeader>
@@ -3208,8 +2523,9 @@ function StageDoctorControls(props: {
   stage: TreatmentProgramInstanceDetail['stages'][number];
   programStatus: TreatmentProgramInstanceStatus;
   onPatched: () => Promise<void>;
+  showEditButton?: boolean;
 }) {
-  const { instanceId, stage, programStatus, onPatched } = props;
+  const { instanceId, stage, programStatus, onPatched, showEditButton = true } = props;
   const { patchStageMetadata } = useInstanceEditorDraft();
   const { runOrPromptSave, unsavedDialog } = useInstanceEditorUnsavedGate();
   const stageId = stage.id;
@@ -3400,15 +2716,17 @@ function StageDoctorControls(props: {
               Завершить этап
             </Button>
           ) : null}
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={saving || editLocked}
-            onClick={() => setStageSettingsOpen(true)}
-          >
-            Изменить
-          </Button>
+          {showEditButton ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={saving || editLocked}
+              onClick={() => setStageSettingsOpen(true)}
+            >
+              Изменить
+            </Button>
+          ) : null}
         </div>
         <div className="ml-auto flex flex-nowrap items-center gap-2">
           <Button
