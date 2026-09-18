@@ -22,6 +22,7 @@ export async function GET(request: Request) {
       limit: 50,
       unreadOnly,
       organizationId: auth.ctx.organizationId,
+      staffUserId: auth.ctx.session.user.userId,
       visibilityActor: auth.ctx,
     }),
   );
@@ -83,8 +84,11 @@ export async function GET(request: Request) {
         phoneNormalized: c.phoneNormalized,
         lastMessageText: c.lastMessageText,
         lastSenderRole: c.lastSenderRole,
+        lastMessageId: c.lastMessageId,
         unreadFromUserCount: c.unreadFromUserCount,
         hasUnreadFromUser: c.unreadFromUserCount > 0,
+        manuallyUnread: c.manuallyUnread,
+        manualUnreadTargetMessageId: c.manualUnreadTargetMessageId,
         onSupport: clientInfo?.isOnSupport ?? false,
         // Lets the chat header link to the current patient record. Null is kept for an
         // unlinked external conversation rather than guessing an identity from a name snapshot.

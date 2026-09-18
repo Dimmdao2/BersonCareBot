@@ -24,6 +24,7 @@ import {
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { patientCardHref } from '../patients/patientCardHref';
 import { ChatClientOverviewPanel } from './ChatClientOverviewPanel';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -36,8 +37,11 @@ type ConvRow = {
   lastMessageAt: string;
   lastMessageText: string | null;
   lastSenderRole: string | null;
+  lastMessageId: string;
   unreadFromUserCount: number;
   hasUnreadFromUser: boolean;
+  manuallyUnread: boolean;
+  manualUnreadTargetMessageId: string | null;
   onSupport: boolean;
   /** #813: null for non-webapp-platform conversations (e.g. Telegram/MAX) — no patient card to open. */
   patientUserId: string | null;
@@ -52,8 +56,11 @@ type ConversationApiRow = {
   lastMessageAt: string;
   lastMessageText: string | null;
   lastSenderRole: string | null;
+  lastMessageId?: string;
   unreadFromUserCount?: number;
   hasUnreadFromUser?: boolean;
+  manuallyUnread?: boolean;
+  manualUnreadTargetMessageId?: string | null;
   onSupport?: boolean;
   patientUserId?: string | null;
 };
@@ -68,8 +75,11 @@ function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
     lastMessageAt: c.lastMessageAt,
     lastMessageText: c.lastMessageText,
     lastSenderRole: c.lastSenderRole,
+    lastMessageId: c.lastMessageId ?? '',
     unreadFromUserCount: c.unreadFromUserCount ?? 0,
     hasUnreadFromUser: c.hasUnreadFromUser ?? (c.unreadFromUserCount ?? 0) > 0,
+    manuallyUnread: c.manuallyUnread ?? false,
+    manualUnreadTargetMessageId: c.manualUnreadTargetMessageId ?? null,
     onSupport: c.onSupport ?? false,
     patientUserId: c.patientUserId ?? null,
   }));
@@ -79,7 +89,7 @@ function convSignature(rows: ConvRow[]): string {
   return rows
     .map(
       (r) =>
-        `${r.conversationId}:${r.lastMessageAt}:${r.unreadFromUserCount}:${r.onSupport ? '1' : '0'}`,
+        `${r.conversationId}:${r.lastMessageAt}:${r.unreadFromUserCount}:${r.manuallyUnread ? '1' : '0'}:${r.onSupport ? '1' : '0'}`,
     )
     .join('|');
 }
@@ -194,6 +204,43 @@ export function DoctorSupportInbox({
       setAllList(rows);
     }
   }, [fetchList]);
+
+  const markConversationUnread = useCallback(async (conversation: ConvRow) => {
+    if (
+      conversation.unreadFromUserCount > 0 ||
+      conversation.manuallyUnread ||
+      !conversation.lastMessageId
+    ) {
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/api/doctor/messages/${encodeURIComponent(conversation.conversationId)}/manual-unread`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetMessageId: conversation.lastMessageId }),
+        },
+      );
+      if (!response.ok) {
+        setError(notificationText.messagingMarkUnreadFailed);
+        return;
+      }
+      setAllList((current) =>
+        current.map((row) =>
+          row.conversationId === conversation.conversationId
+            ? {
+                ...row,
+                manuallyUnread: true,
+                manualUnreadTargetMessageId: conversation.lastMessageId,
+              }
+            : row,
+        ),
+      );
+    } catch {
+      setError(notificationText.messagingMarkUnreadFailed);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -334,6 +381,7 @@ export function DoctorSupportInbox({
                     displayIana={displayIana}
                     selected={isSelected}
                     onClick={() => selectConversation(c.conversationId)}
+                    onMarkUnread={() => markConversationUnread(c)}
                   />
                 </li>
               );
@@ -403,6 +451,7 @@ export function DoctorSupportInbox({
               className="min-h-0 flex-1"
               onReadStateChanged={loadList}
               onSent={loadList}
+              onManualUnreadChanged={loadList}
             />
           ) : null}
         </>
@@ -429,6 +478,7 @@ export function DoctorSupportInbox({
         onClose={() => selectConversation(null)}
         onReadStateChanged={loadList}
         onSent={loadList}
+        onManualUnreadChanged={loadList}
       />
     </>
   );

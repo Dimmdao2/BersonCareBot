@@ -16,6 +16,8 @@ import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 import { DoctorPatientName } from '@/shared/ui/doctor/DoctorSupportStar';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { Check } from 'lucide-react';
+import { DoctorMobileSwipeAction } from '@/shared/ui/doctor/DoctorMobileSwipeAction';
 
 export function formatSpecialistTaskWhen(
   iso: string | null,
@@ -95,9 +97,8 @@ export function SpecialistTaskRow({
   const Container = as;
 
   if (onOpen) {
-    return (
-      <Container className={cn(mobileFlat && overdue && '!border-y !border-destructive/15')}>
-        <button
+    const row = (
+      <button
           type="button"
           className={cn(
             // `cursor-pointer` здесь не украшение: это голый `<button>`, а не наша кнопка-примитив,
@@ -169,8 +170,23 @@ export function SpecialistTaskRow({
               ) : null}
             </span>
           ) : null}
-        </button>
+      </button>
+    );
+    return completed || !canMutate || !onComplete ? (
+      <Container className={cn(mobileFlat && overdue && '!border-y !border-destructive/15')}>
+        {row}
       </Container>
+    ) : (
+      <DoctorMobileSwipeAction
+        as={as}
+        className={cn(mobileFlat && overdue && '!border-y !border-destructive/15')}
+        disabled={busy}
+        action={<Check className="size-6" aria-hidden />}
+        actionLabel="Выполнить задачу"
+        onAction={() => onComplete(task.id)}
+      >
+        {row}
+      </DoctorMobileSwipeAction>
     );
   }
 

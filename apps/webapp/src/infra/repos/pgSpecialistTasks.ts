@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
@@ -220,6 +220,32 @@ export function createPgSpecialistTasksPort(
           deliveries: [],
           reason: 'SPECIALIST_TASK_REMINDER_CANCELLED',
         });
+        return updated[0] ? mapRow(updated[0]) : null;
+      });
+    },
+
+    async reactivate(taskId, ownerUserId) {
+      const now = new Date().toISOString();
+      return runDrizzleMutationTransaction(async (tx) => {
+        const existing = await tx.query.specialistTasks.findFirst({
+          where: and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)),
+        });
+        if (!existing?.completedAt) return null;
+        const updated = await tx
+          .update(specialistTasks)
+          .set({
+            organizationId: currentWriteOrganizationId(existing.organizationId),
+            completedAt: null,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(specialistTasks.id, taskId),
+              eq(specialistTasks.ownerUserId, ownerUserId),
+              isNotNull(specialistTasks.completedAt),
+            ),
+          )
+          .returning();
         return updated[0] ? mapRow(updated[0]) : null;
       });
     },

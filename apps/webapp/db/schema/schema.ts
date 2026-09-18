@@ -1130,6 +1130,48 @@ export const supportConversationMessages = pgTable(
   ],
 );
 
+/** Personal staff reminder that keeps a conversation visually unread without changing receipts. */
+export const supportConversationManualUnread = pgTable(
+  'support_conversation_manual_unread',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    staffUserId: uuid('staff_user_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    targetMessageId: uuid('target_message_id').notNull(),
+    markedAt: timestamp('marked_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.staffUserId, table.conversationId] }),
+    index('idx_support_manual_unread_conversation').on(
+      table.organizationId,
+      table.conversationId,
+    ),
+    index('idx_support_manual_unread_staff').on(table.organizationId, table.staffUserId),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'support_manual_unread_organization_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.staffUserId],
+      foreignColumns: [platformUsers.id],
+      name: 'support_manual_unread_staff_user_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.conversationId],
+      foreignColumns: [supportConversations.id],
+      name: 'support_manual_unread_conversation_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.targetMessageId],
+      foreignColumns: [supportConversationMessages.id],
+      name: 'support_manual_unread_target_message_id_fkey',
+    }).onDelete('cascade'),
+  ],
+);
+
 export const phoneMessengerBindSecrets = pgTable(
   'phone_messenger_bind_secrets',
   {

@@ -20,6 +20,7 @@ type DoctorConversationChatModalProps = {
   onClose: () => void;
   onReadStateChanged?: () => void | Promise<void>;
   onSent?: () => void | Promise<void>;
+  onManualUnreadChanged?: () => void | Promise<void>;
 };
 
 /** Canonical doctor chat modal shared by Communications and contextual inboxes. */
@@ -36,6 +37,7 @@ export function DoctorConversationChatModal({
   onClose,
   onReadStateChanged,
   onSent,
+  onManualUnreadChanged,
 }: DoctorConversationChatModalProps) {
   return (
     <DoctorModal
@@ -70,8 +72,10 @@ export function DoctorConversationChatModal({
           conversationId={conversationId}
           initialMessages={initialMessages}
           className="min-h-0 flex-1"
+          composerPlacement="modal-footer"
           onReadStateChanged={onReadStateChanged}
           onSent={onSent}
+          onManualUnreadChanged={onManualUnreadChanged}
         />
       ) : null}
     </DoctorModal>

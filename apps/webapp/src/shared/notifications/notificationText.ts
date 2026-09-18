@@ -598,7 +598,12 @@ export const notificationText = {
   exerciseTemplateNotFound: 'Шаблон не найден. Обновите страницу и повторите попытку.',
 
   // --- domain/messaging ---
+  messagingMarkUnreadFailed: 'Не удалось отметить диалог непрочитанным. Повторите попытку.',
   messagingNotSent: 'Не удалось отправить сообщение. Повторите попытку.',
+
+  // --- domain/specialist-tasks ---
+  specialistTaskCompleteFailed: 'Не удалось выполнить задачу. Повторите попытку.',
+  specialistTaskReactivateFailed: 'Не удалось активировать задачу. Повторите попытку.',
 
   // --- domain/recommendations ---
   recommendationNameRequired: 'Название рекомендации обязательно',

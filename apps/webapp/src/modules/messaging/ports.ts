@@ -137,7 +137,10 @@ export type AdminConversationListRow = {
   channelExternalId: string | null;
   lastMessageText: string | null;
   lastSenderRole: string | null;
+  lastMessageId: string;
   unreadFromUserCount: number;
+  manuallyUnread: boolean;
+  manualUnreadTargetMessageId: string | null;
 };
 
 /** Support persistence contract consumed by the messaging module; implementations live in infra/repos. */
@@ -198,6 +201,7 @@ export type SupportCommunicationPort = {
     limit?: number;
     unreadOnly?: boolean;
     organizationId?: string;
+    staffUserId?: string;
     visibilityActor: PatientVisibilityActor;
   }): Promise<AdminConversationListRow[]>;
   ensureWebappConversationForUser(
@@ -237,6 +241,17 @@ export type SupportCommunicationPort = {
   markInboundMessagesReadForUser(platformUserId: string, messageIds: string[]): Promise<void>;
   markNotificationMessagesReadForUser(platformUserId: string): Promise<void>;
   markUserMessagesReadByAdmin(conversationId: string, organizationId?: string): Promise<void>;
+  setManualUnreadMarker(params: {
+    conversationId: string;
+    targetMessageId: string;
+    organizationId: string;
+    staffUserId: string;
+  }): Promise<boolean>;
+  clearManualUnreadMarker(params: {
+    conversationId: string;
+    organizationId: string;
+    staffUserId: string;
+  }): Promise<void>;
   countUnreadForUser(platformUserId: string): Promise<number>;
   countUnreadNotificationsForUser(platformUserId: string): Promise<number>;
   listUnreadInboundAdminMessagesForUser(

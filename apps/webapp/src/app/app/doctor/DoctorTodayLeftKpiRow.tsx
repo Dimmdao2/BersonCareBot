@@ -69,7 +69,7 @@ const attentionKpiValueClass = 'text-destructive';
 const kpiGridClassByTileCount: Record<number, string> = {
   1: 'grid-cols-2 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2',
   2: 'grid-cols-2 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2',
-  3: 'grid-cols-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3',
+  3: 'grid-cols-3 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3',
   4: 'grid-cols-2 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-4',
 };
 
@@ -265,7 +265,11 @@ export function DoctorTodayLeftKpiRow({
           aria-label="Входящий поток"
           className={kpiGridClass}
         >
-          {kpiTiles.map((tile) => cloneElement(tile, { valuePlacement: 'row-until-wide' }))}
+          {kpiTiles.map((tile) =>
+            cloneElement(tile, {
+              valuePlacement: kpiTiles.length === 3 ? 'stacked' : 'row-until-wide',
+            }),
+          )}
         </DoctorMetricList>
       ) : null}
 

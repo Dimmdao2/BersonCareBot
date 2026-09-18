@@ -76,6 +76,14 @@ export const inMemorySpecialistTasksPort: SpecialistTasksPort = {
     return store[idx]!;
   },
 
+  async reactivate(taskId, ownerUserId) {
+    const idx = store.findIndex((t) => t.id === taskId && t.ownerUserId === ownerUserId);
+    if (idx < 0 || !store[idx]!.completedAt) return null;
+    const now = new Date().toISOString();
+    store[idx] = { ...store[idx]!, completedAt: null, updatedAt: now };
+    return store[idx]!;
+  },
+
   async delete(taskId, ownerUserId) {
     const idx = store.findIndex((t) => t.id === taskId && t.ownerUserId === ownerUserId);
     if (idx < 0) return false;

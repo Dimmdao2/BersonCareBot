@@ -19,6 +19,7 @@ import {
   LESSON_CONTENT_SECTION_LEGACY,
 } from '@/modules/treatment-program/types';
 import { parseHostedVideoLink } from '@/shared/lib/hostingEmbedUrls';
+import { normalizeHumanText } from '@/shared/lib/normalizeHumanText';
 
 function notFound(type: TreatmentProgramItemType): Error {
   return new Error(`Снимок: объект типа «${type}» не найден`);
@@ -199,9 +200,10 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
           return {
             itemType: type,
             id: row.id,
-            title: row.title,
-            description: row.description ?? null,
-            contraindications: row.contraindications ?? null,
+            title: normalizeHumanText(row.title),
+            description: row.description === null ? null : normalizeHumanText(row.description),
+            contraindications:
+              row.contraindications === null ? null : normalizeHumanText(row.contraindications),
             difficulty: row.difficulty110 ?? null,
             loadType: row.loadType ?? null,
             ...(media ? { media } : {}),

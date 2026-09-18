@@ -75,6 +75,7 @@ import {
 } from '../../../db/schema/schema';
 import { TreatmentProgramExpandNotFoundError } from '@/modules/treatment-program/errors';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { normalizeHumanText } from '@/shared/lib/normalizeHumanText';
 
 const instanceLfkCatalogEntitlements = createPgOrgEntitlementsPort();
 
@@ -1124,7 +1125,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           }
         }
 
-        const title = input.title.trim();
+        const title = normalizeHumanText(input.title.trim());
         if (!title) throw new Error('Укажите название упражнения');
         const [exercise] = await tx
           .insert(lfkExercises)
@@ -1133,12 +1134,16 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
             organizationId,
             catalogScope: input.saveToCatalog ? 'catalog' : 'personal',
             title,
-            description: input.description,
+            description:
+              input.description === null ? null : normalizeHumanText(input.description),
             regionRefId: input.regionRefIds[0] ?? null,
             loadType: input.loadType,
             difficulty110: input.difficulty1_10,
-            contraindications: input.contraindications,
-            tags: input.tags,
+            contraindications:
+              input.contraindications === null
+                ? null
+                : normalizeHumanText(input.contraindications),
+            tags: input.tags?.map(normalizeHumanText) ?? null,
             createdBy: input.createdBy,
           })
           .returning();
@@ -1211,7 +1216,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       return runDrizzleMutationTransaction(async (tx) => {
         const organizationId = currentWriteOrganizationId();
         if (!organizationId) throw new Error('organization_context_required');
-        const title = titleRaw.trim();
+        const title = normalizeHumanText(titleRaw.trim());
         if (!title) throw new Error('Укажите название упражнения');
 
         const [owned] = await tx
