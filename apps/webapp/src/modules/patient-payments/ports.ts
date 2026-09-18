@@ -59,6 +59,18 @@ export type AddCashPaymentInput = {
   createdBy: string;
 };
 
+export type AddCashRefundInput = {
+  organizationId: string;
+  patientUserId: string;
+  appointmentId: string;
+  amountMinor: number;
+  currency?: string;
+  comment?: string | null;
+  service?: string | null;
+  idempotencyKey: string;
+  createdBy: string;
+};
+
 // -- Типы для операций эквайринга --------------------------------------------
 
 /** Alias for PaymentStatus — used in port method signatures for clarity. */
@@ -117,6 +129,8 @@ export interface PatientPaymentsPort {
   ): Promise<{ appointmentId: string; paidMinor: number }[]>;
   /** Записать ручной платёж наличными (kind='cash', status='paid'). */
   addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment>;
+  /** Record a cash refund and reduce the appointment's credited prepayment atomically. */
+  addCashRefund(input: AddCashRefundInput): Promise<PatientPayment>;
   /**
    * Bootstrap-only webhook resolver. Returns only the owning organization for one exact
    * acquiring lifecycle row; it must not read or return the payment payload.

@@ -70,7 +70,10 @@ import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doc
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
 import { patientCardHref } from '../../patients/patientCardHref';
-import { DoctorAppointmentIndicators } from '../../calendar/DoctorAppointmentIndicators';
+import {
+  DoctorAppointmentIndicators,
+  DoctorAppointmentPaymentIndicator,
+} from '../../calendar/DoctorAppointmentIndicators';
 import { deriveCalendarInitialScrollTime } from '@/modules/booking-calendar/visibleTimeWindow';
 import {
   addBreakToWorkingDay,
@@ -2970,8 +2973,23 @@ export function ScheduleCalendarTab({
                         if (view === 'month') {
                           return (
                             <div className="min-w-0 overflow-hidden px-1 py-0.5 text-left leading-tight">
-                              <div className="truncate text-[11px] font-medium">
-                                {appointment.patientName?.trim() || eventLastName(appointment)}
+                              <div className="flex items-center gap-1 text-[11px] font-medium">
+                                <span className="truncate">
+                                  {appointment.patientName?.trim() || eventLastName(appointment)}
+                                </span>
+                                <DoctorAppointmentPaymentIndicator
+                                  appointmentStatus={appointment.status}
+                                  paymentStatus={appointment.payment?.payment?.status}
+                                  paymentAmountMinor={appointment.payment?.payment?.amountMinor}
+                                  totalMinor={appointment.payment?.totalMinor}
+                                  manualPaidMinor={appointment.payment?.manualPaidMinor}
+                                  prepaymentRequiredMinor={
+                                    appointment.payment?.prepayment?.requiredMinor
+                                  }
+                                  prepaymentPaidMinor={appointment.payment?.prepayment?.paidMinor}
+                                  prepaymentPending={appointment.prepaymentPending}
+                                  prepaymentExpired={appointment.prepaymentExpired}
+                                />
                               </div>
                             </div>
                           );
@@ -2979,8 +2997,23 @@ export function ScheduleCalendarTab({
                         return (
                           <div className="overflow-hidden px-1 py-0.5 text-[11px] leading-tight">
                             <div className="truncate font-medium">{eventTitle(appointment)}</div>
-                            <div className="truncate opacity-80">
-                              {appointmentStatusLabel(appointment.status)}
+                            <div className="flex items-center gap-1 opacity-80">
+                              <span className="truncate">
+                                {appointmentStatusLabel(appointment.status)}
+                              </span>
+                              <DoctorAppointmentPaymentIndicator
+                                appointmentStatus={appointment.status}
+                                paymentStatus={appointment.payment?.payment?.status}
+                                paymentAmountMinor={appointment.payment?.payment?.amountMinor}
+                                totalMinor={appointment.payment?.totalMinor}
+                                manualPaidMinor={appointment.payment?.manualPaidMinor}
+                                prepaymentRequiredMinor={
+                                  appointment.payment?.prepayment?.requiredMinor
+                                }
+                                prepaymentPaidMinor={appointment.payment?.prepayment?.paidMinor}
+                                prepaymentPending={appointment.prepaymentPending}
+                                prepaymentExpired={appointment.prepaymentExpired}
+                              />
                             </div>
                           </div>
                         );

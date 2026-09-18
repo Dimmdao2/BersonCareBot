@@ -5,6 +5,7 @@
 
 import type {
   AcquiringSettlementStatus,
+  AddCashRefundInput,
   AddCashPaymentInput,
   InsertAcquiringPendingInput,
   PatientPayment,
@@ -86,6 +87,15 @@ export function createPatientPaymentsService({
       }
       const currency = input.currency?.trim() || 'RUB';
       return patientPaymentsPort.addCashPayment({ ...input, currency });
+    },
+
+    async addCashRefund(input: AddCashRefundInput): Promise<PatientPayment> {
+      assertWriteClearance?.('payments');
+      if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
+        throw new Error('payment_amount_must_be_positive_integer');
+      }
+      const currency = input.currency?.trim() || 'RUB';
+      return patientPaymentsPort.addCashRefund({ ...input, currency });
     },
 
     /**

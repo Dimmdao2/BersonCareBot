@@ -99,6 +99,11 @@ function IndicatorSlot({ indicator }: { indicator: Indicator | null }) {
   );
 }
 
+/** Payment-only slot for dense calendar events. It uses the same derivation as list rows. */
+export function DoctorAppointmentPaymentIndicator(props: Props) {
+  return <IndicatorSlot indicator={paymentIndicator(props)} />;
+}
+
 /** Fixed-width appointment facts: format, membership and payment never shift between rows. */
 export function DoctorAppointmentIndicators(props: Props) {
   const onlineLabel = appointmentDeliveryFormatLabels(useDoctorPatientTerms()).online;
@@ -118,7 +123,7 @@ export function DoctorAppointmentIndicators(props: Props) {
             : null
         }
       />
-      <IndicatorSlot indicator={paymentIndicator(props)} />
+      <DoctorAppointmentPaymentIndicator {...props} />
     </span>
   );
 }

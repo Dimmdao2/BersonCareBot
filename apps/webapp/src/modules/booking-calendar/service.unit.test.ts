@@ -23,6 +23,7 @@ const PAID_VIEW: CalendarAppointmentPaymentView = {
   payment: { amountMinor: 10_000, status: 'succeeded' },
   totalMinor: 10_000,
   manualPaidMinor: 0,
+  hasPaymentActivity: true,
   paymentsEntitled: true,
   onlinePaymentAvailable: false,
   patientChatAvailable: false,

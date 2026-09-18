@@ -20,6 +20,7 @@ const fakes = vi.hoisted(() => ({
   getBookingByCanonicalAppointment: vi.fn(),
   listAppointmentPayments: vi.fn(),
   addCashPayment: vi.fn(),
+  addCashRefund: vi.fn(),
   listAppointmentFinancialSnapshots: vi.fn(),
 }));
 
@@ -47,6 +48,7 @@ function service() {
     patientPayments: {
       listAppointmentPayments: fakes.listAppointmentPayments,
       addCashPayment: fakes.addCashPayment,
+      addCashRefund: fakes.addCashRefund,
     },
     bookingEngine: { listAppointmentFinancialSnapshots: fakes.listAppointmentFinancialSnapshots },
   });

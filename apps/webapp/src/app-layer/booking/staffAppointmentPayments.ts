@@ -24,7 +24,10 @@ import { loadStaffAppointmentPaymentSummary } from './staffAppointmentPaymentSum
 export type StaffAppointmentPaymentsDeps = {
   payments?: PaymentsService | null;
   patientBooking: Pick<PatientBookingService, 'getBookingByCanonicalAppointment'>;
-  patientPayments: Pick<PatientPaymentsPort, 'listAppointmentPayments' | 'addCashPayment'>;
+  patientPayments: Pick<
+    PatientPaymentsPort,
+    'listAppointmentPayments' | 'addCashPayment' | 'addCashRefund'
+  >;
   /**
    * PAY-APPT-05/06: сумма счёта берётся из канонического снимка САМОЙ записи. Без него дверь
    * выставляла бы ссылку на полную стоимость там, где карточка показывает требуемую предоплату.
@@ -67,6 +70,7 @@ const NOT_ENTITLED_VIEW: CalendarAppointmentPaymentView = {
   payment: null,
   totalMinor: null,
   manualPaidMinor: 0,
+  hasPaymentActivity: false,
   paymentsEntitled: false,
   onlinePaymentAvailable: false,
   patientChatAvailable: false,
@@ -137,12 +141,16 @@ export async function listStaffAppointmentPaymentViews(
     let payment: CalendarAppointmentPaymentView['payment'] = null;
     if (brief) {
       try {
+        const appointmentAmountMinor = splitAppointmentPaymentAmountMinor(
+          brief.amountMinor,
+          brief.appointmentCount,
+        );
         payment = {
-          amountMinor: splitAppointmentPaymentAmountMinor(
-            brief.amountMinor,
-            brief.appointmentCount,
-          ),
-          status: brief.status,
+          amountMinor: Math.max(0, appointmentAmountMinor - (brief.refundedMinor ?? 0)),
+          status:
+            brief.status === 'refunded' || (brief.refundedMinor ?? 0) >= appointmentAmountMinor
+              ? 'refunded'
+              : brief.status,
         };
       } catch {
         // Неделимый общий платёж — дефект данных. Поштучный контракт в этом случае тоже
@@ -155,10 +163,14 @@ export async function listStaffAppointmentPaymentViews(
     // PAY-APPT-01/06: общая стоимость берётся из снимка САМОЙ записи. Историческая проекция
     // остаётся резервом только там, где снимка ещё нет (записи до этого изменения).
     const snapshot = snapshotByAppointment.get(target.appointmentId) ?? null;
+    const manualPaidMinor = paidByAppointment.get(target.appointmentId) ?? 0;
+    const effectivePaidMinor =
+      (payment?.status === 'captured' ? payment.amountMinor : 0) + manualPaidMinor;
     views.set(target.appointmentId, {
       payment,
       totalMinor: snapshot?.priceMinor ?? booking?.priceMinorSnapshot ?? null,
-      manualPaidMinor: paidByAppointment.get(target.appointmentId) ?? 0,
+      manualPaidMinor,
+      hasPaymentActivity: brief !== null || paidByAppointment.has(target.appointmentId),
       paymentsEntitled: true,
       onlinePaymentAvailable: online.available,
       patientChatAvailable: linked.has(target.platformUserId),
@@ -168,7 +180,10 @@ export async function listStaffAppointmentPaymentViews(
             percentBps: snapshot.prepaymentPercentBps,
             amountMinor: snapshot.prepaymentAmountMinor,
             requiredMinor: snapshot.prepaymentRequiredMinor,
-            paidMinor: snapshot.prepaymentPaidMinor,
+            paidMinor: Math.min(
+              snapshot.prepaymentRequiredMinor,
+              Math.max(0, effectivePaidMinor),
+            ),
             currency: snapshot.priceCurrency,
             deadlineAt: snapshot.paymentDeadlineAt,
             checkoutUrl: checkoutByAppointment.get(target.appointmentId) ?? null,
@@ -225,6 +240,8 @@ export type StaffAppointmentPaymentState = {
   prepaymentPaidMinor: number;
   /** Срок оплаты записи; `null` — предоплата не требовалась, счёт бессрочный. */
   paymentDeadlineAt: string | null;
+  /** Exact cash ledger rows for the details timeline. */
+  manualPayments: Awaited<ReturnType<PatientPaymentsPort['listAppointmentPayments']>>;
 };
 
 export type StaffAppointmentPaymentAction = 'cash' | 'link';
@@ -252,10 +269,23 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
     // до появления снимка, иначе показанное и выставленное разошлись бы.
     const snapshot = snapshots.find((row) => row.appointmentId === input.appointmentId) ?? null;
     const totalMinor = snapshot?.priceMinor ?? booking?.priceMinorSnapshot ?? null;
-    const capturedMinor = summary?.payment?.status === 'captured' ? summary.payment.amountMinor : 0;
-    const manualPaidMinor = manual
-      .filter((payment) => payment.status === 'paid')
-      .reduce((sum, payment) => sum + payment.amountMinor, 0);
+    const onlineRefundedMinor = (summary?.history ?? [])
+      .filter((event) => event.eventType === 'refund_succeeded')
+      .reduce((sum, event) => sum + (event.amountMinor ?? 0), 0);
+    const capturedMinor =
+      summary?.payment?.status === 'captured'
+        ? Math.max(0, summary.payment.amountMinor - onlineRefundedMinor)
+        : 0;
+    const manualPaidMinor = manual.reduce(
+      (sum, payment) =>
+        sum +
+        (payment.status === 'paid'
+          ? payment.amountMinor
+          : payment.status === 'refunded'
+            ? -payment.amountMinor
+            : 0),
+      0,
+    );
     return {
       summary,
       totalMinor,
@@ -265,12 +295,15 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
       prepaymentRequiredMinor: snapshot?.prepaymentRequiredMinor ?? 0,
       prepaymentPaidMinor: snapshot?.prepaymentPaidMinor ?? 0,
       paymentDeadlineAt: snapshot?.paymentDeadlineAt ?? null,
+      manualPayments: manual,
     };
   }
 
   async function createPayment(
     input: PaymentStateInput & {
       action: StaffAppointmentPaymentAction;
+      amountMinor?: number;
+      purpose?: 'prepayment' | 'full' | 'partial';
       createdBy: string;
       returnUrl: string;
     },
@@ -284,6 +317,14 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
     if (state.remainingMinor === null || state.remainingMinor === 0) {
       return { ok: false as const, error: 'already_paid' as const };
     }
+    const requestedAmountMinor = input.amountMinor ?? state.remainingMinor;
+    if (
+      !Number.isInteger(requestedAmountMinor) ||
+      requestedAmountMinor <= 0 ||
+      requestedAmountMinor > state.remainingMinor
+    ) {
+      return { ok: false as const, error: 'invalid_payment_amount' as const };
+    }
     const booking = await deps.patientBooking.getBookingByCanonicalAppointment(input.appointmentId);
     if (!booking) return { ok: false as const, error: 'appointment_amount_unavailable' as const };
 
@@ -292,24 +333,35 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
         organizationId: input.organizationId,
         patientUserId: input.platformUserId,
         appointmentId: input.appointmentId,
-        amountMinor: state.remainingMinor,
+        amountMinor: requestedAmountMinor,
         currency: 'RUB',
         service: booking.serviceTitleSnapshot ?? null,
-        comment: 'Оплачено наличными в карточке записи',
-        idempotencyKey: `staff-appointment-cash:${input.appointmentId}:${state.remainingMinor}`,
+        comment:
+          input.purpose === 'prepayment'
+            ? 'Предоплата наличными в карточке записи'
+            : input.purpose === 'partial'
+              ? 'Частичная оплата наличными в карточке записи'
+              : 'Оплачено наличными в карточке записи',
+        idempotencyKey: `staff-appointment-cash:${input.appointmentId}:${requestedAmountMinor}:${state.manualPaidMinor}`,
         createdBy: input.createdBy,
       });
-      return { ok: true as const, payment, remainingMinor: 0 };
+      return {
+        ok: true as const,
+        payment,
+        remainingMinor: state.remainingMinor - requestedAmountMinor,
+      };
     }
 
     // PAY-APPT-05/06: счёт выставляется на ТРЕБУЕМУЮ предоплату из снимка записи, а не на полную
     // стоимость. Иначе карточка показывает «предоплата 750 ₽», а ссылка приходит на 2500 ₽ — и
     // пациентская дверь с той же политикой создаёт намерение на третье число.
-    const intentAmountMinor = appointmentPaymentIntentAmountMinor({
-      prepaymentRequiredMinor: state.prepaymentRequiredMinor,
-      prepaymentPaidMinor: state.prepaymentPaidMinor,
-      remainingTotalMinor: state.remainingMinor,
-    });
+    const intentAmountMinor = input.amountMinor
+      ? requestedAmountMinor
+      : appointmentPaymentIntentAmountMinor({
+          prepaymentRequiredMinor: state.prepaymentRequiredMinor,
+          prepaymentPaidMinor: state.prepaymentPaidMinor,
+          remainingTotalMinor: state.remainingMinor,
+        });
     if (intentAmountMinor <= 0) return { ok: false as const, error: 'already_paid' as const };
     const intent = await payments.createAppointmentPaymentIntent({
       organizationId: input.organizationId,
@@ -319,9 +371,14 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
       currency: 'RUB',
       idempotencyKey: `staff-appointment-link:${input.appointmentId}:${intentAmountMinor}`,
       returnUrl: input.returnUrl,
+      // The existing capture root advances `prepayment_paid_minor` only for this canonical
+      // appointment purpose. A full or partial amount selected by staff is still money received
+      // before the visit; changing the persisted purpose would let the expiry worker cancel a
+      // paid slot. The UI distinguishes full/partial by the exact amount, not by a second ledger.
+      purpose: 'appointment_prepayment',
       // Запись держит слот до своего дедлайна — счёт живёт ровно столько же. У записи без
       // дедлайна (предоплата не требовалась) срок не выдумывается: ронять нечего.
-      expiresAt: state.paymentDeadlineAt,
+      expiresAt: input.purpose === 'prepayment' ? state.paymentDeadlineAt : null,
     });
     if (!intent.checkoutUrl) throw new Error('payment_link_unavailable');
     return {
@@ -331,5 +388,44 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
     };
   }
 
-  return { getPaymentState, createPayment };
+  async function refundPayment(
+    input: PaymentStateInput & {
+      amountMinor: number;
+      method: 'auto' | 'cash';
+      reason?: string;
+      createdBy: string;
+    },
+  ) {
+    if (!deps.payments) throw new Error('payments_unavailable');
+    const state = await getPaymentState(input);
+    const capturedMinor =
+      state.summary?.payment?.status === 'captured' ? state.summary.payment.amountMinor : 0;
+    if (input.method === 'cash') {
+      if (input.amountMinor <= 0 || input.amountMinor > capturedMinor + state.manualPaidMinor) {
+        return { ok: false as const, error: 'refund_amount_exceeds_payment' as const };
+      }
+      const booking = await deps.patientBooking.getBookingByCanonicalAppointment(input.appointmentId);
+      const payment = await deps.patientPayments.addCashRefund({
+        organizationId: input.organizationId,
+        patientUserId: input.platformUserId,
+        appointmentId: input.appointmentId,
+        amountMinor: input.amountMinor,
+        currency: 'RUB',
+        comment: input.reason ?? 'Возврат наличными по записи',
+        service: booking?.serviceTitleSnapshot ?? null,
+        idempotencyKey: `staff-appointment-refund-cash:${input.appointmentId}:${input.amountMinor}:${state.prepaymentPaidMinor}`,
+        createdBy: input.createdBy,
+      });
+      return { ok: true as const, refundedMinor: input.amountMinor, payment };
+    }
+    if (capturedMinor <= 0) return { ok: false as const, error: 'payment_not_refundable' as const };
+    return deps.payments.refundAppointmentPayment({
+      appointmentId: input.appointmentId,
+      organizationId: input.organizationId,
+      amountMinor: input.amountMinor,
+      reason: input.reason,
+    });
+  }
+
+  return { getPaymentState, createPayment, refundPayment };
 }

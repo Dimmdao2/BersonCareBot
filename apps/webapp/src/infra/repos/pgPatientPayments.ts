@@ -3,7 +3,7 @@
  * Uses Drizzle ORM. listPayments returns newest-first.
  */
 
-import { and, desc, eq, inArray, isNotNull, isNull, sum } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, sql as drizzleSql } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import {
@@ -16,6 +16,7 @@ import { sql } from 'drizzle-orm';
 import type {
   AcquiringWebhookSettlementOutcome,
   AddCashPaymentInput,
+  AddCashRefundInput,
   InsertAcquiringPendingInput,
   PatientPayment,
   PatientPaymentsPort,
@@ -185,14 +186,16 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
       const rows = await getDrizzle()
         .select({
           appointmentId: patientPayment.appointmentId,
-          paidMinor: sum(patientPayment.amountMinor),
+          paidMinor: drizzleSql<number>`COALESCE(SUM(CASE
+            WHEN ${patientPayment.status} = 'paid' THEN ${patientPayment.amountMinor}
+            WHEN ${patientPayment.status} = 'refunded' THEN -${patientPayment.amountMinor}
+            ELSE 0 END), 0)`,
         })
         .from(patientPayment)
         .where(
           and(
             inArray(patientPayment.appointmentId, appointmentIds),
             eq(patientPayment.organizationId, organizationId),
-            eq(patientPayment.status, 'paid'),
           ),
         )
         .groupBy(patientPayment.appointmentId);
@@ -286,6 +289,32 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
         return existing[0];
       });
       return rowToPayment(row);
+    },
+
+    async addCashRefund(input: AddCashRefundInput): Promise<PatientPayment> {
+      assertPatientPaymentTenant(input.organizationId);
+      const payload = JSON.stringify({
+        organizationId: input.organizationId,
+        appointmentId: input.appointmentId,
+        patientUserId: input.patientUserId,
+        amountMinor: input.amountMinor,
+        currency: input.currency ?? 'RUB',
+        comment: input.comment ?? null,
+        service: input.service ?? null,
+        idempotencyKey: input.idempotencyKey,
+        createdBy: input.createdBy,
+      });
+      const refunded = await runWebappNamedRoot<{
+        refund: { payment: PatientPaymentJsonRow | null } | null;
+      }>(
+        getWebappSqlDb(),
+        'app.refund_appointment_cash_payment(text)',
+        [payload],
+        sql`SELECT app.refund_appointment_cash_payment(${payload}::text) AS refund`,
+      );
+      const payment = refunded.rows[0]?.refund?.payment ?? null;
+      if (!payment?.id) throw new Error('appointment_cash_refund_failed');
+      return jsonRowToPayment(payment);
     },
 
     async resolveAcquiringWebhookOrganization(providerId, providerPaymentId) {

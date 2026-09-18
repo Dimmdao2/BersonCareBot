@@ -28499,6 +28499,42 @@ const REV10_CONTEXT = {
         ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // PAY-APPT-26: обратная операция кассы. Журнал возврата и уменьшение зачисленной суммы
+    // записи атомарны; кабинет не получает прямого UPDATE финансовых колонок.
+    'app.refund_appointment_cash_payment(text)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_staff'],
+      purpose: 'record one cash refund and reduce the accepted appointment credited amount',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: [
+          'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status', 'delivery_format',
+          'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
+          'attribution_json', 'appointment_reminder_available_offsets_minutes', 'appointment_reminder_offsets_minutes',
+          'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+          'price_minor', 'price_currency', 'prepayment_mode', 'prepayment_percent_bps',
+          'prepayment_amount_minor', 'prepayment_required_minor', 'prepayment_paid_minor',
+          'payment_deadline_at', 'overlap_confirmed_start_at', 'overlap_confirmed_end_at',
+        ], operations: ['SELECT' as const, 'UPDATE' as const],
+        operationColumns: { UPDATE: ['prepayment_paid_minor', 'updated_at'] },
+        evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_payment', columns: [
+          'id', 'organization_id', 'patient_user_id', 'amount_minor', 'currency', 'kind', 'status',
+          'comment', 'service', 'visit_id', 'appointment_id', 'patient_package_id',
+          'idempotency_key', 'provider', 'provider_payment_id', 'created_by', 'created_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_history_events',
+          columns: ['organization_id', 'appointment_id', 'event_type', 'actor_id', 'payload', 'occurred_at'],
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_timeline_events', columns: [
+          'organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type',
+          'linked_object_id', 'payload', 'occurred_at',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     // PAY-APPT-11: истечение неоплаченного ожидания. Отбор — `FOR UPDATE SKIP LOCKED`, сам UPDATE
     // повторно проверяет `awaiting_payment / prepayment_paid_minor = 0 / payment_ref IS NULL`,
     // поэтому оплата, пришедшая ровно на границе срока, из-под истечения выпадает, а не

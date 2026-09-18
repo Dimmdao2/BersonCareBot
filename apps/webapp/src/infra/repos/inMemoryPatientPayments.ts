@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   AddCashPaymentInput,
+  AddCashRefundInput,
   InsertAcquiringPendingInput,
   PatientPayment,
   PatientPaymentsPort,
@@ -72,6 +73,40 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     return row;
   },
 
+  async addCashRefund(input: AddCashRefundInput): Promise<PatientPayment> {
+    if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
+      throw new Error('payment_amount_must_be_positive_integer');
+    }
+    const existing = payments.find(
+      (payment) =>
+        payment.organizationId === input.organizationId &&
+        payment.appointmentId === input.appointmentId &&
+        payment.idempotencyKey === input.idempotencyKey,
+    );
+    if (existing) return existing;
+    const row: PaymentRow = {
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      patientUserId: input.patientUserId,
+      amountMinor: input.amountMinor,
+      currency: input.currency ?? 'RUB',
+      kind: 'cash',
+      status: 'refunded',
+      comment: input.comment ?? null,
+      service: input.service ?? null,
+      visitId: null,
+      appointmentId: input.appointmentId,
+      patientPackageId: null,
+      idempotencyKey: input.idempotencyKey,
+      provider: null,
+      providerPaymentId: null,
+      createdBy: input.createdBy,
+      createdAt: new Date().toISOString(),
+    };
+    payments.push(row);
+    return row;
+  },
+
   async listAppointmentPayments(appointmentId, patientUserId): Promise<PatientPayment[]> {
     return payments.filter(
       (payment) =>
@@ -83,11 +118,12 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     const ids = new Set(appointmentIds);
     const byAppointment = new Map<string, number>();
     for (const payment of payments) {
-      if (payment.status !== 'paid') continue;
+      if (payment.status !== 'paid' && payment.status !== 'refunded') continue;
       if (!payment.appointmentId || !ids.has(payment.appointmentId)) continue;
       byAppointment.set(
         payment.appointmentId,
-        (byAppointment.get(payment.appointmentId) ?? 0) + payment.amountMinor,
+        (byAppointment.get(payment.appointmentId) ?? 0) +
+          (payment.status === 'paid' ? payment.amountMinor : -payment.amountMinor),
       );
     }
     return Array.from(byAppointment, ([appointmentId, paidMinor]) => ({

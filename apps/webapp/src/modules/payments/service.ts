@@ -451,6 +451,9 @@ export function createPaymentsService(deps: {
       idempotencyKey: string;
       providerId?: string;
       returnUrl: string;
+      /** One provider door serves both the configured prepayment and a doctor-selected
+       * full/partial settlement. The purpose is persisted and drives the receipt copy. */
+      purpose?: 'appointment_prepayment' | 'appointment_payment';
       /** Срок жизни счёта = дедлайн оплаты записи. Передаётся провайдеру, чтобы тот перестал
        * принимать деньги в ту же секунду, что и мы: иначе пациент, уже открывший страницу оплаты,
        * платит за бронь, которую мы уже отменили и освободили. */
@@ -475,12 +478,15 @@ export function createPaymentsService(deps: {
         throw new Error('payments_disabled');
       }
 
+      const purpose = input.purpose ?? 'appointment_prepayment';
+      const description =
+        purpose === 'appointment_prepayment' ? 'Предоплата записи' : 'Оплата записи';
       const created = await adapter.createIntent({
         amountMinor: input.amountMinor,
         currency: input.currency,
         idempotencyKey: input.idempotencyKey,
         payerRef: `platform_user:${input.platformUserId}`,
-        purpose: 'appointment_prepayment',
+        purpose,
         subjectRef: input.appointmentId,
         returnUrl: await resolveReturnUrl(
           input.organizationId,
@@ -491,11 +497,11 @@ export function createPaymentsService(deps: {
           settings,
           providerId: provider.id,
           customerEmail: await deps.resolvePayerEmail?.(input.platformUserId),
-          description: 'Предоплата записи',
+          description,
           amountMinor: input.amountMinor,
         }),
         ...(input.expiresAt
-          ? { invoice: { description: 'Предоплата записи', expiresAt: input.expiresAt } }
+          ? { invoice: { description, expiresAt: input.expiresAt } }
           : {}),
         metadata: {
           appointmentId: input.appointmentId,
@@ -511,6 +517,7 @@ export function createPaymentsService(deps: {
         platformUserId: input.platformUserId,
         amountMinor: input.amountMinor,
         currency: input.currency,
+        purpose,
         providerIntentRef: created.providerIntentRef,
         checkoutUrl: created.checkoutUrl ?? null,
       });
@@ -788,6 +795,75 @@ export function createPaymentsService(deps: {
       }
 
       return { ok: true as const, skipped: true as const };
+    },
+
+    async refundAppointmentPayment(input: {
+      appointmentId: string;
+      organizationId: string;
+      amountMinor: number;
+      reason?: string;
+    }) {
+      if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
+        throw new Error('invalid_refund_amount');
+      }
+      const resolved = await resolveAppointmentPayment(input.appointmentId, input.organizationId);
+      if (!resolved || resolved.payment.status !== 'captured') {
+        throw new Error('payment_not_refundable');
+      }
+      const { payment } = resolved;
+      const appointmentAmountMinor = await resolveAppointmentAmountMinor(
+        input.organizationId,
+        payment,
+      );
+      const alreadyRefunded = await deps.port.getSucceededRefundedAmount(
+        payment.id,
+        input.organizationId,
+      );
+      const refundableMinor = Math.max(0, appointmentAmountMinor - alreadyRefunded);
+      if (input.amountMinor > refundableMinor) throw new Error('refund_amount_exceeds_payment');
+
+      const settings = await loadSettings(input.organizationId);
+      const provider = resolveActiveProvider(settings, payment.providerId);
+      const adapter = getPaymentProviderAdapter(provider.id);
+      const intent = await deps.port.findIntentById(payment.paymentIntentId);
+      const idempotencyKey = `staff-refund:${payment.id}:${input.appointmentId}:${alreadyRefunded}:${input.amountMinor}`;
+      const refundResult = await adapter.refund({
+        providerIntentRef: intent?.providerIntentRef ?? payment.paymentIntentId,
+        amountMinor: input.amountMinor,
+        currency: payment.currency,
+        idempotencyKey,
+        providerConfig: provider,
+      });
+      const refund = await deps.port.createRefund({
+        organizationId: input.organizationId,
+        paymentId: payment.id,
+        appointmentId: input.appointmentId,
+        amountMinor: input.amountMinor,
+        currency: payment.currency,
+        status: 'succeeded',
+        reason: input.reason,
+        providerRefundRef: refundResult.providerRefundRef,
+      });
+      const refundedAmount = await deps.port.getSucceededRefundedAmount(
+        payment.id,
+        input.organizationId,
+      );
+      if (refundedAmount >= payment.amountMinor) {
+        await deps.port.updatePaymentStatus(payment.id, 'refunded', input.organizationId);
+      }
+      await deps.port.appendHistoryEvent({
+        organizationId: input.organizationId,
+        appointmentId: input.appointmentId,
+        paymentId: payment.id,
+        refundId: refund.id,
+        eventType: 'refund_succeeded',
+        amountMinor: input.amountMinor,
+        currency: payment.currency,
+        providerId: payment.providerId,
+        status: 'succeeded',
+        comment: input.reason ?? null,
+      });
+      return { ok: true as const, refundedMinor: input.amountMinor };
     },
 
     async getAppointmentPaymentSummary(

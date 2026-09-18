@@ -8,6 +8,10 @@ const PAYMENT_ERROR_RULES: ApiErrorLiteralRules = {
   payment_provider_unavailable: { code: 'payment_provider_unavailable', status: 503 },
   appointment_not_found: { code: 'appointment_not_found', status: 404 },
   package_not_found: { code: 'package_not_found', status: 404 },
+  invalid_refund_amount: { code: 'invalid_refund_amount', status: 422 },
+  refund_amount_exceeds_payment: { code: 'refund_amount_exceeds_payment', status: 409 },
+  payment_not_refundable: { code: 'payment_not_refundable', status: 409 },
+  appointment_cash_refund_failed: { code: 'appointment_cash_refund_failed', status: 409 },
 };
 import { z } from 'zod';
 import {
@@ -23,7 +27,19 @@ import { resolveDoctorAppointmentAccess } from '../../../_resolveDoctorAppointme
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const postSchema = z.object({ action: z.enum(['cash', 'link']) });
+const postSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.enum(['cash', 'link']),
+    amountMinor: z.number().int().positive().optional(),
+    purpose: z.enum(['prepayment', 'full', 'partial']).optional(),
+  }),
+  z.object({
+    action: z.literal('refund'),
+    amountMinor: z.number().int().positive(),
+    method: z.enum(['auto', 'cash']),
+    reason: z.string().trim().max(500).optional(),
+  }),
+]);
 
 async function resolveAppointmentPaymentContext(appointmentId: string) {
   const gate = await requireDoctorBookingEngine();
@@ -68,7 +84,24 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!view) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
-  return NextResponse.json({ ok: true, payment: view });
+  const state = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    'doctor.booking.appointment-payment.read',
+    () =>
+      createStaffAppointmentPaymentsService(deps).getPaymentState({
+        appointmentId,
+        organizationId: gate.ctx.organizationId,
+        platformUserId,
+      }),
+  );
+  return NextResponse.json({
+    ok: true,
+    payment: view,
+    details: {
+      onlineHistory: state.summary?.history ?? [],
+      manualPayments: state.manualPayments,
+    },
+  });
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -84,6 +117,7 @@ export async function POST(request: Request, context: RouteContext) {
   const parsed = postSchema.safeParse(body);
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+  const data = parsed.data;
   const { gate, platformUserId } = resolved;
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'payments');
   if (!entitlement.ok) return entitlement.response;
@@ -92,19 +126,40 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: 'payments_unavailable' }, { status: 503 });
   const service = createStaffAppointmentPaymentsService(deps);
   try {
+    if (data.action === 'refund') {
+      const refund = data;
+      const result = await withDoctorWorkspacePrincipal(
+        gate.ctx,
+        'doctor.booking.appointment-payment.refund',
+        () =>
+          service.refundPayment({
+            appointmentId,
+            organizationId: gate.ctx.organizationId,
+            platformUserId,
+            amountMinor: refund.amountMinor,
+            method: refund.method,
+            reason: refund.reason,
+            createdBy: gate.ctx.session.user.userId,
+          }),
+      );
+      if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 409 });
+      return NextResponse.json(result);
+    }
     const result = await withDoctorWorkspacePrincipal(
       gate.ctx,
-      parsed.data.action === 'cash'
+      data.action === 'cash'
         ? 'doctor.booking.appointment-payment.cash'
         : 'doctor.booking.appointment-payment.link',
       () =>
         service.createPayment({
-          action: parsed.data.action,
+          action: data.action,
           appointmentId,
           organizationId: gate.ctx.organizationId,
           platformUserId,
           createdBy: gate.ctx.session.user.userId,
           returnUrl: routePaths.purchases,
+          amountMinor: data.amountMinor,
+          purpose: data.purpose,
         }),
     );
     if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 409 });

@@ -353,6 +353,7 @@ function DoctorCalendarEventPanelInner({
     patient: createInitialPatient,
   });
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState<'Изменить запись' | 'Перенести запись'>('Изменить запись');
   /** ENCOUNTER-APPOINTMENT-05: подтверждение конфликта показывается ДО сохранения. */
   const [overlapConfirmOpen, setOverlapConfirmOpen] = useState(false);
   const [overlapContinuation, setOverlapContinuation] = useState<{
@@ -795,7 +796,7 @@ function DoctorCalendarEventPanelInner({
         { value: 'no_show', label: appointmentStatusLabel('no_show') },
       ];
 
-  const openEditForm = () => {
+  const openEditForm = (title: 'Изменить запись' | 'Перенести запись' = 'Изменить запись') => {
     const start = parseEventDateTime(selected.startAt, timeZone);
     setMessage(null);
     setDraft({
@@ -821,6 +822,7 @@ function DoctorCalendarEventPanelInner({
       priceOverridden: false,
       prepaymentOverridden: false,
     });
+    setEditTitle(title);
     setMode('edit');
   };
 
@@ -1162,11 +1164,39 @@ function DoctorCalendarEventPanelInner({
             patientUserId={selected.platformUserId}
             patientName={patientName}
             appointmentWhen={formatEventAtWords(selected.startAt, timeZone)}
+            serviceName={selected.serviceTitle ?? 'услугу'}
+            specialistName={selected.specialistName}
+            branchName={selected.branchTitle ?? '—'}
+            durationMinutes={durationMinutes ?? 0}
+            showSpecialist={!hideSpecialist}
+            cancelled={cancelled}
             timeZone={timeZone}
             onPaymentChange={(payment) => {
               onUpdated?.({ ...selected, payment });
             }}
           />
+        ) : null}
+
+        {!cancelled && canMutateAppointment ? (
+          <div className="grid grid-cols-2 gap-2 border-t border-border pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => openEditForm('Перенести запись')}
+            >
+              Перенести
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="text-destructive"
+              disabled={pending}
+              onClick={() => setCancelOpen(true)}
+            >
+              Отменить
+            </Button>
+          </div>
         ) : null}
 
         {lifecycle?.reschedules.map((reschedule) => (
@@ -1225,7 +1255,7 @@ function DoctorCalendarEventPanelInner({
         ))}
       </div>
 
-      {canDeleteAppointment || (!cancelled && canMutateAppointment) || appointmentActionHref ? (
+      {canDeleteAppointment || appointmentActionHref ? (
         <DoctorModalFooter>
           {canDeleteAppointment ? (
             <Button
@@ -1236,11 +1266,6 @@ function DoctorCalendarEventPanelInner({
               onClick={deleteCancelled}
             >
               Удалить
-            </Button>
-          ) : null}
-          {!cancelled && canMutateAppointment ? (
-            <Button type="button" variant="outline" disabled={pending} onClick={openEditForm}>
-              Изменить
             </Button>
           ) : null}
           {appointmentActionHref ? (
@@ -1266,7 +1291,7 @@ function DoctorCalendarEventPanelInner({
         onClose={closeEditForm}
         title={
           <DoctorModalStackedTitle
-            label="Изменить запись"
+            label={editTitle}
             patientName={patientName}
             patientHref={selected.platformUserId ? patientCardHref(selected.platformUserId) : null}
             patientOnSupport={selected.patientOnSupport === true}
@@ -1289,15 +1314,6 @@ function DoctorCalendarEventPanelInner({
           message={message}
         />
         <DoctorModalFooter>
-          <Button
-            type="button"
-            variant="outline"
-            className="text-destructive"
-            disabled={pending}
-            onClick={() => setCancelOpen(true)}
-          >
-            Отменить
-          </Button>
           <Button type="button" disabled={pending} onClick={submitEdit}>
             Сохранить
           </Button>

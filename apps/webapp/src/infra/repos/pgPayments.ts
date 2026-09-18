@@ -633,12 +633,35 @@ export function createPgPaymentsPort(): PaymentsPort {
       const countByPayment = new Map(
         countRows.map((row) => [row.paymentRef as string, Number(row.total)]),
       );
+      const refundRows = await db
+        .select({
+          appointmentId: beRefunds.appointmentId,
+          paymentId: beRefunds.paymentId,
+          refundedMinor: sql<number>`COALESCE(SUM(${beRefunds.amountMinor}), 0)`,
+        })
+        .from(beRefunds)
+        .where(
+          and(
+            eq(beRefunds.organizationId, organizationId),
+            eq(beRefunds.status, 'succeeded'),
+            inArray(beRefunds.paymentId, paymentIds),
+          ),
+        )
+        .groupBy(beRefunds.appointmentId, beRefunds.paymentId);
+      const refundedByAppointment = new Map(
+        refundRows.map((row) => [
+          `${row.paymentId}:${row.appointmentId ?? ''}`,
+          Number(row.refundedMinor ?? 0),
+        ]),
+      );
       return rows.map((row) => ({
         appointmentId: row.appointmentId,
         paymentId: row.paymentId,
         amountMinor: row.amountMinor,
         currency: row.currency,
         status: row.status,
+        refundedMinor:
+          refundedByAppointment.get(`${row.paymentId}:${row.appointmentId}`) ?? 0,
         appointmentCount: countByPayment.get(row.paymentId) ?? 1,
       }));
     },

@@ -88,6 +88,8 @@ export type CalendarAppointmentPaymentView = {
   payment: { amountMinor: number; status: string } | null;
   totalMinor: number | null;
   manualPaidMinor: number;
+  /** Payment/refund timeline exists even when the net paid amount is zero. */
+  hasPaymentActivity: boolean;
   /** Tariff mechanic `payments`: без него блока оплаты у клиники нет вовсе. */
   paymentsEntitled: boolean;
   /** Настроенный провайдер за существующим контрактом счёта/ссылки. */

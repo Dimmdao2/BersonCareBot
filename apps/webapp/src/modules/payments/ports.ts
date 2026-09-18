@@ -15,6 +15,8 @@ export type AppointmentPaymentBrief = {
   amountMinor: number;
   currency: string;
   status: string;
+  /** Succeeded refunds allocated to this exact appointment. */
+  refundedMinor?: number;
   /** Сколько записей делят этот же платёж. */
   appointmentCount: number;
 };

@@ -33,6 +33,7 @@ function portWithPayment(payment: PatientPayment | null): PatientPaymentsPort {
     listAppointmentPayments: vi.fn(),
     sumPaidMinorForAppointments: vi.fn(),
     addCashPayment: vi.fn(),
+    addCashRefund: vi.fn(),
     resolveAcquiringWebhookOrganization: vi.fn().mockResolvedValue(payment?.organizationId ?? null),
     settleAcquiringWebhookPayment: vi.fn().mockResolvedValue('settled' as const),
     insertAcquiringPending: vi.fn(),

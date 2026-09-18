@@ -2,11 +2,18 @@
 
 import Image from 'next/image';
 import toast from 'react-hot-toast';
-import { CircleCheck } from 'lucide-react';
+import { CircleCheck, CreditCard, ReceiptText, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { DateTime } from 'luxon';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { DoctorModal, DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import {
+  DoctorModal,
+  DoctorModalFooter,
+  DoctorModalStackedTitle,
+} from '@/shared/ui/doctor/DoctorModal';
 import {
   doctorBodyTextClass,
   doctorPaymentAmountClass,
@@ -19,8 +26,22 @@ import { parseBusinessInstant } from '@/shared/lib/formatBusinessDateTime';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
 import { notificationText } from '@/shared/notifications/notificationText';
 import { errorCodeText } from '@/shared/notifications/errorCodeText';
+import type { PaymentHistoryEventRecord } from '@/modules/payments/types';
+import type { PatientPayment } from '@/modules/patient-payments/ports';
 
-type Response = { ok?: boolean; payment?: CalendarAppointmentPaymentView; error?: string };
+type PaymentDetails = {
+  onlineHistory: PaymentHistoryEventRecord[];
+  manualPayments: PatientPayment[];
+};
+
+type Response = {
+  ok?: boolean;
+  payment?: CalendarAppointmentPaymentView;
+  details?: PaymentDetails;
+  error?: string;
+};
+
+type CollectionMode = 'full' | 'prepayment' | 'partial';
 
 const money = (amountMinor: number, currency = 'RUB') =>
   (amountMinor / 100).toLocaleString('ru-RU', { style: 'currency', currency });
@@ -71,6 +92,12 @@ export function AppointmentPaymentSection({
   patientUserId,
   patientName,
   appointmentWhen,
+  serviceName,
+  specialistName,
+  branchName,
+  durationMinutes,
+  showSpecialist,
+  cancelled,
   timeZone,
   onPaymentChange,
 }: {
@@ -85,6 +112,12 @@ export function AppointmentPaymentSection({
   patientUserId?: string | null;
   patientName: string;
   appointmentWhen: string;
+  serviceName: string;
+  specialistName: string | null;
+  branchName: string;
+  durationMinutes: number;
+  showSpecialist: boolean;
+  cancelled: boolean;
   /** Часовой пояс клиники — срок оплаты показывается в нём, а не в поясе браузера врача. */
   timeZone: string;
   onPaymentChange?: (payment: CalendarAppointmentPaymentView) => void;
@@ -93,6 +126,16 @@ export function AppointmentPaymentSection({
   const [current, setCurrent] = useState(view);
   const [createdLink, setCreatedLink] = useState<string | null>(null);
   const [collectOpen, setCollectOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [details, setDetails] = useState<PaymentDetails | null>(null);
+  const [collectionMode, setCollectionMode] = useState<CollectionMode>('full');
+  const [partialRubles, setPartialRubles] = useState('');
+  const [retainCommission, setRetainCommission] = useState(false);
+  const [retainPrepayment, setRetainPrepayment] = useState(false);
+  const [customRetention, setCustomRetention] = useState(false);
+  const [retentionRubles, setRetentionRubles] = useState('');
+  const [refundMethod, setRefundMethod] = useState<'auto' | 'cash'>('cash');
   const [copied, setCopied] = useState(false);
   const [chatSent, setChatSent] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -128,11 +171,16 @@ export function AppointmentPaymentSection({
       if (!response.ok || !json.payment) throw new Error(json.error ?? 'not_found');
       if (version !== requestVersion.current) return;
       applyPayment(json.payment);
+      if (json.details) setDetails(json.details);
     },
     [apiBase, applyPayment],
   );
 
-  const run = (action: 'cash' | 'link') =>
+  const run = (
+    action: 'cash' | 'link',
+    amountMinor: number,
+    purpose: CollectionMode,
+  ) =>
     startTransition(async () => {
       const version = requestVersion.current + 1;
       requestVersion.current = version;
@@ -143,7 +191,7 @@ export function AppointmentPaymentSection({
           {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ action }),
+            body: JSON.stringify({ action, amountMinor, purpose }),
           },
         );
         const json = (await response.json()) as {
@@ -169,6 +217,33 @@ export function AppointmentPaymentSection({
             ),
           );
         }
+      }
+    });
+
+  const runRefund = (amountMinor: number) =>
+    startTransition(async () => {
+      const version = requestVersion.current + 1;
+      requestVersion.current = version;
+      try {
+        const response = await fetch(
+          `${apiBase}/appointments/${encodeURIComponent(appointmentId)}/payment`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action: 'refund', method: refundMethod, amountMinor }),
+          },
+        );
+        const json = (await response.json()) as { ok?: boolean; error?: string };
+        if (!response.ok || !json.ok) throw new Error(json.error ?? 'request_failed');
+        setRefundOpen(false);
+        await reload(appointmentId, version);
+      } catch (cause) {
+        toast.error(
+          errorLabel(
+            cause instanceof Error ? cause.message : 'request_failed',
+            patientSingularLabel,
+          ),
+        );
       }
     });
 
@@ -209,18 +284,14 @@ export function AppointmentPaymentSection({
       : null;
   const isSettled = totalMinor !== null && paid >= totalMinor;
   const remaining = totalMinor === null ? null : Math.max(0, totalMinor - paid);
-  const canCollect = remaining !== null && remaining > 0;
-  const paymentSummary = isSettled
-    ? current.manualPaidMinor > 0 && captured === 0
-      ? `Оплачено наличными: ${money(paid)}`
-      : captured > 0 && current.manualPaidMinor === 0
-        ? `Оплачено онлайн: ${money(paid)}`
-        : `Оплачено: ${money(paid)}`
-    : paid > 0 && totalMinor !== null
-      ? `Частично оплачено: ${money(paid)} из ${money(totalMinor)} · осталось ${money(remaining ?? 0)}`
-      : prepaymentDueMinor
-        ? `Не оплачено · предоплата ${money(prepaymentDueMinor, current.prepayment?.currency)}`
-        : 'Не оплачено';
+  const canCollect = !cancelled && remaining !== null && remaining > 0;
+  const prepaymentConfigured = Boolean(
+    current.prepayment &&
+      current.prepayment.mode !== 'disabled' &&
+      current.prepayment.requiredMinor > 0,
+  );
+  const prepaymentPaidMinor = current.prepayment?.paidMinor ?? 0;
+  const hasPaymentDetails = current.hasPaymentActivity || paid > 0 || prepaymentPaidMinor > 0;
 
   // S6.3/S6.4: срок оплаты — не украшение, а то, что делит экран надвое. Пока он не вышел, врач
   // показывает ссылку и QR; как только вышел, бронь уже отменена фоновым тиком, и показывать
@@ -253,6 +324,38 @@ export function AppointmentPaymentSection({
     : null;
   const canSendLink = invoiceAlive && current.patientChatAvailable && Boolean(patientUserId);
 
+  const selectedAmountMinor = (() => {
+    if (collectionMode === 'prepayment') return prepaymentDueMinor ?? 0;
+    if (collectionMode === 'partial') {
+      const rubles = Number(partialRubles.replace(',', '.'));
+      return Number.isFinite(rubles) ? Math.round(rubles * 100) : 0;
+    }
+    return remaining ?? 0;
+  })();
+  const selectedAmountValid =
+    selectedAmountMinor > 0 && remaining !== null && selectedAmountMinor <= remaining;
+  const prepaymentStatus = !prepaymentConfigured
+    ? null
+    : prepaymentPaidMinor >= (current.prepayment?.requiredMinor ?? 0)
+      ? 'Внесена'
+      : deadlinePassed
+        ? 'Просрочена'
+        : 'Ожидается';
+  const refundableOnlineMinor = Math.max(
+    0,
+    captured -
+      (details?.onlineHistory ?? [])
+        .filter((event) => event.eventType === 'refund_succeeded')
+        .reduce((sum, event) => sum + (event.amountMinor ?? 0), 0),
+  );
+  const refundableSourceMinor = refundMethod === 'auto' ? refundableOnlineMinor : paid;
+  const customRetentionMinor = customRetention
+    ? Math.max(0, Math.round(Number(retentionRubles.replace(',', '.')) * 100) || 0)
+    : retainPrepayment
+      ? Math.min(prepaymentPaidMinor, refundableSourceMinor)
+      : 0;
+  const refundAmountMinor = Math.max(0, refundableSourceMinor - customRetentionMinor);
+
   useEffect(() => {
     if (!collectOpen || isSettled) return;
     const refresh = () => {
@@ -268,28 +371,97 @@ export function AppointmentPaymentSection({
   if (!current.paymentsEntitled) return null;
 
   return (
-    <section className="space-y-2 border-t border-border pt-3 text-sm" aria-label="Оплата записи">
-      <div className="flex items-center justify-between gap-3">
-        <p className={isSettled ? 'font-medium' : undefined}>{paymentSummary}</p>
-        {canCollect ? (
+    <section className="space-y-4 text-sm" aria-label="Оплата записи">
+      <div className="space-y-1">
+        <div className="flex items-center justify-between gap-3">
+          <p className={doctorSecondaryListTextClass}>Предоплата</p>
+          {prepaymentStatus ? (
+            <Badge
+              variant="secondary"
+              className={
+                prepaymentStatus === 'Внесена'
+                  ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-800'
+                  : prepaymentStatus === 'Просрочена'
+                    ? 'border border-destructive/30 bg-destructive/10 text-destructive'
+                    : 'border border-slate-500/25 bg-slate-500/10 text-slate-700'
+              }
+            >
+              {prepaymentStatus}
+            </Badge>
+          ) : null}
+        </div>
+        <p className={doctorBodyTextClass}>
+          {prepaymentConfigured
+            ? prepaymentPaidMinor > 0 &&
+              prepaymentPaidMinor < (current.prepayment?.requiredMinor ?? 0)
+              ? `${money(prepaymentPaidMinor, current.prepayment?.currency)} из ${money(
+                  current.prepayment?.requiredMinor ?? 0,
+                  current.prepayment?.currency,
+                )}`
+              : money(
+                  current.prepayment?.requiredMinor ?? 0,
+                  current.prepayment?.currency,
+                )
+            : 'Без предоплаты'}
+        </p>
+      </div>
+
+      <div className="flex items-end justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <p className={doctorSecondaryListTextClass}>Стоимость</p>
+            {isSettled ? (
+              <Badge className="border border-emerald-500/30 bg-emerald-500/10 text-emerald-800">
+                Оплачена
+              </Badge>
+            ) : null}
+          </div>
+          <p className={doctorBodyTextClass}>
+            {totalMinor === null ? 'Не указана' : money(totalMinor)}
+          </p>
+        </div>
+        {hasPaymentDetails ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={() => {
+              setDetailsOpen(true);
+              void reload(appointmentId, requestVersion.current).catch(() => undefined);
+            }}
+          >
+            Детали
+          </Button>
+        ) : canCollect ? (
           <Button type="button" size="sm" className="shrink-0" onClick={() => setCollectOpen(true)}>
             Принять оплату
           </Button>
         ) : null}
       </div>
-      {totalMinor === null ? (
-        <p className="text-muted-foreground">Стоимость записи не определена.</p>
-      ) : null}
+
       <DoctorModal
         variant="panel"
         open={collectOpen}
         onClose={() => setCollectOpen(false)}
-        title="Приём оплаты"
-        titleSubject={patientName}
+        title={
+          <DoctorModalStackedTitle
+            label="Приём оплаты"
+            patientName={patientName}
+            patientVariant="context"
+          />
+        }
         size="sm"
       >
         <div className="flex flex-col gap-4">
-          <p className={doctorSecondaryListTextClass}>{appointmentWhen}</p>
+          <div className="space-y-1">
+            <p className="text-lg font-semibold">{appointmentWhen}</p>
+            <p className={doctorSecondaryListTextClass}>
+              Запись на {serviceName}
+              {showSpecialist && specialistName ? ` к специалисту ${specialistName}` : ''},
+              длительность {durationMinutes} мин. в филиал {branchName}
+            </p>
+          </div>
           {isSettled ? (
             <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-6 text-center text-emerald-700">
               <CircleCheck className="size-12" aria-hidden />
@@ -300,21 +472,52 @@ export function AppointmentPaymentSection({
             </div>
           ) : (
             <>
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Сумма оплаты">
+                {(
+                  [
+                    ['full', 'Полная стоимость'],
+                    ...(prepaymentConfigured && prepaymentDueMinor
+                      ? ([['prepayment', 'Предоплата']] as const)
+                      : []),
+                    ['partial', 'Частичная оплата'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <label
+                    key={value}
+                    className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border px-2 py-2 text-xs"
+                  >
+                    <input
+                      type="radio"
+                      name="appointment-payment-mode"
+                      value={value}
+                      checked={collectionMode === value}
+                      onChange={() => setCollectionMode(value)}
+                      className="size-4 shrink-0 accent-primary"
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
               <div className="space-y-2 py-2">
                 <p className={doctorBodyTextClass}>К оплате</p>
-                <p className={doctorPaymentAmountClass}>{money(remaining ?? 0)}</p>
+                {collectionMode === 'partial' ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={partialRubles}
+                      onChange={(event) => setPartialRubles(event.target.value)}
+                      className="h-12 text-xl font-semibold"
+                      aria-label="Сумма частичной оплаты"
+                    />
+                    <span className="text-lg font-semibold">₽</span>
+                  </div>
+                ) : (
+                  <p className={doctorPaymentAmountClass}>{money(selectedAmountMinor)}</p>
+                )}
               </div>
-              {/*
-                PAY-APPT-05/06: счёт выставляется на требуемую предоплату, поэтому её сумма стоит
-                рядом с кнопкой — показанное и созданное намерение обязаны совпадать.
-              */}
-              {current.onlinePaymentAvailable &&
-              prepaymentDueMinor !== null &&
-              prepaymentDueMinor !== remaining ? (
-                <p className="text-muted-foreground">
-                  Счёт на предоплату: {money(prepaymentDueMinor, current.prepayment?.currency)}
-                </p>
-              ) : null}
               {invoiceExpired ? (
                 <div className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
                   <p className="font-medium text-destructive">Оплата не поступила</p>
@@ -385,17 +588,210 @@ export function AppointmentPaymentSection({
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={pending}
-                onClick={() => run('link')}
+                disabled={pending || !selectedAmountValid}
+                onClick={() => run('link', selectedAmountMinor, collectionMode)}
               >
                 Выставить счёт
               </Button>
             ) : null}
-            <Button type="button" size="sm" disabled={pending} onClick={() => run('cash')}>
+            <Button
+              type="button"
+              size="sm"
+              disabled={pending || !selectedAmountValid}
+              onClick={() => run('cash', selectedAmountMinor, collectionMode)}
+            >
               Оплачено наличными
             </Button>
           </DoctorModalFooter>
         ) : null}
+      </DoctorModal>
+
+      <DoctorModal
+        variant="panel"
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        title={
+          <DoctorModalStackedTitle
+            label="Детали оплаты"
+            patientName={patientName}
+            patientVariant="context"
+          />
+        }
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-lg font-semibold">{appointmentWhen}</p>
+          <div className="divide-y divide-border rounded-lg border border-border">
+            {[...(details?.manualPayments ?? [])]
+              .map((payment) => ({
+                id: `manual:${payment.id}`,
+                at: payment.createdAt,
+                amountMinor: payment.amountMinor,
+                currency: payment.currency,
+                title:
+                  payment.status === 'refunded'
+                    ? 'Возврат наличными'
+                    : payment.comment?.includes('Предоплата')
+                      ? 'Предоплата'
+                      : 'Оплата',
+                method: 'Наличными',
+                refunded: payment.status === 'refunded',
+              }))
+              .concat(
+                (details?.onlineHistory ?? [])
+                  .filter((event) =>
+                    ['payment_captured', 'refund_succeeded', 'intent_succeeded'].includes(
+                      event.eventType,
+                    ),
+                  )
+                  .map((event) => ({
+                    id: `online:${event.id}`,
+                    at: event.occurredAt,
+                    amountMinor: event.amountMinor ?? 0,
+                    currency: event.currency ?? 'RUB',
+                    title:
+                      event.eventType === 'refund_succeeded'
+                        ? 'Возврат'
+                        : event.amountMinor != null && event.amountMinor >= (totalMinor ?? Infinity)
+                          ? 'Оплата'
+                          : 'Предоплата',
+                    method: event.providerId ? `Онлайн · ${event.providerId}` : 'Онлайн',
+                    refunded: event.eventType === 'refund_succeeded',
+                  })),
+              )
+              .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+              .map((movement) => (
+                <div key={movement.id} className="flex items-start gap-3 p-3">
+                  <ReceiptText className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{movement.title}</p>
+                    <p className={doctorSecondaryListTextClass}>
+                      {movement.method} ·{' '}
+                      {DateTime.fromISO(movement.at).setLocale('ru').toFormat('d MMMM yyyy, HH:mm')}
+                    </p>
+                  </div>
+                  <p className={movement.refunded ? 'font-semibold text-destructive' : 'font-semibold'}>
+                    {movement.refunded ? '−' : '+'}
+                    {money(movement.amountMinor, movement.currency)}
+                  </p>
+                </div>
+              ))}
+            {!details ||
+            ((details.manualPayments?.length ?? 0) === 0 &&
+              (details.onlineHistory?.length ?? 0) === 0) ? (
+              <p className="p-3 text-muted-foreground">Движений средств нет.</p>
+            ) : null}
+          </div>
+        </div>
+        <DoctorModalFooter>
+          {paid > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setRefundMethod(refundableOnlineMinor > 0 ? 'auto' : 'cash');
+                setRefundOpen(true);
+              }}
+            >
+              <RotateCcw className="size-4" aria-hidden />
+              Сделать возврат
+            </Button>
+          ) : null}
+          {canCollect ? (
+            <Button
+              type="button"
+              onClick={() => {
+                setDetailsOpen(false);
+                setCollectOpen(true);
+              }}
+            >
+              Принять оплату
+            </Button>
+          ) : null}
+        </DoctorModalFooter>
+      </DoctorModal>
+
+      <DoctorModal
+        variant="panel"
+        open={refundOpen}
+        onClose={() => setRefundOpen(false)}
+        title="Возврат"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Способ возврата">
+            <label className="flex min-h-11 items-center gap-2 rounded-lg border border-border px-3">
+              <input
+                type="radio"
+                name="appointment-refund-method"
+                checked={refundMethod === 'cash'}
+                onChange={() => setRefundMethod('cash')}
+                className="size-4 accent-primary"
+              />
+              Наличными
+            </label>
+            {refundableOnlineMinor > 0 ? (
+              <label className="flex min-h-11 items-center gap-2 rounded-lg border border-border px-3">
+                <input
+                  type="radio"
+                  name="appointment-refund-method"
+                  checked={refundMethod === 'auto'}
+                  onChange={() => setRefundMethod('auto')}
+                  className="size-4 accent-primary"
+                />
+                <CreditCard className="size-4" aria-hidden />
+                Автовозврат
+              </label>
+            ) : null}
+          </div>
+          <label className="flex min-h-11 items-center gap-3">
+            <Checkbox
+              checked={retainCommission}
+              onCheckedChange={(checked) => setRetainCommission(checked === true)}
+              disabled
+            />
+            <span>Удержать комиссию</span>
+          </label>
+          <label className="flex min-h-11 items-center gap-3">
+            <Checkbox
+              checked={retainPrepayment}
+              onCheckedChange={(checked) => {
+                setRetainPrepayment(checked === true);
+                if (checked !== true) setCustomRetention(false);
+              }}
+            />
+            <span>Удержать предоплату</span>
+          </label>
+          <div className="flex min-h-11 items-center gap-3">
+            <Checkbox
+              checked={customRetention}
+              onCheckedChange={(checked) => setCustomRetention(checked === true)}
+              disabled={!retainPrepayment}
+            />
+            <span className="flex-1">Указать сумму</span>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={retentionRubles}
+              onChange={(event) => setRetentionRubles(event.target.value)}
+              disabled={!retainPrepayment || !customRetention}
+              className="w-32"
+              aria-label="Сумма удержания"
+            />
+          </div>
+          <p className="text-lg font-semibold">Сумма к возврату: {money(refundAmountMinor)}</p>
+        </div>
+        <DoctorModalFooter>
+          <Button
+            type="button"
+            disabled={pending || refundAmountMinor <= 0}
+            onClick={() => runRefund(refundAmountMinor)}
+          >
+            Оформить
+          </Button>
+        </DoctorModalFooter>
       </DoctorModal>
     </section>
   );
