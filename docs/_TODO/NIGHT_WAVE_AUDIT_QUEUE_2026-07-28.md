@@ -8,6 +8,20 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## Doctor UI mobile bundle + exercise NFC — 19.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Календарь, фильтры и composer модалок | `dddcc5417`, `03f644b98`, `d9e686cd8` (`wt/ui`) | **INDEPENDENT UI CODE AUDIT PASS — FOR LAND; POST-LAND LIVE VIEW REQUIRED.** Sol High проверил мобильный week/3-day switch, компактный filter sheet, поиск/очистку/счётчик и перенос общего composer в штатный footer. UI-тесты не добавлялись и не запускались; итоговая визуальная приёмка остаётся на единственном DEV Turbopack после landing. |
+| Свайпы задач и сообщений | `51df4498a`, correction `2ab14c282` (`wt/ui`) | **ASTRA AUDIT FAIL → BOUNDED CORRECTIONS ACCEPTED — FOR LAND.** Первичный независимый аудит нашёл три достижимых нарушения: underlay шире фактического свайпа, невидимая ошибка завершения задачи и новые ошибки вне словаря. Коррекция ограничила открываемый фон реальной шириной, добавила видимый toast и перенесла тексты в `notificationText`; typecheck, scoped lint и notification coverage зелёные. Повторный слепой проход той же поверхности не запускался по §24.5. |
+| Mobile KPI geometry и автосохранение рабочего места | `d2b0d0d34`, correction `d6f48b67f` (`wt/ui`) | **SOL HIGH AUDIT FAIL → LEAD CORRECTION ACCEPTED — FOR LAND; POST-LAND LIVE VIEW REQUIRED.** Аудит подтвердил KPI-сетку/фиксированную двухзначную рейку, но нашёл гонку параллельных PATCH и невидимую ошибку свайпа из списка. Коррекция сериализует сохранения с latest-pending snapshot и показывает ошибку toast-уведомлением. `git diff --check`, scoped ESLint, webapp typecheck и notification coverage PASS; UI-тесты не писались. |
+| NFC-нормализация текстов упражнений | `3fa9a888c` (идентичный cherry-pick independently audited `e5151b648`, `wt/ui`) | **INDEPENDENT SOL HIGH AUDIT PASS — FOR LAND.** Единый нейтральный NFC-helper применяется на всех названных write/snapshot-границах; миграция меняет только exercise-поля, сохраняет `NULL` и остальные JSON-ключи, идемпотентна и не меняет права. Миграция исполняется как `app_object_owner`, создаваемых объектов/функций нет, поэтому новых runtime grants и изменений privilege declaration не требуется. Scoped lint, typecheck, migration privilege/order guards и candidate owner-aware rollback-only DEV preflight PASS (`pending=2`, обе миграции откатились). |
+
+Миграция `20260919T120000_personal_support_conversation_unread_marker.sql` из swipe-слайса создаёт только
+`public.support_conversation_manual_unread` и два индекса от `app_object_owner`; функций и SECURITY DEFINER
+поверхности нет. Runtime `app_staff` требует `SELECT/INSERT/UPDATE/DELETE`, таблица и FORCE RLS уже объявлены в
+`deploy/postgres/privileges/declaration.ts`; candidate preflight подтвердил создание с реальными statement owners.
+
 ## Магазин упражнений #1103, S0а — платформенное чтение семейства ЛФК — 11.09
 
 | слой | коммит | вердикт |
