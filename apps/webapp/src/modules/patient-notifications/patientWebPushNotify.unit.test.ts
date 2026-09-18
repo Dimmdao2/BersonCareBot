@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PatientWebPushNotifyDeps } from './patientWebPushNotify';
+import type { PatientInboundChatPort } from '@/modules/messaging/ports';
 
 const { relayOutboundMock } = vi.hoisted(() => ({
   relayOutboundMock: vi.fn(),
@@ -35,6 +36,47 @@ function body(): IntegratorPatientWebPushNotifyBody {
     openUrl: '/app/patient',
     stableKey: 'news-1',
     broadcastTitle: 'News',
+  };
+}
+
+function lifecycleBody(
+  overrides: Partial<IntegratorPatientWebPushNotifyBody> = {},
+): IntegratorPatientWebPushNotifyBody {
+  return {
+    organizationId: ORGANIZATION_ID,
+    platformUserId: PUSH_USER_ID,
+    topicCode: 'appointment_reminders',
+    intentType: 'appointment_lifecycle',
+    variant: 'payment_captured',
+    slotStartIso: '2027-01-02T12:00:00.000Z',
+    openUrl: '/app/patient',
+    stableKey: 'booking-payment:booking-1',
+    suppressExternalPush: true,
+    ...overrides,
+  };
+}
+
+function patientInboxPort(
+  appendWebappMessage: PatientInboundChatPort['appendWebappMessage'],
+): PatientInboundChatPort {
+  return {
+    ensureWebappConversationForUser: async () => ({ id: 'conversation-1' }),
+    appendWebappMessage,
+  };
+}
+
+function lifecycleDeps(patientInboundChatPort: PatientInboundChatPort): PatientWebPushNotifyDeps {
+  return {
+    resolveDeliveryTarget: async () => ({
+      userId: PUSH_USER_ID,
+      topicCode: 'appointment_reminders',
+      selectedChannels: [],
+      skippedChannels: [],
+      availableChannels: [],
+      enabledChannels: [],
+    }),
+    systemSettings: { getSetting: async () => null },
+    patientInboundChatPort,
   };
 }
 
@@ -128,5 +170,34 @@ describe('patient web-push relay delivery truth', () => {
       platformUserId: PUSH_USER_ID,
       topicCode: 'patient_news',
     });
+  });
+});
+
+describe('S11 persistent lifecycle inbox is independent of external push', () => {
+  it('appends the lifecycle fact when external push is suppressed', async () => {
+    const appendWebappMessage = vi.fn(async () => ({ id: 'message-1', created: true }));
+
+    await expect(
+      runPatientWebPushNotify(
+        lifecycleBody(),
+        lifecycleDeps(patientInboxPort(appendWebappMessage)),
+      ),
+    ).resolves.toEqual({ ok: true, skipped: 'web_push_suppressed' });
+
+    expect(appendWebappMessage).toHaveBeenCalledOnce();
+    expect(relayOutboundMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps a failed persistent inbox append retryable instead of acknowledging the lifecycle step', async () => {
+    const appendWebappMessage = vi.fn(async () => {
+      throw new Error('patient_inbox_unavailable');
+    });
+
+    await expect(
+      runPatientWebPushNotify(
+        lifecycleBody(),
+        lifecycleDeps(patientInboxPort(appendWebappMessage)),
+      ),
+    ).rejects.toThrow('patient_inbox_unavailable');
   });
 });
