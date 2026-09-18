@@ -39,6 +39,7 @@ export type SpecialistTasksPort = {
     patch: UpdateSpecialistTaskInput,
   ): Promise<SpecialistTaskRow | null>;
   complete(taskId: string, ownerUserId: string): Promise<SpecialistTaskRow | null>;
+  reactivate(taskId: string, ownerUserId: string): Promise<SpecialistTaskRow | null>;
   delete(taskId: string, ownerUserId: string): Promise<boolean>;
   getPatientSummary(
     ownerUserId: string,

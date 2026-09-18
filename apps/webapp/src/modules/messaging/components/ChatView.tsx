@@ -85,6 +85,11 @@ type ChatViewProps = {
   onReplyToMessage?: (message: SerializedSupportMessage) => void;
   messageTextClassName?: string;
   dayLabelClassName?: string;
+  renderMessageRow?: (params: {
+    message: SerializedSupportMessage;
+    row: ReactNode;
+    isLastMessage: boolean;
+  }) => ReactNode;
 };
 
 /** Каркас чата: группировка по дням, пузырьки, скролл вниз. */
@@ -97,6 +102,7 @@ export function ChatView({
   onReplyToMessage,
   messageTextClassName,
   dayLabelClassName,
+  renderMessageRow,
 }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const previousMessageCountRef = useRef(0);
@@ -151,7 +157,7 @@ export function ChatView({
                   const deliveryStatus = mine
                     ? chatMessageDeliveryStatus({ createdAt: m.createdAt, readAt: m.readAt })
                     : null;
-                  return (
+                  const row = (
                     <div
                       key={m.id}
                       className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}
@@ -212,6 +218,10 @@ export function ChatView({
                       </div>
                     </div>
                   );
+                  const isLastMessage = messages[messages.length - 1]?.id === m.id;
+                  return renderMessageRow
+                    ? renderMessageRow({ message: m, row, isLastMessage })
+                    : row;
                 })}
               </div>
             </div>

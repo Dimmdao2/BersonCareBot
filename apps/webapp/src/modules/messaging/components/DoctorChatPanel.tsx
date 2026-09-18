@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, Mail } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { doctorChatMessageTextClass, doctorMetaTextClass } from '@/shared/ui/doctor/doctorVisual';
@@ -16,6 +16,7 @@ import { reconcileSupportMessages } from '@/modules/messaging/reconcileMessages'
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorModalFooter } from '@/shared/ui/doctor/DoctorModal';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { DoctorMobileSwipeAction } from '@/shared/ui/doctor/DoctorMobileSwipeAction';
 
 type DoctorChatPanelProps = {
   conversationId: string;
@@ -25,6 +26,7 @@ type DoctorChatPanelProps = {
   composerPlacement?: 'inline' | 'modal-footer';
   onReadStateChanged?: () => void | Promise<void>;
   onSent?: () => void | Promise<void>;
+  onManualUnreadChanged?: () => void | Promise<void>;
 };
 
 const initialMessageRequests = new Map<
@@ -62,6 +64,7 @@ export function DoctorChatPanel({
   composerPlacement = 'inline',
   onReadStateChanged,
   onSent,
+  onManualUnreadChanged,
 }: DoctorChatPanelProps) {
   const [messages, setMessages] = useState<SerializedSupportMessage[]>(initialMessages ?? []);
   const [draft, setDraft] = useState('');
@@ -73,9 +76,11 @@ export function DoctorChatPanel({
   const initialMessagesRef = useRef(initialMessages);
   const onReadStateChangedRef = useRef(onReadStateChanged);
   const onSentRef = useRef(onSent);
+  const onManualUnreadChangedRef = useRef(onManualUnreadChanged);
   initialMessagesRef.current = initialMessages;
   onReadStateChangedRef.current = onReadStateChanged;
   onSentRef.current = onSent;
+  onManualUnreadChangedRef.current = onManualUnreadChanged;
   // Persists across retries of the same unsent draft so a network-error retry reuses the same
   // idempotency key instead of minting a new one (which would defeat server-side dedup). Keyed
   // by text so editing the draft after a failed attempt starts a fresh key, not a "retry".
@@ -94,6 +99,29 @@ export function DoctorChatPanel({
       // Read state is best-effort; keep the chat usable if it fails.
     }
   }, [conversationId]);
+
+  const markLastMessageUnread = useCallback(
+    async (targetMessageId: string) => {
+      try {
+        const response = await fetch(
+          `/api/doctor/messages/${encodeURIComponent(conversationId)}/manual-unread`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetMessageId }),
+          },
+        );
+        if (!response.ok) {
+          setError('Не удалось отметить диалог непрочитанным');
+          return;
+        }
+        await onManualUnreadChangedRef.current?.();
+      } catch {
+        setError('Ошибка сети');
+      }
+    },
+    [conversationId],
+  );
 
   const loadMessages = useCallback(
     async (deduplicateInitial = false) => {
@@ -123,6 +151,15 @@ export function DoctorChatPanel({
     (async () => {
       try {
         setReplyTarget(null);
+        try {
+          const cleared = await fetch(
+            `/api/doctor/messages/${encodeURIComponent(conversationId)}/manual-unread`,
+            { method: 'DELETE' },
+          );
+          if (cleared.ok) await onManualUnreadChangedRef.current?.();
+        } catch {
+          // Manual reminder clearing is best-effort; message loading and actual receipts still run.
+        }
         const seededMessages = initialMessagesRef.current;
         if (seededMessages) {
           if (!cancelled) {
@@ -289,6 +326,20 @@ export function DoctorChatPanel({
         onReplyToMessage={replyToMessage}
         messageTextClassName={doctorChatMessageTextClass}
         dayLabelClassName={doctorMetaTextClass}
+        renderMessageRow={({ message, row, isLastMessage }) =>
+          isLastMessage ? (
+            <DoctorMobileSwipeAction
+              key={message.id}
+              action={<Mail className="size-6" aria-hidden />}
+              actionLabel="Отметить диалог непрочитанным"
+              onAction={() => markLastMessageUnread(message.id)}
+            >
+              {row}
+            </DoctorMobileSwipeAction>
+          ) : (
+            row
+          )
+        }
       />
       {composerPlacement === 'modal-footer' ? (
         <DoctorModalFooter layout="content">{composer}</DoctorModalFooter>

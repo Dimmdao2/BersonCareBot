@@ -123,6 +123,8 @@ export function DoctorGlobalTasksSection({
                   displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false
                 }
                 canMutate={available}
+                busy={busy}
+                onComplete={(taskId) => void onComplete(taskId)}
                 onOpen={(selected) => setSelectedTaskId(selected.id)}
               />
             ))}
@@ -164,6 +166,8 @@ export function DoctorGlobalTasksSection({
               }
               dueToday={displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false}
               canMutate={available}
+              busy={busy}
+              onComplete={(taskId) => void onComplete(taskId)}
               onOpen={(selected) => {
                 setSelectedTaskId(selected.id);
               }}

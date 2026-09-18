@@ -13,6 +13,7 @@ const messages = new Map<string, SupportConversationMessageRow>();
 const questions = new Map<string, SupportQuestionRow>();
 const questionMessages: { id: string; questionId: string; integratorQuestionMessageId: string }[] =
   [];
+const manualUnreadMarkers = new Map<string, string>();
 let conversationIdSeq = 0;
 let messageIdSeq = 0;
 let questionIdSeq = 0;
@@ -267,7 +268,13 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         channelExternalId: c.channelExternalId,
         lastMessageText: lastMsg?.text ?? null,
         lastSenderRole: lastMsg?.senderRole ?? null,
+        lastMessageId: lastMsg?.id ?? '',
         unreadFromUserCount: unreadCount(c.id),
+        manuallyUnread: params.staffUserId
+          ? manualUnreadMarkers.has(`${params.organizationId}:${params.staffUserId}:${c.id}`)
+          : false,
+        manualUnreadTargetMessageId:
+          manualUnreadMarkers.get(`${params.organizationId}:${params.staffUserId}:${c.id}`) ?? null,
       };
     });
   },
@@ -428,6 +435,22 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         m.readAt = new Date().toISOString();
       }
     }
+  },
+
+  async setManualUnreadMarker(params) {
+    const message = messages.get(params.targetMessageId);
+    if (!message || message.conversationId !== params.conversationId) return false;
+    manualUnreadMarkers.set(
+      `${params.organizationId}:${params.staffUserId}:${params.conversationId}`,
+      params.targetMessageId,
+    );
+    return true;
+  },
+
+  async clearManualUnreadMarker(params) {
+    manualUnreadMarkers.delete(
+      `${params.organizationId}:${params.staffUserId}:${params.conversationId}`,
+    );
   },
 
   async countUnreadForUser(platformUserId) {

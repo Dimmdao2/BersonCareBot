@@ -33,12 +33,14 @@ export function createDoctorSupportMessagingService(
       limit?: number;
       unreadOnly?: boolean;
       organizationId?: string;
+      staffUserId?: string;
       visibilityActor: PatientVisibilityActor;
     }): Promise<AdminConversationListRow[]> {
       return port.listOpenConversationsForAdmin({
         limit: params.limit ?? 50,
         unreadOnly: params.unreadOnly === true,
         organizationId: params.organizationId,
+        staffUserId: params.staffUserId,
         visibilityActor: params.visibilityActor,
       });
     },
@@ -150,6 +152,23 @@ export function createDoctorSupportMessagingService(
 
     markUserMessagesRead(conversationId: string, organizationId?: string): Promise<void> {
       return port.markUserMessagesReadByAdmin(conversationId, organizationId);
+    },
+
+    setManualUnreadMarker(params: {
+      conversationId: string;
+      targetMessageId: string;
+      organizationId: string;
+      staffUserId: string;
+    }) {
+      return port.setManualUnreadMarker(params);
+    },
+
+    clearManualUnreadMarker(params: {
+      conversationId: string;
+      organizationId: string;
+      staffUserId: string;
+    }) {
+      return port.clearManualUnreadMarker(params);
     },
 
     unreadFromUsers(params: {

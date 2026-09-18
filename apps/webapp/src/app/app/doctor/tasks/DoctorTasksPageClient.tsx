@@ -233,6 +233,34 @@ export function DoctorTasksPageClient({
     }
   };
 
+  const reactivate = async (taskId: string): Promise<boolean> => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/reactivate`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        setError('Не удалось активировать задачу');
+        return false;
+      }
+      const data = (await response.json()) as { task?: Task };
+      if (!data.task) {
+        setError('Не удалось активировать задачу');
+        return false;
+      }
+      setTasks((current) => current.map((task) => (task.id === taskId ? data.task! : task)));
+      notifyDoctorTasksChanged();
+      setPane(null);
+      return true;
+    } catch {
+      setError('Ошибка сети');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const deleteTask = (taskId: string) => {
     setTasks((current) => current.filter((task) => task.id !== taskId));
     setPane(null);
@@ -271,7 +299,11 @@ export function DoctorTasksPageClient({
               <Button disabled={busy} onClick={() => void complete(selected.id)}>
                 Выполнить
               </Button>
-            ) : null}
+            ) : (
+              <Button disabled={busy} onClick={() => void reactivate(selected.id)}>
+                Активировать
+              </Button>
+            )}
           </div>
         ) : null}
       </div>
@@ -383,6 +415,9 @@ export function DoctorTasksPageClient({
                             mobileFlat
                             onOpen={(row) => setPane({ kind: 'details', taskId: row.id })}
                             active={selected?.id === task.id}
+                            canMutate={canMutate}
+                            busy={busy}
+                            onComplete={(taskId) => void complete(taskId)}
                           />
                         ))}
                       </DoctorDnaFlatList>
@@ -418,6 +453,7 @@ export function DoctorTasksPageClient({
           busy={busy}
           variant="panel"
           onComplete={complete}
+          onReactivate={reactivate}
           onTaskSaved={saveTask}
           onTaskDeleted={deleteTask}
         />

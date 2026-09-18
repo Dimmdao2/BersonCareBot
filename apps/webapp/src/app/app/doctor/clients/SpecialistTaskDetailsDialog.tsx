@@ -43,6 +43,7 @@ type Props = {
   busy?: boolean;
   variant?: DoctorModalVariant;
   onComplete: (taskId: string) => Promise<boolean>;
+  onReactivate?: (taskId: string) => Promise<boolean>;
   onTaskSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
   onTaskDeleted?: (taskId: string) => void;
 };
@@ -170,6 +171,7 @@ export function SpecialistTaskDetailsDialog({
   busy = false,
   variant = 'panel',
   onComplete,
+  onReactivate,
   onTaskSaved,
   onTaskDeleted,
 }: Props) {
@@ -193,6 +195,17 @@ export function SpecialistTaskDetailsDialog({
       return;
     }
     setError('Не удалось выполнить задачу');
+  };
+
+  const reactivate = async () => {
+    if (!task || !onReactivate) return;
+    setError(null);
+    const activated = await onReactivate(task.id);
+    if (activated) {
+      onClose();
+      return;
+    }
+    setError('Не удалось активировать задачу');
   };
 
   return (
@@ -226,6 +239,10 @@ export function SpecialistTaskDetailsDialog({
             {task && !task.completedAt ? (
               <Button type="button" disabled={busy} onClick={() => void complete()}>
                 Выполнить
+              </Button>
+            ) : task && onReactivate ? (
+              <Button type="button" disabled={busy} onClick={() => void reactivate()}>
+                Активировать
               </Button>
             ) : null}
           </>

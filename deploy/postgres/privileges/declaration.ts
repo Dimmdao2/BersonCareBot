@@ -20348,6 +20348,21 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
+  "public.support_conversation_manual_unread": {
+    "kind": "direct",
+    "purpose": "personal staff reminder that a support conversation needs attention",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgSupportCommunication.ts",
+      "apps/webapp/src/modules/messaging/doctorSupportMessagingService.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+        "columns": "table"
+      }
+    ]
+  },
   "public.support_conversations": {
     "kind": "direct",
     "purpose": "диалоги поддержки — без неё нет переписки врач↔пациент",
@@ -23944,6 +23959,7 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.staff_security_profiles', cls: 'S', wall: 'definer-only', why: 'второй фактор персонала — 2FA '
     + 'сотрудников', wallWhy: W_AUTH_DEFINER, defect: ['I1-definer-plus-force'] },
   { t: 'public.support_conversation_messages', cls: 'P', org: true, why: 'сообщения диалога — тело переписки' },
+  { t: 'public.support_conversation_manual_unread', cls: 'P', org: true, why: 'личная метка сотрудника о непрочитанном диалоге' },
   { t: 'public.support_conversations', cls: 'P', org: true, why: 'диалоги поддержки — без неё нет переписки врач↔пациент' },
   { t: 'public.support_question_messages', cls: 'P', org: true, why: 'реплики внутри вопроса — тело вопроса' },
   { t: 'public.support_questions', cls: 'P', org: true, why: 'вопросы пациента из бота — очередь «вопрос из мессенджера → врач»' },
@@ -31878,6 +31894,11 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"support_conversations\" AS \"b4f_conv\" WHERE \"b4f_conv\".\"id\" = \"conversation_id\" AND \"b4f_conv\".\"platform_user_id\" = app.current_patient_user_id() )))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"support_conversations\" AS \"b4f_conv\" WHERE \"b4f_conv\".\"id\" = \"conversation_id\" AND \"b4f_conv\".\"platform_user_id\" = app.current_patient_user_id() ))))",
   },
+  "public.support_conversation_manual_unread": {
+    policyName: "support_manual_unread_current_staff",
+    strictPredicate: "(app.is_staff() AND app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id() AND app.current_actor_user_id() IS NOT NULL AND \"staff_user_id\" = app.current_actor_user_id())",
+    dormantCompatPredicate: "(app.is_staff() AND app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id() AND app.current_actor_user_id() IS NOT NULL AND \"staff_user_id\" = app.current_actor_user_id())",
+  },
   "public.support_conversations": {
     policyName: "saas_org_dormant_p0_8_3",
     strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
@@ -33006,6 +33027,7 @@ const REV10_TENANT_DIRECT_ORG = new Set([
   'public.platform_user_contacts', 'public.product_analytics_user_hourly', 'public.product_push_notifications',
   'public.program_action_log',
   'public.reminder_rules', 'public.specialist_tasks', 'public.support_conversation_messages',
+  'public.support_conversation_manual_unread',
   'public.support_conversations', 'public.support_question_messages',
   'public.support_questions', 'public.symptom_entries', 'public.symptom_trackings', 'public.test_attempts',
   'public.treatment_program_events', 'public.treatment_program_instance_stage_items',
