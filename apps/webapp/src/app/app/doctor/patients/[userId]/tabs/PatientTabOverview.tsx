@@ -1715,7 +1715,7 @@ export function PatientTabOverview({
     <div
       className={cn(
         compositionMode === 'right-pane'
-          ? 'flex flex-col gap-2.5'
+          ? 'grid grid-cols-2 items-start gap-2.5'
           : isOverviewComposition
             ? 'grid grid-cols-2 items-start gap-2.5'
             : 'grid grid-cols-1 items-start gap-2.5 md:grid-cols-2',
@@ -1902,7 +1902,7 @@ export function PatientTabOverview({
           <div
             className={cn(
               doctorSectionCardClass,
-              compositionMode === 'right-pane' && 'order-3',
+              compositionMode === 'right-pane' && 'order-3 col-span-2',
               isOverviewComposition && 'order-2 col-span-2',
             )}
           >
@@ -2138,7 +2138,7 @@ export function PatientTabOverview({
         <div
           className={cn(
             doctorSectionCardClass,
-            compositionMode === 'right-pane' && 'order-4',
+            compositionMode === 'right-pane' && 'order-4 col-span-2',
             isOverviewComposition && 'order-3 col-span-2',
             !canOpenProgram && 'hidden',
           )}
