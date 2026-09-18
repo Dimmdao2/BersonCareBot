@@ -6,6 +6,10 @@ Authority: S11 в `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`,
 producer candidate `567ca1cda` после его отдельной приёмки. Не переписывай общий outbox, existing
 `patientNotifications` store или уже принятые booking/payment-captured producers.
 
+Источник оракула: `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`, S11 — «все события должны идти
+в экран „Уведомления“ через lifecycle/push-путь» и `PAT-NOTIF-01` — «Все существующие пациентские события записи,
+визита и денег проходят одним lifecycle→Notifications входом и создают запись в экране „Уведомления“».
+
 ## Цель bounded-этапа
 
 Закрыть оставшиеся УЖЕ СУЩЕСТВУЮЩИЕ patient-visible producer families через тот же durable

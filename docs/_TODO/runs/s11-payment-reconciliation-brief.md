@@ -5,6 +5,11 @@ Authority: S11/PAY-REL-04 в `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-
 18.09.2026 о промышленной webhook/outbox/reconciliation схеме и уже принятый atomic settlement/outbox core.
 Этот этап стартует только от принятого интеграционного SHA после booking lifecycle и money/reminder producer
 этапов: он пересекается с ними по settlement root, worker, scheduler, composition root и privilege declaration.
+
+Источник оракула: `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`, `PAY-REL-04` — «resident
+reconciliation автоматически и регулярно перечитывает у провайдера незавершённые платежи и перекрывающееся окно
+уже успешных операций. Найденный пропущенный успех проводится через тот же идемпотентный settlement/outbox-корень».
+
 Сначала измерь существующий SaaS reconciliation (`PaymentProviderPort.listPayments`, YooKassa adapter,
 `reconcilePlatformPaymentsWithProvider`) и resident scheduler; расширяй/параметризуй существующие двери, не
 создавай второй provider client, scheduler, payment journal или ручной-only путь.
