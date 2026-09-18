@@ -5,6 +5,11 @@
 `docs/_TODO/runs/s11-booking-producers-audit.md`. Authority: S11 `PAY-REL-01..03`, `PAT-NOTIF-01..03`,
 `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §24.1 и findings F1–F6 этого аудита.
 
+Источник оракула: `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`, S11 — «все события должны идти
+в экран „Уведомления“ через lifecycle/push-путь»; `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §24.1 — «Обязательно
+все уведомления идут через очередь и ретраи — не должно быть потери вообще никаких сообщений в системе. [...]
+Сначала в одной транзакции положить в очередь, потом воркер сразу отправляет, не ждёт минуту».
+
 Это correction того же bounded scope. Не добавляй новые тесты: сохрани независимые acceptance tests аудитора и
 доведи тот же набор до зелёного. Не запускай новый blind audit, UI/DOM/copy tests, full CI, execute, live UI,
 deploy или push. Не расширяй scope на money/reminders/visit/reconciliation.
