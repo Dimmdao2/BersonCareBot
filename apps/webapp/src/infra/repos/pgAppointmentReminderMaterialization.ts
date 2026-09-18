@@ -10,6 +10,24 @@ import type { AppointmentReminderMaterializationPort } from '@/modules/booking-n
 export function appointmentReminderQueueRow(
   delivery: AppointmentReminderReadyOutgoingDelivery,
 ): Record<string, unknown> {
+  if (delivery.kind === 'booking_lifecycle') {
+    return {
+      eventId: delivery.eventId,
+      channel: delivery.channel,
+      payloadJson: {
+        bookingLifecycle: {
+          organizationId: delivery.organizationId,
+          appointmentId: delivery.appointmentId,
+          fact: 'reminder_due',
+          reminderId: delivery.reminderId,
+          generationStartAt: delivery.generationStartAt,
+          dueAt: delivery.dueAt,
+        },
+      },
+      maxAttempts: 8,
+      nextRetryAt: delivery.nextRetryAt,
+    };
+  }
   return {
     eventId: delivery.eventId,
     channel: delivery.channel,
@@ -37,7 +55,11 @@ export function appointmentReminderQueueRow(
 export function createPgAppointmentReminderMaterializationPort(): AppointmentReminderMaterializationPort {
   return {
     async replaceGeneration(input) {
-      const deliveriesJson = JSON.stringify(input.deliveries.map(appointmentReminderQueueRow));
+      const deliveriesJson = JSON.stringify(
+        input.checkOccurrence
+          ? { operation: 'read', ...input.checkOccurrence }
+          : input.deliveries.map(appointmentReminderQueueRow),
+      );
       const args = [
         input.organizationId,
         input.appointmentId,

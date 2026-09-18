@@ -161,3 +161,29 @@ describe('booking.rescheduled: suppression относится только к в
     expect(webappEventsPort.notifyPatientWebPush).toHaveBeenCalledOnce();
   });
 });
+
+// S11/PAT-NOTIF-01..03: each new fact must survive a consumer outage, then converge on replay.
+// The signed webapp port is the external delivery boundary; no notification text is pinned.
+describe('S11 remaining lifecycle families', () => {
+  it.each(['booking.reminder_due', 'booking.cash_payment', 'booking.refund_succeeded',
+    'booking.prepayment_retained', 'booking.visit_completed'] as const)(
+    '%s retries the failed persistent consumer and acknowledges only one successful delivery', async (eventType) => {
+      const notify = vi.fn(async () => ({ ok: true, status: 200 }))
+        .mockResolvedValueOnce({ ok: false, status: 503 });
+      const dispatchOutgoing = vi.fn(async () => ({}));
+      const event = {
+        eventType, idempotencyKey: `s11:${eventType}:occurrence-1`,
+        payload: { ...basePayload(), occurrenceId: 'occurrence-1', suppressPatientNotification: true },
+      };
+      const options = {
+        idempotencyPort: createInMemoryIdempotencyPort(),
+        webappEventsPort: { ...fakeWebappEventsPort(), notifyPatientWebPush: notify },
+      };
+      await expect(handleBookingLifecycleEvent(event, { dispatchOutgoing }, options)).rejects.toThrow();
+      await handleBookingLifecycleEvent(event, { dispatchOutgoing }, options);
+      await handleBookingLifecycleEvent(event, { dispatchOutgoing }, options);
+      expect(notify).toHaveBeenCalledTimes(2);
+      expect(dispatchOutgoing).not.toHaveBeenCalled();
+    },
+  );
+});

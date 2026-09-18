@@ -14,7 +14,7 @@ const base = {
 };
 
 describe('appointment reminder product materialization', () => {
-  it('materializes immutable Telegram→MAX ladder and a separate web-push sibling', () => {
+  it('materializes the immutable Telegram→MAX ladder beside one internal lifecycle occurrence', () => {
     const rows = prepareAppointmentReminderDeliveries(
       base,
       {
@@ -26,23 +26,24 @@ describe('appointment reminder product materialization', () => {
       '2026-08-03T00:00:00.000Z',
       'Europe/Moscow',
     );
-    expect(rows).toHaveLength(2);
-    expect(rows[0]?.messengerLadder?.map((step) => step.channel)).toEqual(['telegram', 'max']);
-    expect(rows[0]?.channel).toBe('telegram');
-    expect(rows[0]?.intent.payload).toMatchObject({
+    const messenger = rows.find((row) => row.kind === 'appointment_reminder');
+    const lifecycle = rows.find((row) => row.kind === 'booking_lifecycle');
+    expect(messenger?.messengerLadder?.map((step) => step.channel)).toEqual(['telegram', 'max']);
+    expect(messenger?.channel).toBe('telegram');
+    expect(messenger?.intent.payload).toMatchObject({
       delivery: { channels: ['telegram'], senderScope: 'clinic_if_configured' },
     });
-    expect(rows[1]?.channel).toBe('web_push');
-    expect(rows[0]?.eventId).not.toBe(rows[1]?.eventId);
+    expect(lifecycle?.channel).toBe('internal');
+    expect(messenger?.eventId).not.toBe(lifecycle?.eventId);
   });
 
   it('preserves the legacy two tries when only one messenger is available', () => {
-    const [row] = prepareAppointmentReminderDeliveries(
+    const row = prepareAppointmentReminderDeliveries(
       base,
       { selectedChannels: ['max'], maxId: 'max-1', hasWebPush: false },
       '2026-08-03T00:00:00.000Z',
       'Europe/Moscow',
-    );
+    ).find((delivery) => delivery.kind === 'appointment_reminder');
     expect(row?.messengerLadder?.map((step) => step.channel)).toEqual(['max', 'max']);
   });
 

@@ -1747,7 +1747,11 @@ const appointmentReminderMaterialization: AppointmentReminderMaterializationPort
   ? createPgAppointmentReminderMaterializationPort()
   : {
       async replaceGeneration(input) {
-        return { current: true, inserted: input.deliveries.length };
+        // No persisted generation exists in this adapter; a replay cannot be attested.
+        return {
+          current: !input.checkOccurrence,
+          inserted: input.checkOccurrence ? 0 : input.deliveries.length,
+        };
       },
     };
 const contentCatalog = createContentCatalogResolver({

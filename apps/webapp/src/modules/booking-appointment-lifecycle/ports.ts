@@ -74,6 +74,21 @@ export type AppointmentCancellationRecord = {
   createdAt: string;
 };
 
+export type AppointmentPatientLifecycleFactKind =
+  'cash_payment' | 'cash_refund' | 'refund_succeeded' | 'prepayment_retained';
+
+/** Canonical immutable money fact returned by the narrow signed-replay read door. */
+export type AppointmentPatientLifecycleFact = {
+  id: string;
+  organizationId: string;
+  appointmentId: string;
+  platformUserId: string;
+  kind: AppointmentPatientLifecycleFactKind;
+  amountMinor: number | null;
+  currency: string | null;
+  occurredAt: string;
+};
+
 export type RescheduleAppointmentInput = {
   appointmentId: string;
   organizationId: string;
@@ -114,6 +129,11 @@ export type CancelAppointmentInput = {
 
 export type AppointmentLifecyclePort = {
   getAppointment(appointmentId: string, organizationId: string): Promise<BeAppointment | null>;
+  readPatientLifecycleFact?(
+    kind: AppointmentPatientLifecycleFactKind,
+    factId: string,
+    organizationId: string,
+  ): Promise<AppointmentPatientLifecycleFact | null>;
   listReschedules(
     appointmentId: string,
     organizationId: string,

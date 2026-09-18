@@ -73,6 +73,11 @@ export type BookingSyncPort = {
       | 'booking.reschedule_requested'
       | 'booking.deleted'
       | 'booking.payment_captured'
+      | 'booking.reminder_due'
+      | 'booking.cash_payment'
+      | 'booking.refund_succeeded'
+      | 'booking.prepayment_retained'
+      | 'booking.visit_completed'
       | 'booking.package_linked'
       | 'booking.package_unlinked'
       | 'booking.reminder_updated';
@@ -108,7 +113,17 @@ export type BookingSyncPort = {
       /** D14(1): отменять ли ожидающие напоминания на этом событии. Отсутствие поля = прежнее поведение интегратора (отменять всегда). */
       cancelPendingReminders?: boolean;
       /** D14(2): слать ли пуш пациенту и каким вариантом; null = не слать. Отсутствие поля = прежнее поведение интегратора. */
-      patientPushVariant?: 'created' | 'awaiting_payment' | 'cancelled' | 'rescheduled' | null;
+      patientPushVariant?:
+        | 'created'
+        | 'awaiting_payment'
+        | 'cancelled'
+        | 'rescheduled'
+        | 'reminder_due'
+        | 'cash_payment'
+        | 'refund_succeeded'
+        | 'prepayment_retained'
+        | 'visit_completed'
+        | null;
       /** D14(3): дословный текст пациентского сообщения. Отсутствие поля = прежний текст интегратора. */
       patientMessageText?: string;
       /** D14(4): уведомлять ли врача. `false` — не уведомлять вовсе. Отсутствие поля = прежнее поведение интегратора (уведомлять всегда). */

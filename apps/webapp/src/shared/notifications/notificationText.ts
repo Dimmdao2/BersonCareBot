@@ -277,6 +277,10 @@ export const notificationText = {
   // of a period) — retired, both call sites now use this key. C5: «Попробуйте» → «Повторите
   // попытку» to match the majority phrasing used across the dictionary.
   paymentSucceeded: 'Оплата прошла',
+  appointmentCashPaymentReceived: 'Оплата записи принята.',
+  appointmentRefundSucceeded: 'Возврат по записи выполнен.',
+  appointmentPrepaymentRetained: 'Предоплата по записи удержана.',
+  appointmentVisitCompleted: 'Визит состоялся.',
   commonGenericError: 'Что-то пошло не так. Повторите попытку.',
   // Дефолт для функций-подписей: код, которого подпись не знает, показывать НЕЛЬЗЯ — человек
   // прочитает `awaiting_payment` или `playback_disabled`. Гейт `check-notification-text-coverage`
@@ -549,6 +553,8 @@ export const notificationText = {
   bookingPaymentProviderUnavailable:
     'Платёжный сервис не настроен. Проверьте настройки приёма оплат.',
   bookingAppointmentAmountUnavailable: 'Стоимость записи не определена. Укажите её и повторите.',
+  bookingAppointmentPaymentAmountInvalid:
+    'Сумма оплаты превышает остаток по записи. Обновите данные и повторите.',
   bookingAlreadyPaid: 'Запись уже оплачена.',
   bookingPackageNotFound: 'Абонемент не найден. Обновите страницу и повторите попытку.',
   bookingMembershipsUnavailable: 'Абонементы сейчас недоступны. Повторите попытку позже.',

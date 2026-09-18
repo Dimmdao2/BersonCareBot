@@ -81,6 +81,7 @@ const ERROR_CODE_TEXT: Record<string, string> = {
   payment_provider_unavailable: notificationText.bookingPaymentProviderUnavailable,
   payment_link_unavailable: notificationText.bookingPaymentProviderUnavailable,
   appointment_amount_unavailable: notificationText.bookingAppointmentAmountUnavailable,
+  invalid_payment_amount: notificationText.bookingAppointmentPaymentAmountInvalid,
   already_paid: notificationText.bookingAlreadyPaid,
   financials_update_failed: notificationText.bookingPaymentSaveFailed,
   package_not_found: notificationText.bookingPackageNotFound,

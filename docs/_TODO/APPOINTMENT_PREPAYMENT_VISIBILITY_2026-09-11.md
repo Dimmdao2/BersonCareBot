@@ -539,6 +539,15 @@ webapp `lint` целиком — rc 0; оба затронутых route-тес�
       error-tracking 13/13, обе production-сборки, audit). `c305f2f4b` выложен штатными
       конвейерами: `deploy-test.sh` — PASS, tenant-wall и health PASS; новый PROD blue/green —
       webapp/API healthy, nginx переключён на blue, журнал миграций совпал. Старый PROD не затронут.
+- [x] **PAY-APPT-30** — наличный платёж не зависит от наличия онлайн-провайдера, а ошибка кассы
+      не маскируется текстом про YooKassa. Живой журнал нового PROD для попытки 10 000 ₽ показал
+      точный SQL-отказ `invalid_payment_amount`: историческая запись имела цену только в
+      `patient_bookings.price_minor_snapshot`, хотя карточка её уже показывала. Forward-backfill
+      `20260918T231000_legacy_appointment_price_snapshot_repair.sql` переносит только однозначный
+      снимок в каноническую запись; cash/API различает неверную сумму, ошибку кассы и реальный
+      provider failure. Доказательство: cash/payment route-набор 20/20, webapp typecheck и lint —
+      PASS; `pnpm test:db-privileges` — 391 tests / 0 fail; owner-aware rollback-only DEV preflight
+      — PASS (`pending=5`, `total=237`, `unapplied=0`).
 
 - [x] Нужен ли QR **пациенту** на его собственном экране оплаты — закрыто владельцем 11.09:
       **QR только на широком экране**; на телефоне сумма, срок и кнопка.

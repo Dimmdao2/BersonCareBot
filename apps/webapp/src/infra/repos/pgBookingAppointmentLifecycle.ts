@@ -15,6 +15,7 @@ import type {
   AppointmentCancellationRecord,
   AppointmentLifecyclePort,
   AppointmentNoShowRecord,
+  AppointmentPatientLifecycleFact,
   AppointmentRescheduleRecord,
 } from '@/modules/booking-appointment-lifecycle/ports';
 import {
@@ -191,6 +192,45 @@ type CurrentPatientRescheduleRow = {
   created_at: string;
 };
 
+type AppointmentPatientLifecycleFactJson = {
+  id?: unknown;
+  organizationId?: unknown;
+  appointmentId?: unknown;
+  platformUserId?: unknown;
+  kind?: unknown;
+  amountMinor?: unknown;
+  currency?: unknown;
+  occurredAt?: unknown;
+};
+
+function mapAppointmentPatientLifecycleFact(
+  value: AppointmentPatientLifecycleFactJson | null,
+): AppointmentPatientLifecycleFact | null {
+  if (
+    !value ||
+    typeof value.id !== 'string' ||
+    typeof value.organizationId !== 'string' ||
+    typeof value.appointmentId !== 'string' ||
+    typeof value.platformUserId !== 'string' ||
+    !['cash_payment', 'cash_refund', 'refund_succeeded', 'prepayment_retained'].includes(
+      typeof value.kind === 'string' ? value.kind : '',
+    ) ||
+    typeof value.occurredAt !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    id: value.id,
+    organizationId: value.organizationId,
+    appointmentId: value.appointmentId,
+    platformUserId: value.platformUserId,
+    kind: value.kind as AppointmentPatientLifecycleFact['kind'],
+    amountMinor: typeof value.amountMinor === 'number' ? value.amountMinor : null,
+    currency: typeof value.currency === 'string' ? value.currency : null,
+    occurredAt: value.occurredAt,
+  };
+}
+
 function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppointment {
   const availableOffsets =
     parseAppointmentReminderOffsets(row.appointment_reminder_available_offsets_minutes) ?? [];
@@ -295,6 +335,22 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
         )
         .limit(1);
       return rows[0] ? mapAppointment(rows[0]) : null;
+    },
+
+    async readPatientLifecycleFact(kind, factId, organizationId) {
+      const result = await runWebappNamedRoot<{
+        fact: AppointmentPatientLifecycleFactJson | null;
+      }>(
+        getWebappSqlDb(),
+        'app.read_booking_patient_lifecycle_fact(text,uuid)',
+        [kind, factId],
+        drizzleSql`SELECT app.read_booking_patient_lifecycle_fact(
+          ${kind}::text,
+          ${factId}::uuid
+        ) AS fact`,
+      );
+      const fact = mapAppointmentPatientLifecycleFact(result.rows[0]?.fact ?? null);
+      return fact?.organizationId === organizationId ? fact : null;
     },
 
     async listReschedules(appointmentId, organizationId) {

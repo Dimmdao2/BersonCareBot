@@ -12,6 +12,7 @@ const PAYMENT_ERROR_RULES: ApiErrorLiteralRules = {
   refund_amount_exceeds_payment: { code: 'refund_amount_exceeds_payment', status: 409 },
   payment_not_refundable: { code: 'payment_not_refundable', status: 409 },
   appointment_cash_refund_failed: { code: 'appointment_cash_refund_failed', status: 409 },
+  invalid_payment_amount: { code: 'invalid_payment_amount', status: 422 },
 };
 import { z } from 'zod';
 import {
@@ -32,6 +33,7 @@ const postSchema = z.discriminatedUnion('action', [
     action: z.enum(['cash', 'link']),
     amountMinor: z.number().int().positive().optional(),
     purpose: z.enum(['prepayment', 'full', 'partial']).optional(),
+    requestId: z.string().uuid().optional(),
   }),
   z.object({
     action: z.literal('refund'),
@@ -162,15 +164,24 @@ export async function POST(request: Request, context: RouteContext) {
           returnUrl: routePaths.purchases,
           amountMinor: data.amountMinor,
           purpose: data.purpose,
+          idempotencyKey: data.requestId,
         }),
     );
     if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 409 });
     return NextResponse.json(result);
   } catch (error) {
+    if (data.action === 'link' || (data.action === 'refund' && data.method === 'auto')) {
+      return jsonError({
+        error,
+        literalRules: PAYMENT_ERROR_RULES,
+        fallback: { code: 'payment_provider_unavailable', status: 503 },
+        logEvent: 'doctor_appointment_payment_failed',
+      });
+    }
     return jsonError({
       error,
       literalRules: PAYMENT_ERROR_RULES,
-      fallback: { code: 'payment_provider_unavailable', status: 503 },
+      fallback: { code: 'financials_update_failed', status: 500 },
       logEvent: 'doctor_appointment_payment_failed',
     });
   }

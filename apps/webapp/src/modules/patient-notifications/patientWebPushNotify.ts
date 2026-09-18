@@ -56,7 +56,18 @@ export const integratorPatientWebPushNotifyBodySchema = z
     topicCode: z.string().min(1).max(120).default(REMINDER_NOTIFICATION_TOPIC_APPOINTMENT),
     intentType: z.enum(['appointment_lifecycle', 'appointment_reminder', 'news']),
     variant: z
-      .enum(['created', 'awaiting_payment', 'cancelled', 'rescheduled', 'payment_captured'])
+      .enum([
+        'created',
+        'awaiting_payment',
+        'cancelled',
+        'rescheduled',
+        'payment_captured',
+        'reminder_due',
+        'cash_payment',
+        'refund_succeeded',
+        'prepayment_retained',
+        'visit_completed',
+      ])
       .optional(),
     bookingId: z.string().min(1).max(240).optional(),
     occurrenceId: z.string().min(1).max(240).optional(),
@@ -129,8 +140,7 @@ type PatientWebPushNotifyIntegratorDeps = PatientWebPushNotifyCommonDeps & {
 };
 
 export type PatientWebPushNotifyDeps =
-  | PatientWebPushNotifyLegacyDeps
-  | PatientWebPushNotifyIntegratorDeps;
+  PatientWebPushNotifyLegacyDeps | PatientWebPushNotifyIntegratorDeps;
 
 function buildPatientNotificationsOpenUrl(appBaseUrl: string): string {
   const base = appBaseUrl.replace(/\/$/, '');
@@ -139,7 +149,7 @@ function buildPatientNotificationsOpenUrl(appBaseUrl: string): string {
 
 function bookingIdFromLifecycleStableKey(stableKey: string): string | null {
   const m = stableKey.match(
-    /^booking-(?:created|awaiting-payment|cancelled|rescheduled|payment):(.+)$/,
+    /^booking-(?:created|awaiting-payment|cancelled|rescheduled|payment|reminder|cash-payment|refund|prepayment-retained|visit-completed):(.+)$/,
   );
   return m?.[1] ?? null;
 }
@@ -167,6 +177,13 @@ function buildCopy(
     );
   }
   if (!body.variant || !body.slotStartIso) return null;
+  if (body.variant === 'reminder_due') {
+    return buildAppointmentReminderPushCopy(
+      body.slotStartIso,
+      body.nowIso ?? new Date().toISOString(),
+      timeZone,
+    );
+  }
   return buildAppointmentLifecyclePushCopy(
     body.variant as AppointmentLifecycleVariant,
     body.slotStartIso,
@@ -210,7 +227,7 @@ export async function runPatientWebPushNotify(
   const timeZone = await getAppDisplayTimeZone();
 
   if (
-    body.intentType === 'appointment_lifecycle' &&
+    (body.intentType === 'appointment_lifecycle' || body.intentType === 'appointment_reminder') &&
     body.variant &&
     body.slotStartIso &&
     deps.patientInboundChatPort
@@ -307,7 +324,8 @@ export async function runPatientWebPushNotify(
   // Native routing is independent of pushOpenUrl (which may carry the clinic's custom-domain
   // origin, M6-05/M6-09): appointment_lifecycle and news both resolve to the same patient home
   // buildPatientNotificationsOpenUrl already targets; appointment_reminder opens the booking tab.
-  const notificationKind: 'message' | 'reminder' = body.intentType === 'news' ? 'message' : 'reminder';
+  const notificationKind: 'message' | 'reminder' =
+    body.intentType === 'news' ? 'message' : 'reminder';
   const nativeRoute =
     body.intentType === 'appointment_reminder' ? routePaths.patientBooking : routePaths.patient;
 
