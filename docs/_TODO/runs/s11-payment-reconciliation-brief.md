@@ -1,76 +1,64 @@
 # Worker — S11 automatic appointment-payment reconciliation
 
-Прочитай `AGENTS.md`: карту, §1/§1b migrations, §2–§5, §10a–§10b, §24 и adjacent module docs.
-Authority: S11/PAY-REL-04 в `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`, owner decision
-18.09.2026 о промышленной webhook/outbox/reconciliation схеме и уже принятый atomic settlement/outbox core.
-Этот этап стартует только от принятого интеграционного SHA после booking lifecycle и money/reminder producer
-этапов: он пересекается с ними по settlement root, worker, scheduler, composition root и privilege declaration.
+Прочитай `AGENTS.md`: карту, §1/§1b migrations, §2–§5, §10a–§10b, §21/§21a и §24 целиком, а также
+`docs/ARCHITECTURE/SERVER CONVENTIONS.md`. Authority: PAY-REL-04 в
+`docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`, owner rule §24.1 в
+`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` и уже принятый на момент запуска integration SHA с atomic payment
+settlement/outbox. Не переписывай settlement, общий outbox, resident scheduler или YooKassa adapter параллельной
+реализацией.
 
-Источник оракула: `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`, `PAY-REL-04` — «resident
-reconciliation автоматически и регулярно перечитывает у провайдера незавершённые платежи и перекрывающееся окно
-уже успешных операций. Найденный пропущенный успех проводится через тот же идемпотентный settlement/outbox-корень».
+Источник оракула: `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`, PAY-REL-04 — «Найденный
+пропущенный успех проводится через тот же идемпотентный settlement/outbox-корень, а не прямой правкой статуса».
 
-Сначала измерь существующий SaaS reconciliation (`PaymentProviderPort.listPayments`, YooKassa adapter,
-`reconcilePlatformPaymentsWithProvider`) и resident scheduler; расширяй/параметризуй существующие двери, не
-создавай второй provider client, scheduler, payment journal или ручной-only путь.
+## Цель
 
-## Цель bounded-этапа
+Добавить автоматический low-priority recovery-контур для appointment payments, сохранив webhook быстрым главным
+путём. Нужны две независимые, но использующие одну существующую очередь линии:
 
-Построить автоматический backstop для платежей ЗАПИСЕЙ:
+1. Периодическая проверка локальных appointment intents в nonterminal состояниях через point lookup у провайдера.
+2. Периодический success sweep по каждой organization/provider-конфигурации с durable checkpoint, overlap и safe
+   upper bound; окно также обязано охватывать самый старый ещё не разрешённый локальный intent.
 
-- webhook остаётся основным быстрым путём;
-- resident reconciliation с фиксированной cadence выбирает незавершённые appointment payment intents и сверяет
-  их с provider authority;
-- отдельный перекрывающийся sweep успешных provider operations находит успехи, которых нет в нашем journal;
-- найденный provider success проходит через ТОТ ЖЕ `settleProviderWebhookEvent`/atomic settlement+outbox path,
-  а не прямой UPDATE статуса или второй алгоритм проведения денег;
-- provider canceled/expired обновляет только допустимое незавершённое намерение через канонический идемпотентный
-  корень; он не отменяет уже captured money и не создаёт patient payment-captured fact;
-- повтор tick, overlap и повтор provider response не создают второй payment/history/outbox/Notification fact.
+Каждый подтверждённый provider success проходит ровно через существующий `settleProviderWebhookEvent` и его
+transactional outbox. Не делай прямых UPDATE статуса, второго settlement, второго provider client, второй очереди
+или отдельного scheduler process.
 
-Реализуй две bounded lane через существующую `outgoing_delivery_queue`, не длинный provider batch внутри общего
-worker claim: (1) по одной low-priority row на due nonterminal intent с point lookup; (2) по одной low-priority
-row на organization/provider sweep. Resident scheduler только будит/материализует работу через существующий
-signed webapp path. Каждая row входит в принятый organization principal до чтения provider config и settlement.
+## Обязательное поведение
 
-## Надёжность
+- Минимально расширь существующий `PaymentProviderPort` нормализованным point-read и, если нужно, identity полями
+  существующего `listPayments`; реализация остаётся внутри `yookassaPaymentProvider` и переиспользует его
+  аутентифицированный transport.
+- До settlement сверяй provider payment/ref, локальный intent ref/idempotency binding, payer, purpose, appointment
+  subject, amount и currency. Организацию бери только из локальной authority; provider metadata не является
+  tenant authority.
+- Provider pending планирует следующее наблюдение. Временный transport/provider отказ использует retry/backoff
+  существующей очереди. Provider canceled/expired может менять только всё ещё nonterminal intent через общий
+  compare-and-set root и не трогает уже captured money.
+- Success после локального expiry — всё равно деньги: провести канонически, не воскрешать отменённую/просроченную
+  запись и открыть стабильный operator incident `success_after_local_expiry`.
+- Sweep checkpoint продвигается только после полного неусечённого прохода, когда каждый appointment-looking item
+  разрешён. Усечённый список, binding/amount/currency mismatch, неизвестный intent и terminal retry exhaustion
+  оставляют диагностируемый низкокардинальный operator incident без PII, raw payload, checkout URL или secret.
+- Повтор point lookup, перекрывающегося sweep, webhook и worker не создаёт второго платежа, lifecycle fact или
+  уведомления. Reconciliation rows имеют приоритет ниже пользовательской доставки.
+- Используй существующие `runFixedCadenceWake`, `createSchedulerLockedTickCoordinator`, `outgoing_delivery_queue`,
+  signed `WebappEventsPort` и operator-health namespaces; добавь отдельный appointment-reconciliation cadence,
+  чтобы чужой health tick не закрывал его incidents.
+- Новые checkpoint/lease таблицы и hot-query колонки получают Drizzle schema, forward migration, нужные индексы,
+  named roots и декларативные/generated privileges по канону. Секреты и URL не переводятся в env и не попадают в
+  очередь.
 
-Watermark/checkpoint хранится durable и всегда читает окно `[watermark - overlap, safe upper bound]`; checkpoint
-двигается только после полного, неусечённого прохода, в котором разрешён каждый похожий на appointment элемент.
-Окно обязано захватывать oldest unresolved local intent, чтобы долгоживущий invoice не выпал из sweep по времени
-создания. Process crash до checkpoint повторяет
-безопасную работу; crash после settlement не теряет downstream благодаря принятому outbox. Provider timeout/5xx
-повторяется с bounded backoff. Усечённая выдача, amount/currency mismatch, неизвестная organization/intent,
-неразрешимая metadata binding и исчерпание попыток создают диагностируемый operator incident, а не молчаливый
-skip. Один сбой организации не останавливает остальные. Секреты/credentials берутся только через существующий
-provider config path; никакого нового env/system setting.
+## Границы и проверки
 
-Для YooKassa переиспользуй authenticated API read. Если `listPayments` не даёт честно сверить nonterminal status,
-добавь в существующий `PaymentProviderPort` минимальную provider-status capability и реализуй её тем же adapter,
-не вызывай приватный HTTP из scheduler. Нормализованный reconciliation fact обязан пройти ту же валидацию
-provider ref, intent, idempotency key, organization, payer, purpose, subject/appointment, amount и currency, что
-webhook settlement. Organization берётся только из локальной authority; provider metadata не является tenant
-authority. И point lookup, и list result обязаны сохранять provider object ref, локальный invoice/intent ref и
-точно тот event idempotency key, который вывел бы `verifyWebhook`, чтобы более поздний webhook дедуплицировался.
+Сначала параметризуй существующую provider/scheduler/worker точку; новая обёртка допустима только если текущая
+граница реально не может нести point/sweep поведение. Никакого UI, ручной admin-route или SaaS billing journal.
 
-Provider success после локального expiry/cancel всё равно является деньгами: проведи его через канонический
-settlement/journal root, не воскрешай appointment и открой стабильный `success_after_local_expiry` incident.
-Не понижай succeeded intent, не переписывай captured money и не выпускай `payment_captured` для обычного
-canceled/expired observation. Усечённый список, appointment-looking unbound item, mismatch и terminal retry
-получают отдельные низкокардинальные incident keys; generic/SaaS cadence не должна их закрывать по отсутствию.
+Новых тестов не писать: worker реализует product code; blind acceptance добавит независимый auditor. Запусти
+существующие payment/provider/webhook/outbox/scheduler/operator-health suites, оба typecheck/lint, migration order,
+privilege generation/static gates и owner-aware rollback-only DEV preflight. Execute/full CI/live/deploy/push
+запрещены.
 
-Не смешивай этот этап с SaaS billing reconciliation: общий provider adapter допустим и желателен, но appointment
-payment journal и SaaS invoices имеют разные canonical roots. Не добавляй UI или ручную кнопку как замену
-автоматическому тикающему пути. Не добавляй новую payment journal/queue/scheduler process/env variable и не клади
-API key, checkout URL, raw provider payload или patient data в queue error/operator incident.
-
-## Проверки
-
-Новых тестов не писать: product worker реализует код; независимый auditor добавит только необходимые blind
-behavioral acceptance tests. Запусти существующие provider adapter/webhook/settlement, scheduler isolation/lock,
-outbox/payment regression suites, оба typecheck/lint, migration order/privilege gates. Для миграций — owner-aware
-rollback-only DEV preflight; execute/full CI/live UI/deploy/push запрещены.
-
-В evidence назови cadence, overlap, durable checkpoint, выбор nonterminal intents, общий settlement root,
-idempotency key и каждый operator incident path. Закоммить явные paths, дерево чистое. S11 plan закрывает lead
-только после независимого аудита и live acceptance.
+В `docs/_TODO/runs/s11-payment-reconciliation-evidence.md` назови точные cadence jobs, queue kinds/event keys,
+checkpoint/window semantics, provider binding checks, canonical settlement вызов, incident families и результаты
+проверок. Закоммить явные paths, дерево чистое. PAY-REL-04 пока не закрывай — это делает лид после аудита и живой
+приёмки.
