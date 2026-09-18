@@ -182,7 +182,7 @@ describe('D20 item 16: booking-lifecycle event dedup — persistent idempotency 
     const rescheduled = (transitionId: string): BookingLifecycleEventValidated => ({
       eventType: 'booking.rescheduled',
       idempotencyKey: `booking.lifecycle:rescheduled:${transitionId}`,
-      payload: payload(),
+      payload: { ...payload(), occurrenceId: transitionId },
     });
 
     await route.handleBookingLifecycleEvent(

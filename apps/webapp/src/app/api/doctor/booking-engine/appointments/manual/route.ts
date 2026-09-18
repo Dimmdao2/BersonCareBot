@@ -30,7 +30,6 @@ import { getMechanicMutationAvailability } from '@/app-layer/guards/requireEntit
 import { runWithMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
 import {
   staffBookingContactNameFromAppointment,
-  staffBookingServiceTitleFromAppointment,
 } from '@/app-layer/booking/staffBookingIntegratorEvent';
 import { loadAppointmentReminderPlanFromSystemSettings } from '@/modules/booking-notifications/settings';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
@@ -241,18 +240,14 @@ export async function POST(request: Request) {
             errorClass: err instanceof Error ? err.name : 'unknown',
           });
         }
-        let bookingRow: Awaited<
-          ReturnType<NonNullable<typeof deps.patientBooking>['getBookingByCanonicalAppointment']>
-        > = null;
         try {
-          bookingRow =
-            deps.patientBooking && parsed.data.platformUserId
-              ? await deps.patientBooking.ensureStaffBookingProjection({
+          if (deps.patientBooking && parsed.data.platformUserId) {
+            await deps.patientBooking.ensureStaffBookingProjection({
                   appointment: created,
                   contactName: staffBookingContactNameFromAppointment(created),
                   contactPhone: created.phoneNormalized ?? '+70000000000',
-                })
-              : null;
+                });
+          }
         } catch {
           // The canonical appointment is already committed. A projection failure must not make a
           // retry create a duplicate appointment; diagnostics retain the failure server-side.
@@ -260,24 +255,6 @@ export async function POST(request: Request) {
             appointmentId: created.id,
           });
         }
-        // Production BookingSyncPort suppresses this legacy post-commit handoff for lifecycle
-        // facts; retain the compatibility call for non-production port implementations.
-        await syncPort.emitBookingEvent({
-          eventType: 'booking.created',
-          idempotencyKey: `staff.booking.created:${created.id}:${created.startAt}`,
-          payload: {
-            organizationId: created.organizationId, bookingId: bookingRow?.id ?? created.id,
-            userId: bookingRow?.userId ?? created.platformUserId ?? created.id,
-            bookingType: bookingRow?.bookingType ?? 'in_person', city: bookingRow?.city ?? undefined,
-            category: bookingRow?.category ?? 'general', slotStart: created.startAt, slotEnd: created.endAt,
-            contactName: bookingRow?.contactName ?? staffBookingContactNameFromAppointment(created),
-            contactPhone: bookingRow?.contactPhone ?? created.phoneNormalized ?? '+70000000000',
-            contactEmail: bookingRow?.contactEmail ?? undefined,
-            cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
-            serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(created, bookingRow),
-            canonicalAppointmentId: created.id, reminderPlan,
-          },
-        });
         return created;
       },
     );

@@ -42,6 +42,7 @@ import {
   beSpecialistServiceAvailability,
   beSpecialists,
 } from '../../../db/schema/bookingEngine';
+import { beAppointmentReschedules } from '../../../db/schema/bookingPolicies';
 import { clinicalVisit } from '../../../db/schema/patientClinical';
 import { platformUsers, userIdentity } from '../../../db/schema/schema';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
@@ -59,6 +60,7 @@ import {
 import type {
   AppointmentStatus,
   BeAppointment,
+  BeAppointmentLifecycleHistory,
   BeBranch,
   BeClinicService,
   BeOrganization,
@@ -1530,6 +1532,41 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const db = getDrizzle();
       const rows = await db.select().from(beAppointments).where(eq(beAppointments.id, id)).limit(1);
       return rows[0] ? mapAppointment(rows[0]) : null;
+    },
+
+    async getAppointmentLifecycleHistory(id): Promise<BeAppointmentLifecycleHistory | null> {
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          id: beAppointmentHistoryEvents.id,
+          organizationId: beAppointmentHistoryEvents.organizationId,
+          appointmentId: beAppointmentHistoryEvents.appointmentId,
+          eventType: beAppointmentHistoryEvents.eventType,
+          payload: beAppointmentHistoryEvents.payload,
+          occurredAt: beAppointmentHistoryEvents.occurredAt,
+          rescheduledStartAt: beAppointmentReschedules.toStartAt,
+          rescheduledEndAt: beAppointmentReschedules.toEndAt,
+        })
+        .from(beAppointmentHistoryEvents)
+        .leftJoin(
+          beAppointmentReschedules,
+          and(
+            eq(beAppointmentReschedules.organizationId, beAppointmentHistoryEvents.organizationId),
+            eq(beAppointmentReschedules.appointmentId, beAppointmentHistoryEvents.appointmentId),
+            eq(beAppointmentReschedules.createdAt, beAppointmentHistoryEvents.occurredAt),
+          ),
+        )
+        .where(eq(beAppointmentHistoryEvents.id, id))
+        .limit(1);
+      const row = rows[0];
+      return row
+        ? {
+            ...row,
+            payload: row.payload ?? {},
+            rescheduledStartAt: row.rescheduledStartAt ?? null,
+            rescheduledEndAt: row.rescheduledEndAt ?? null,
+          }
+        : null;
     },
 
     async listAppointmentsByChainId({ organizationId, chainId }) {

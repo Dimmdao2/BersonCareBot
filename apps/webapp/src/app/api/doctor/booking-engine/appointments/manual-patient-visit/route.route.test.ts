@@ -40,15 +40,12 @@ const BRANCH_ID = '33333333-3333-4333-8333-333333333333';
 const SERVICE_ID = '44444444-4444-4444-8444-444444444444';
 
 /**
- * D13a(добор): врач заводит запланированный визит нового/существующего пациента
- * (manual-patient-visit, kind=scheduled) — до этой правки `booking.created` не нёс
- * reminderPlan, интегратор ставил напоминания по своим 24ч/2ч независимо от настроек.
+ * A scheduled manual patient visit stores the resolved reminder plan on the canonical
+ * appointment so durable lifecycle replay can rebuild the effects after commit.
  */
-describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan в событии', () => {
-  let captured: Array<Record<string, unknown>>;
+describe('doctor booking-engine manual-patient-visit: canonical reminder plan', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    captured = [];
     fakes.ensureStaffBookingProjection.mockResolvedValue(null);
 
     fakes.requireDoctorBookingEngine.mockResolvedValue({
@@ -108,14 +105,10 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
       }),
     );
 
-    fakes.createBookingSyncPort.mockReturnValue({
-      emitBookingEvent: vi.fn(async (evt: { payload: Record<string, unknown> }) => {
-        captured.push(evt.payload);
-      }),
-    });
+    fakes.createBookingSyncPort.mockReturnValue({ emitBookingEvent: vi.fn(async () => undefined) });
   });
 
-  it('несёт план напоминаний из настройки организации', async () => {
+  it('stores the organization reminder plan in the scheduled create transaction', async () => {
     const response = await POST(
       new Request('http://127.0.0.1/api/doctor/booking-engine/appointments/manual-patient-visit', {
         method: 'POST',
@@ -136,10 +129,18 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
     );
 
     expect(response.status).toBe(200);
-    expect(captured[0]!.reminderPlan).toEqual({ enabled: true, offsetsMinutes: [1440] });
+    expect(fakes.createScheduledManualPatientVisit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointment: expect.objectContaining({
+          appointmentReminderAvailableOffsetsMinutes: [1440],
+          appointmentReminderOffsetsMinutes: [1440],
+        }),
+      }),
+      expect.anything(),
+    );
   });
 
-  it('регрессия: если reminderPlan пропадёт из события, тест краснеет', async () => {
+  it('keeps the reminder plan fields in the canonical appointment input', async () => {
     await POST(
       new Request('http://127.0.0.1/api/doctor/booking-engine/appointments/manual-patient-visit', {
         method: 'POST',
@@ -159,7 +160,15 @@ describe('doctor booking-engine manual-patient-visit (scheduled): reminderPlan �
       }),
     );
 
-    expect(captured[0]).toHaveProperty('reminderPlan');
+    expect(fakes.createScheduledManualPatientVisit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointment: expect.objectContaining({
+          appointmentReminderAvailableOffsetsMinutes: [1440],
+          appointmentReminderOffsetsMinutes: [1440],
+        }),
+      }),
+      expect.anything(),
+    );
   });
 
   it('passes the selected branch and service into the scheduled create transaction', async () => {

@@ -62,8 +62,9 @@ export function broadcastChatIntegratorMessageId(auditId: string, platformUserId
 
 /** Стабильный id для lifecycle записи. */
 export function bookingLifecycleChatIntegratorMessageId(
-  variant: 'created' | 'cancelled' | 'rescheduled' | 'payment_captured',
+  variant: 'created' | 'awaiting_payment' | 'cancelled' | 'rescheduled' | 'payment_captured',
   bookingId: string,
+  occurrenceId?: string,
 ): string {
-  return `booking-${variant}:${bookingId}`;
+  return `booking-${variant}:${bookingId}${occurrenceId ? `:${occurrenceId}` : ''}`;
 }

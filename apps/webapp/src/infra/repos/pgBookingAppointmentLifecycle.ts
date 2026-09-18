@@ -511,6 +511,7 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           fromStartAt: current.startAt,
           toStartAt: input.newStartAt,
           manualOverride: input.manualOverride ?? false,
+          suppressPatientNotification: input.suppressPatientNotification === true,
         };
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: input.organizationId,
@@ -635,6 +636,7 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           decisionType: input.decisionType,
           wasFree: input.wasFree,
           manualOverride: input.manualOverride ?? false,
+          suppressPatientNotification: input.suppressPatientNotification === true,
         };
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: input.organizationId,
@@ -774,6 +776,7 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           fromStatus,
           toStatus: 'no_show',
           manualOverride: input.manualOverride ?? true,
+          suppressPatientNotification: input.suppressPatientNotification === true,
         };
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: input.organizationId,

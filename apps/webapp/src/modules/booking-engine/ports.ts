@@ -14,6 +14,7 @@ import type {
   TransitionAppointmentStatusInput,
   UpdateAppointmentFinancialSnapshotInput,
   AppointmentFinancialSnapshotRecord,
+  BeAppointmentLifecycleHistory,
 } from './types';
 
 export type OrganizationPort = {
@@ -222,6 +223,8 @@ export type BookingEnginePort = {
     selectionSource: 'specialist_default' | 'patient';
   } | null>;
   getAppointment(id: string): Promise<BeAppointment | null>;
+  /** Named read for binding one durable lifecycle replay to its immutable transition. */
+  getAppointmentLifecycleHistory(id: string): Promise<BeAppointmentLifecycleHistory | null>;
   /** Chain rows are ordered by their zero-based position. */
   listAppointmentsByChainId(input: {
     organizationId: string;

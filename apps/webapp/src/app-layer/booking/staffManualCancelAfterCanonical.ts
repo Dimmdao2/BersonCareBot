@@ -2,11 +2,7 @@
  * Staff/admin cancel after canonical commit: partial outcomes with explicit flags.
  * @see docs/BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md
  */
-import { applyStaffCancelSideEffects } from '@/app-layer/booking/staffAppointmentLifecycleEffects';
 import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import type { BeAppointment } from '@/modules/booking-engine/types';
-import type { BookingSyncPort } from '@/modules/patient-booking/ports';
-import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 
 export type StaffManualCancelFlags = {
   notificationOutcomeFailed?: true;
@@ -19,20 +15,10 @@ export async function runStaffManualCancelAfterCanonical(input: {
   organizationId: string;
   appointmentId: string;
   actorId: string;
-  actorType: 'admin' | 'specialist';
   decisionType: string;
   reason?: string;
-  staffComment?: string;
-  /** R21: false → не уведомлять пациента об отмене. По умолчанию уведомляем. */
-  notifyPatient?: boolean;
-  appointment: BeAppointment;
-  cancelPolicy: Parameters<typeof applyStaffCancelSideEffects>[0]['cancelPolicy'];
 }): Promise<StaffManualCancelFlags> {
   const flags: StaffManualCancelFlags = {};
-  const bookingRow = input.deps.patientBooking
-    ? await input.deps.patientBooking.getBookingByCanonicalAppointment(input.appointmentId)
-    : null;
-  const syncPort: BookingSyncPort = createBookingSyncPort();
   if (input.deps.memberships) {
     try {
       await input.deps.memberships.applyCancelPackageOutcome({
@@ -58,26 +44,6 @@ export async function runStaffManualCancelAfterCanonical(input: {
     } catch {
       flags.paymentOutcomeFailed = true;
     }
-  }
-
-  const { loadBookingLifecycleNotificationsFromSystemSettings } =
-    await import('@/modules/booking-notifications/settings');
-  const lifecycleNotificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings(
-    (key, scope) => input.deps.systemSettings.getSetting(key, scope),
-  );
-  try {
-    await applyStaffCancelSideEffects({
-      lifecycle: input.deps.bookingAppointmentLifecycle!,
-      organizationId: input.organizationId,
-      appointment: input.appointment,
-      cancelPolicy: input.cancelPolicy,
-      syncPort,
-      bookingRow,
-      lifecycleNotificationSettings,
-      suppressPatientNotification: input.notifyPatient === false,
-    });
-  } catch {
-    flags.notificationOutcomeFailed = true;
   }
 
   if (input.deps.patientBooking) {

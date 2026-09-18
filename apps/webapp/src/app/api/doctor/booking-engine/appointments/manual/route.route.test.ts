@@ -44,17 +44,14 @@ const SERVICE_ID = '44444444-4444-4444-8444-444444444444';
 const PATIENT_ID = '55555555-5555-4555-8555-555555555555';
 
 /**
- * D13a(добор): врач создаёт запись вручную (doctor manual-create) — до этой правки
- * `booking.created` не содержал reminderPlan, интегратор ставил напоминания по
- * зашитым 24ч/2ч независимо от настроек клиники.
+ * The canonical appointment stores the resolved reminder plan. Durable lifecycle replay reads
+ * this snapshot after commit instead of relying on a route-local event payload.
  */
-describe('doctor booking-engine manual-create: reminderPlan в событии', () => {
-  let captured: Array<Record<string, unknown>>;
+describe('doctor booking-engine manual-create: reminder plan in canonical appointment', () => {
   let settingsRows: Record<string, unknown>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    captured = [];
     settingsRows = {
       doctor_appointment_reminder_offsets_minutes: { valueJson: { value: [1440, 120] } },
     };
@@ -106,14 +103,10 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
       },
     });
 
-    fakes.createBookingSyncPort.mockReturnValue({
-      emitBookingEvent: vi.fn(async (evt: { payload: Record<string, unknown> }) => {
-        captured.push(evt.payload);
-      }),
-    });
+    fakes.createBookingSyncPort.mockReturnValue({ emitBookingEvent: vi.fn(async () => undefined) });
   });
 
-  it('несёт план напоминаний — выключенные напоминания клиники доходят до события', async () => {
+  it('stores the disabled organization reminder plan on the appointment', async () => {
     settingsRows.doctor_appointment_reminder_offsets_minutes = { valueJson: { value: [] } };
     const response = await POST(
       new Request('http://127.0.0.1/api/doctor/booking-engine/appointments/manual', {
@@ -130,10 +123,15 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
     );
 
     expect(response.status).toBe(200);
-    expect(captured[0]!.reminderPlan).toEqual({ enabled: false, offsetsMinutes: [] });
+    expect(fakes.createAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentReminderAvailableOffsetsMinutes: [],
+        appointmentReminderOffsetsMinutes: [],
+      }),
+    );
   });
 
-  it('регрессия: если reminderPlan пропадёт из события, тест краснеет', async () => {
+  it('stores the enabled organization reminder plan on the appointment', async () => {
     await POST(
       new Request('http://127.0.0.1/api/doctor/booking-engine/appointments/manual', {
         method: 'POST',
@@ -148,7 +146,12 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
       }),
     );
 
-    expect(captured[0]).toHaveProperty('reminderPlan');
+    expect(fakes.createAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentReminderAvailableOffsetsMinutes: [1440, 120],
+        appointmentReminderOffsetsMinutes: [1440, 120],
+      }),
+    );
   });
 
   it('uses the organization schedule for a staff-created appointment', async () => {
@@ -184,7 +187,6 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
         serviceId: SERVICE_ID,
       },
     });
-    expect(captured[0]!.reminderPlan).toEqual({ enabled: true, offsetsMinutes: [1440, 120] });
     expect(fakes.ensureStaffBookingProjection).toHaveBeenCalledWith(
       expect.objectContaining({
         appointment: expect.objectContaining({ id: 'appt-1', serviceId: SERVICE_ID }),

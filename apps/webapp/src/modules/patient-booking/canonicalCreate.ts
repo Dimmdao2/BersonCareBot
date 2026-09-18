@@ -32,17 +32,10 @@ import {
   initialAppointmentStatusForSnapshot,
   resolveAppointmentFinancialSnapshot,
 } from '@/modules/payments/appointmentFinancialSnapshot';
-import {
-  resolveBookingNotifyTargets,
-  type BookingLifecycleNotificationsSettings,
-} from './bookingLifecycleNotifications';
-import { appointmentReminderPlanForOffsets } from '@/modules/booking-notifications/appointmentReminderSchedule';
+import type { BookingLifecycleNotificationsSettings } from './bookingLifecycleNotifications';
 import { sendBookingConfirmationEmail } from './sendBookingConfirmationEmail';
 import type { OutboundMessageQueuePort } from '@/modules/messaging/outboundMessageQueuePort';
 import type { BookingCreatedEffectsPort } from '@/modules/booking-notifications/bookingCreatedEffectsPort';
-import { buildDoctorCreatedMessageText } from './doctorMessageText';
-import { resolveBookingCalendarSyncFields } from './bookingCalendarSyncFields';
-import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 import type { AppointmentMessageTerms } from '@/modules/system-settings/patientTerms';
 import { publicBookPaths } from '@/shared/publicBook/paths';
 
@@ -500,9 +493,8 @@ export async function createBookingOnCanonicalEngine(
       createInput.bookingChannel === 'public_widget'
         ? `${publicBookPaths.pay}?bookingId=${encodeURIComponent(pending.id)}`
         : `/app/patient/booking/pay?bookingId=${encodeURIComponent(pending.id)}`;
-    let paymentIntent: Awaited<ReturnType<PaymentsService['createAppointmentPaymentIntent']>>;
     try {
-      paymentIntent = await deps.payments.createAppointmentPaymentIntent({
+      await deps.payments.createAppointmentPaymentIntent({
         organizationId: orgId,
         appointmentId: appointment.id,
         platformUserId: createInput.userId,
@@ -531,25 +523,6 @@ export async function createBookingOnCanonicalEngine(
     if (awaitingRows.some((row) => !row)) {
       await rollbackChain('booking_awaiting_payment_sync_failed');
       throw new Error('booking_confirm_failed');
-    }
-    const checkoutUrl = paymentIntent.checkoutUrl?.trim();
-    const paymentDeadlineAt = financialSnapshot.paymentDeadlineAt;
-    if (checkoutUrl && paymentDeadlineAt && deps.bookingCreatedEffects) {
-      try {
-        const row = awaitingRows[0] ?? pending;
-        const timeZone = inPersonCtx?.branchTimezone ?? (await deps.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
-        const notify = resolveBookingNotifyTargets('booking.created', { notifyPatient: true, notifyStaff: true }, (await deps.getBookingLifecycleNotificationSettings?.()) ?? null);
-        await deps.bookingCreatedEffects.apply({
-          organizationId: appointment.organizationId, bookingId: row.id, canonicalAppointmentId: appointment.id,
-          platformUserId: createInput.userId, contactName: row.contactName, contactPhone: row.contactPhone,
-          slotStart: row.slotStart, slotEnd: row.slotEnd, bookingType: row.bookingType, city: row.city,
-          cityCodeSnapshot: row.cityCodeSnapshot, notifyPatient: notify.notifyPatient,
-          appointmentTerms: await deps.getAppointmentTerms(appointment.organizationId), timeZone,
-          awaitingPayment: { checkoutUrl, paymentDeadlineAt },
-        });
-      } catch {
-        // The durable canonical fact remains; lifecycle replay owns its eventual delivery.
-      }
     }
     await persistBookingFormContacts(deps, createInput);
     return awaitingRows[0] ?? pending;
@@ -619,44 +592,6 @@ export async function createBookingOnCanonicalEngine(
       // Calendar package marker sync is best-effort.
     }
   }
-
-  const createNotify = resolveBookingNotifyTargets(
-    'booking.created', { notifyPatient: true, notifyStaff: true },
-    (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
-  );
-  const createTimeZone = (await deps.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
-  const createAppointmentTerms = await deps.getAppointmentTerms(orgId);
-  if (deps.bookingCreatedEffects) {
-    await Promise.all(appointments.map((item, index) => {
-      const row = confirmedRows[index] ?? pendingRows[index]!;
-      return deps.bookingCreatedEffects!.apply({
-        organizationId: item.organizationId, bookingId: row.id, canonicalAppointmentId: item.id,
-        platformUserId: createInput.userId, contactName: row.contactName, contactPhone: row.contactPhone,
-        slotStart: row.slotStart, slotEnd: row.slotEnd, bookingType: row.bookingType, city: row.city,
-        cityCodeSnapshot: row.cityCodeSnapshot, notifyPatient: createNotify.notifyPatient,
-        timeZone: createTimeZone, appointmentTerms: createAppointmentTerms,
-      });
-    }));
-  }
-  await Promise.all(appointments.map((item, index) => {
-    const row = confirmedRows[index] ?? pendingRows[index]!;
-    return deps.syncPort.emitBookingEvent({
-      eventType: 'booking.created', idempotencyKey: `booking.created:${row.id}`,
-      payload: {
-        organizationId: item.organizationId, bookingId: row.id, userId: createInput.userId,
-        bookingType: row.bookingType, city: row.city ?? undefined, category: row.category,
-        slotStart: row.slotStart, slotEnd: row.slotEnd, contactName: row.contactName,
-        contactPhone: row.contactPhone, contactEmail: row.contactEmail ?? undefined,
-        cityCodeSnapshot: row.cityCodeSnapshot, serviceTitleSnapshot: row.serviceTitleSnapshot,
-        canonicalAppointmentId: item.id,
-        reminderPlan: appointmentReminderPlanForOffsets(item.appointmentReminderOffsetsMinutes),
-        cancelPendingReminders: true, suppressPatientNotification: true,
-        doctorNotify: createNotify.notifyStaff,
-        doctorMessageText: buildDoctorCreatedMessageText({ slotStart: row.slotStart, contactName: row.contactName, contactPhone: row.contactPhone }, createTimeZone),
-        ...resolveBookingCalendarSyncFields('booking.created'),
-      },
-    });
-  }));
 
   // Canonical appointment INSERT atomically wrote the lifecycle row.  The resident worker rebuilds
   // calendar, reminders and Notifications from that immutable appointment fact after commit.

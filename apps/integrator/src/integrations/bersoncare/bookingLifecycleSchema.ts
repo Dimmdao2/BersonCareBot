@@ -3,19 +3,23 @@ import { z } from 'zod';
 const BookingLifecyclePayloadSchema = z.object({
   organizationId: z.string().uuid(),
   bookingId: z.string().uuid(),
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
   bookingType: z.enum(['in_person', 'online']),
   city: z.string().nullable().optional(),
   category: z.enum(['rehab_lfk', 'nutrition', 'general']),
   slotStart: z.string().min(1),
   slotEnd: z.string().min(1),
   contactName: z.string().min(1),
-  contactPhone: z.string().min(1),
+  contactPhone: z.string().min(1).optional(),
   contactEmail: z.union([z.string().email(), z.null()]).optional(),
   reason: z.string().optional(),
   cityCodeSnapshot: z.string().nullable().optional(),
   serviceTitleSnapshot: z.string().nullable().optional(),
   canonicalAppointmentId: z.string().uuid().optional(),
+  /** Immutable queue/history occurrence; distinct from the mutable booking reference. */
+  occurrenceId: z.string().min(1).max(240).optional(),
+  paymentCheckoutUrl: z.string().url().optional(),
+  paymentDeadlineAt: z.string().min(1).max(64).optional(),
   /** Только для booking.created/rescheduled/payment_captured — вебапп решает офсеты и включённость; событиям отмены/неявки план не нужен. */
   reminderPlan: z
     .object({
@@ -28,7 +32,10 @@ const BookingLifecyclePayloadSchema = z.object({
   /** D14(1): вебапп решает, отменять ли ожидающие напоминания на этом событии. Отсутствует → прежнее поведение (отменять всегда). */
   cancelPendingReminders: z.boolean().optional(),
   /** D14(2): вебапп решает, слать ли пуш пациенту и каким вариантом. null — не слать; строка — слать этот вариант; отсутствует → прежнее поведение. */
-  patientPushVariant: z.enum(['created', 'cancelled', 'rescheduled']).nullable().optional(),
+  patientPushVariant: z
+    .enum(['created', 'awaiting_payment', 'cancelled', 'rescheduled'])
+    .nullable()
+    .optional(),
   /** D14(3): вебапп присылает готовый текст пациентского сообщения; интегратор доставляет его дословно, не сочиняя и не дополняя. Отсутствует → прежний текст интегратора. */
   patientMessageText: z.string().optional(),
   /** D14(4): вебапп решает, уведомлять ли врача. Явный `false` — не уведомлять вовсе. Отсутствует → прежнее поведение (уведомлять всегда для событий, где это было). */
@@ -44,6 +51,7 @@ const BookingLifecyclePayloadSchema = z.object({
 export const BookingLifecycleEventSchema = z.object({
   eventType: z.enum([
     'booking.created',
+    'booking.awaiting_payment',
     'booking.cancelled',
     'booking.rescheduled',
     'booking.reschedule_requested',
@@ -55,6 +63,19 @@ export const BookingLifecycleEventSchema = z.object({
   ]),
   idempotencyKey: z.string().optional(),
   payload: BookingLifecyclePayloadSchema,
+}).superRefine((event, ctx) => {
+  if (
+    event.eventType === 'booking.awaiting_payment' &&
+    (!event.payload.paymentCheckoutUrl ||
+      !event.payload.paymentDeadlineAt ||
+      !event.payload.patientMessageText)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['payload'],
+      message: 'awaiting_payment_binding_required',
+    });
+  }
 });
 
 export type BookingLifecycleEventValidated = z.infer<typeof BookingLifecycleEventSchema>;

@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { DateTime } from 'luxon';
 import { isWarmupsContentSectionLinkedId } from '@/modules/reminders/resolveReminderIntentForLinkedObject';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import { notificationText } from '@/shared/notifications/notificationText';
+import { buildPatientAwaitingPaymentMessageText } from '@/modules/patient-booking/patientMessageText';
 
 export const WARMUP_PUSH_TITLE = 'Разминка ⚡';
 export const TRAINING_PUSH_TITLE = 'Время тренировки';
@@ -202,6 +204,7 @@ export function buildNewsPushCopy(broadcastTitle: string): { title: string; body
 
 export type AppointmentLifecycleVariant =
   | 'created'
+  | 'awaiting_payment'
   | 'cancelled'
   | 'rescheduled'
   | 'payment_captured';
@@ -210,8 +213,17 @@ export function buildAppointmentLifecyclePushCopy(
   variant: AppointmentLifecycleVariant,
   slotStartIso: string,
   timeZone: string,
+  payment?: { checkoutUrl: string; paymentDeadlineAt: string },
 ): { title: string; body: string } {
   const dateLabel = formatBookingDateTimeMediumRu(slotStartIso, timeZone);
+  if (variant === 'awaiting_payment') {
+    return {
+      title: notificationText.paymentRequired,
+      body: payment
+        ? buildPatientAwaitingPaymentMessageText(payment, timeZone)
+        : notificationText.paymentRequired,
+    };
+  }
   if (variant === 'payment_captured') {
     return { title: 'Оплата подтверждена', body: `Оплата записи на ${dateLabel} подтверждена.` };
   }

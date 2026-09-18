@@ -197,7 +197,7 @@ async function finalizeClaimedRowFailure(
   const message = err instanceof Error ? err.message : String(err);
   const safeError = truncateDeliveryErrorMessage(message);
   if (row.attemptCount >= row.maxAttempts) {
-    await recordCapturedBookingPaymentReplayDeadIncident(row, safeError);
+    await recordBookingLifecycleReplayDeadIncident(row);
     await queueMarkDead(db, row.id, safeError);
     return;
   }
@@ -209,29 +209,41 @@ async function finalizeClaimedRowFailure(
   );
 }
 
-async function recordCapturedBookingPaymentReplayDeadIncident(
+async function recordBookingLifecycleReplayDeadIncident(
   row: OutgoingDeliveryQueueRow,
-  safeError: string,
 ): Promise<void> {
   if (row.kind !== 'booking_lifecycle') return;
+  const bookingLifecycle = row.payloadJson.bookingLifecycle;
   const paymentCaptured = row.payloadJson.paymentCaptured;
-  if (!paymentCaptured || typeof paymentCaptured !== 'object' || Array.isArray(paymentCaptured))
-    return;
-  const payload = paymentCaptured as Record<string, unknown>;
-  const organizationId =
-    typeof payload.organizationId === 'string' ? payload.organizationId : 'unknown';
-  const paymentId = typeof payload.paymentId === 'string' ? payload.paymentId : 'unknown';
+  const isBookingLifecycle =
+    Boolean(bookingLifecycle) &&
+    typeof bookingLifecycle === 'object' &&
+    !Array.isArray(bookingLifecycle);
+  const isPaymentCaptured =
+    Boolean(paymentCaptured) && typeof paymentCaptured === 'object' && !Array.isArray(paymentCaptured);
+  if (!isBookingLifecycle && !isPaymentCaptured) return;
+  const direction = isBookingLifecycle
+    ? 'booking_lifecycle_replay'
+    : 'booking_payment_lifecycle_replay';
+  const integration = isBookingLifecycle ? 'webapp_booking_lifecycle' : 'webapp_payment_captured';
+  const errorClass = isBookingLifecycle
+    ? 'booking_lifecycle_replay_dead'
+    : 'payment_captured_replay_dead';
+  const errorDetail = isBookingLifecycle
+    ? 'booking_lifecycle_terminal_replay_failure'
+    : 'payment_captured_terminal_replay_failure';
   try {
     await recordOperatorFailureIncident({
-      direction: 'booking_payment_lifecycle_replay',
-      integration: 'webapp_payment_captured',
-      errorClass: 'payment_captured_replay_dead',
-      errorDetail: `organizationId=${organizationId};queueId=${row.id};eventId=${row.eventId};paymentId=${paymentId};error=${safeError}`,
+      direction,
+      integration,
+      errorClass,
+      // Stable and deliberately low-cardinality: no identifiers, raw payload, PII, or error text.
+      errorDetail,
     });
   } catch (err) {
     logger.warn(
-      { err, rowId: row.id, eventId: row.eventId, organizationId, paymentId },
-      'booking_payment_lifecycle_replay_dead_incident_record_failed',
+      { err, rowId: row.id, direction, errorClass },
+      'booking_lifecycle_replay_dead_incident_record_failed',
     );
   }
 }

@@ -78,6 +78,11 @@ export function createBookingEngineService(
       return port.getAppointment(id);
     },
 
+    async getAppointmentLifecycleHistory(id) {
+      assertUuid(id, 'historyId');
+      return port.getAppointmentLifecycleHistory(id);
+    },
+
     async listAppointmentsByChainId(input) {
       assertUuid(input.organizationId, 'organizationId');
       assertUuid(input.chainId, 'chainId');

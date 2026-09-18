@@ -156,6 +156,19 @@ export type BeAppointment = {
   appointmentReminderSelectionSource: 'specialist_default' | 'patient';
 };
 
+/** Exact immutable transition used by durable lifecycle replay. */
+export type BeAppointmentLifecycleHistory = {
+  id: string;
+  organizationId: string;
+  appointmentId: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+  occurredAt: string;
+  /** Exact target occurrence for a reschedule; null for non-reschedule transitions. */
+  rescheduledStartAt: string | null;
+  rescheduledEndAt: string | null;
+};
+
 /**
  * Канонический контракт записи финансового снимка. ОДИН на пациентский и врачебный путь: и
  * `canonicalCreate`, и ручное создание/правка врачом кладут ровно эти поля, посчитанные

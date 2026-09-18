@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const fakes = vi.hoisted(() => ({
   emitBookingEvent: vi.fn(async () => undefined),
   getAppointment: vi.fn(),
+  getAppointmentLifecycleHistory: vi.fn(),
   getBookingByCanonicalAppointment: vi.fn(),
+  listAppointmentCheckoutUrls: vi.fn(),
 }));
 
 vi.mock('@/app-layer/integrator/verifyIntegratorSignature', () => ({
@@ -15,12 +17,19 @@ vi.mock('@/app-layer/principal/integratorOrganizationPrincipal', () => ({
 vi.mock('@/modules/integrator/bookingM2mApi', () => ({
   createBookingSyncPort: () => ({ emitBookingEvent: fakes.emitBookingEvent }),
 }));
+vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
+  getAppDisplayTimeZone: async () => 'UTC',
+}));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
-    bookingEngine: { getAppointment: fakes.getAppointment },
+    bookingEngine: {
+      getAppointment: fakes.getAppointment,
+      getAppointmentLifecycleHistory: fakes.getAppointmentLifecycleHistory,
+    },
     patientBooking: {
       getBookingByCanonicalAppointment: fakes.getBookingByCanonicalAppointment,
     },
+    payments: { listAppointmentCheckoutUrls: fakes.listAppointmentCheckoutUrls },
     systemSettings: { getSetting: async () => null },
   }),
 }));
@@ -63,11 +72,23 @@ beforeEach(() => {
     id: APPOINTMENT_ID,
     organizationId: ORGANIZATION_ID,
     platformUserId: USER_ID,
+    startAt: '2027-01-02T12:00:00.000Z',
+    endAt: '2027-01-02T12:30:00.000Z',
+    deliveryFormat: 'in_person',
+    phoneNormalized: '+79990000000',
+    attributionJson: {},
+    paymentDeadlineAt: '2027-01-02T11:30:00.000Z',
     appointmentReminderOffsetsMinutes: [],
   });
+  fakes.getAppointmentLifecycleHistory.mockResolvedValue(null);
+  fakes.listAppointmentCheckoutUrls.mockResolvedValue([
+    { appointmentId: APPOINTMENT_ID, checkoutUrl: 'https://clinic.test/book/pay/intent-1' },
+  ]);
   fakes.getBookingByCanonicalAppointment.mockResolvedValue({
     id: BOOKING_ID,
     userId: USER_ID,
+    organizationId: ORGANIZATION_ID,
+    canonicalAppointmentId: APPOINTMENT_ID,
     bookingType: 'in_person',
     city: null,
     category: 'general',
@@ -93,6 +114,8 @@ describe('signed durable booking lifecycle replay', () => {
     fakes.getBookingByCanonicalAppointment.mockResolvedValue({
       id: BOOKING_ID,
       userId: '60000000-0000-4000-8000-000000000006',
+      organizationId: ORGANIZATION_ID,
+      canonicalAppointmentId: APPOINTMENT_ID,
       bookingType: 'in_person',
       city: null,
       category: 'general',

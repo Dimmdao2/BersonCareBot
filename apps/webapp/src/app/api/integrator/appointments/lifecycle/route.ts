@@ -7,6 +7,12 @@ import { appointmentReminderPlanForOffsets } from '@/modules/booking-notificatio
 import { resolveBookingNotifyTargets } from '@/modules/booking-notifications/settings';
 import { resolveBookingCalendarSyncFields } from '@/modules/patient-booking/bookingCalendarSyncFields';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
+import {
+  staffBookingContactNameFromAppointment,
+  staffBookingServiceTitleFromAppointment,
+} from '@/app-layer/booking/staffBookingIntegratorEvent';
+import { buildPatientAwaitingPaymentMessageText } from '@/modules/patient-booking/patientMessageText';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 const bodySchema = z
   .object({
@@ -36,7 +42,13 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(JSON.parse(rawBody || 'null'));
   if (!parsed.success) return NextResponse.json({ ok: false, error: 'invalid_payload' }, { status: 400 });
   const input = parsed.data;
-  if (!idempotencyKey.endsWith(`:${input.historyId ?? input.appointmentId}`)) {
+  const occurrenceId = input.historyId ?? input.appointmentId;
+  if (idempotencyKey !== `booking.lifecycle:${input.fact}:${occurrenceId}`) {
+    return NextResponse.json({ ok: false, error: 'invalid_payload' }, { status: 400 });
+  }
+  const transitionFact =
+    input.fact === 'rescheduled' || input.fact === 'cancelled' || input.fact === 'no_show';
+  if (transitionFact !== Boolean(input.historyId)) {
     return NextResponse.json({ ok: false, error: 'invalid_payload' }, { status: 400 });
   }
   if (!enterVerifiedIntegratorOrganizationPrincipal(input.organizationId, 'integrator-booking-lifecycle')) {
@@ -47,15 +59,62 @@ export async function POST(request: Request) {
   if (!deps.bookingEngine || !deps.patientBooking) {
     return NextResponse.json({ ok: false, error: 'booking_lifecycle_unavailable' }, { status: 503 });
   }
-  const appointment = await deps.bookingEngine.getAppointment(input.appointmentId);
+  const [appointment, history] = await Promise.all([
+    deps.bookingEngine.getAppointment(input.appointmentId),
+    input.historyId
+      ? deps.bookingEngine.getAppointmentLifecycleHistory(input.historyId)
+      : Promise.resolve(null),
+  ]);
   if (!appointment || appointment.organizationId !== input.organizationId) {
     return NextResponse.json({ ok: false, error: 'canonical_appointment_missing' }, { status: 409 });
   }
+  if (
+    input.historyId &&
+    (!history ||
+      history.id !== input.historyId ||
+      history.organizationId !== input.organizationId ||
+      history.appointmentId !== input.appointmentId ||
+      history.eventType !== input.fact)
+  ) {
+    return NextResponse.json({ ok: false, error: 'canonical_history_mismatch' }, { status: 409 });
+  }
   const booking = await deps.patientBooking.getBookingByCanonicalAppointment(input.appointmentId);
-  if (!booking) {
-    // Creation can commit before the staff projection is materialized.  Returning a retryable
-    // result keeps the durable row alive instead of inventing a second projection writer here.
-    return NextResponse.json({ ok: false, error: 'booking_projection_missing' }, { status: 503 });
+  if (
+    booking &&
+    (booking.canonicalAppointmentId !== appointment.id ||
+      booking.userId !== appointment.platformUserId ||
+      (booking.organizationId !== null && booking.organizationId !== appointment.organizationId))
+  ) {
+    return NextResponse.json({ ok: false, error: 'booking_projection_mismatch' }, { status: 409 });
+  }
+
+  const slotStart = history?.eventType === 'rescheduled' ? history.rescheduledStartAt : appointment.startAt;
+  const slotEnd = history?.eventType === 'rescheduled' ? history.rescheduledEndAt : appointment.endAt;
+  if (!slotStart || !slotEnd) {
+    return NextResponse.json({ ok: false, error: 'canonical_occurrence_missing' }, { status: 503 });
+  }
+
+  let awaitingPayment:
+    | { checkoutUrl: string; paymentDeadlineAt: string; patientMessageText: string }
+    | undefined;
+  if (input.fact === 'awaiting_payment') {
+    if (!deps.payments || !appointment.paymentDeadlineAt) {
+      return NextResponse.json({ ok: false, error: 'canonical_payment_missing' }, { status: 503 });
+    }
+    const links = await deps.payments.listAppointmentCheckoutUrls(input.organizationId, [appointment.id]);
+    const checkoutUrl = links.find((row) => row.appointmentId === appointment.id)?.checkoutUrl?.trim();
+    if (!checkoutUrl) {
+      return NextResponse.json({ ok: false, error: 'canonical_payment_missing' }, { status: 503 });
+    }
+    const paymentDeadlineAt = appointment.paymentDeadlineAt;
+    awaitingPayment = {
+      checkoutUrl,
+      paymentDeadlineAt,
+      patientMessageText: buildPatientAwaitingPaymentMessageText(
+        { checkoutUrl, paymentDeadlineAt },
+        await getAppDisplayTimeZone(),
+      ),
+    };
   }
 
   const settings = await import('@/modules/booking-notifications/settings');
@@ -67,32 +126,50 @@ export async function POST(request: Request) {
       ? 'booking.rescheduled'
       : input.fact === 'cancelled' || input.fact === 'no_show'
         ? 'booking.cancelled'
-        : 'booking.created';
+        : input.fact === 'awaiting_payment'
+          ? 'booking.awaiting_payment'
+          : 'booking.created';
   const notify = resolveBookingNotifyTargets(
-    eventType,
+    eventType === 'booking.awaiting_payment' ? 'booking.created' : eventType,
     { notifyPatient: true, notifyStaff: true },
     notificationSettings,
   );
-  const calendar = resolveBookingCalendarSyncFields(eventType);
+  const suppressPatientNotification =
+    history?.payload.suppressPatientNotification === true || !notify.notifyPatient;
+  const calendar = resolveBookingCalendarSyncFields(
+    eventType === 'booking.awaiting_payment' ? 'booking.created' : eventType,
+  );
   try {
     await createBookingSyncPort().emitBookingEvent({
       eventType,
       idempotencyKey,
       payload: {
         organizationId: input.organizationId,
-        bookingId: booking.id,
-        userId: booking.userId ?? appointment.platformUserId ?? booking.id,
-        bookingType: booking.bookingType,
-        city: booking.city ?? undefined,
-        category: booking.category,
-        slotStart: booking.slotStart,
-        slotEnd: booking.slotEnd,
-        contactName: booking.contactName,
-        contactPhone: booking.contactPhone,
-        contactEmail: booking.contactEmail ?? undefined,
-        cityCodeSnapshot: booking.cityCodeSnapshot,
-        serviceTitleSnapshot: booking.serviceTitleSnapshot,
+        // Canonical appointment id is stable even when the optional patient projection appears
+        // between retries; changing this reference would also change the terminal inbox key.
+        bookingId: appointment.id,
+        ...(appointment.platformUserId ? { userId: appointment.platformUserId } : {}),
+        bookingType: appointment.deliveryFormat,
+        city: booking?.city ?? undefined,
+        category: booking?.category ?? 'general',
+        slotStart,
+        slotEnd,
+        contactName: booking?.contactName ?? staffBookingContactNameFromAppointment(appointment),
+        ...(appointment.phoneNormalized || booking?.contactPhone
+          ? { contactPhone: appointment.phoneNormalized ?? booking?.contactPhone }
+          : {}),
+        contactEmail: booking?.contactEmail ?? undefined,
+        cityCodeSnapshot: booking?.cityCodeSnapshot ?? null,
+        serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(appointment, booking),
         canonicalAppointmentId: appointment.id,
+        occurrenceId,
+        ...(awaitingPayment
+          ? {
+              paymentCheckoutUrl: awaitingPayment.checkoutUrl,
+              paymentDeadlineAt: awaitingPayment.paymentDeadlineAt,
+              patientMessageText: awaitingPayment.patientMessageText,
+            }
+          : {}),
         reminderPlan: appointmentReminderPlanForOffsets(
           appointment.appointmentReminderOffsetsMinutes,
         ),
@@ -102,8 +179,10 @@ export async function POST(request: Request) {
             ? 'rescheduled'
             : eventType === 'booking.cancelled'
               ? 'cancelled'
-              : 'created',
-        suppressPatientNotification: !notify.notifyPatient,
+              : eventType === 'booking.awaiting_payment'
+                ? 'awaiting_payment'
+                : 'created',
+        suppressPatientNotification,
         doctorNotify: notify.notifyStaff,
         ...calendar,
       },

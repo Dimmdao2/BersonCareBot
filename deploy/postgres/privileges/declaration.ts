@@ -11828,7 +11828,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/webapp/src/infra/repos/pgClientHistory.ts",
       "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
       "apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts",
-      "apps/webapp/src/infra/repos/pgDoctorClients.ts"
+      "apps/webapp/src/infra/repos/pgDoctorClients.ts",
+      "apps/webapp/src/infra/repos/pgBookingEngine.ts"
     ],
     "grants": [
       {

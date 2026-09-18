@@ -252,3 +252,65 @@ Multi-slot creation вызывает один canonical INSERT на каждый
 
 По запрету brief не запускались execute/full CI/live UI/deploy/push. Money/reminders/reconciliation findings не
 добавлялись; payment regression использован только для доказательства сохранности общего ранее построенного passage.
+
+## Correction evidence — 19.09.2026
+
+Исходные `FAIL` и findings выше сохранены как результат независимого аудита candidate
+`567ca1cdaf8a1c711968f5ee4a53e44483146983`. Этот раздел фиксирует correction того же bounded scope; новый blind
+audit не запускался.
+
+| Finding | Correction |
+| --- | --- |
+| F1 | Signed replay читает appointment и точный immutable history через named BookingEngine read. Projection стала optional enrichment: её отсутствие не блокирует replay, а несовпадение canonical appointment/user/org даёт `409` до side effects. Reschedule берёт `to_start_at/to_end_at` точного history occurrence. |
+| F2 | Existing факт проходит как `booking.awaiting_payment`; canonical deadline и patient-safe checkout URL обязательны и читаются существующим payment port. При неполной binding endpoint отвечает retryable `503`; persistent Notifications и разрешённые внешние каналы получают awaiting-payment copy. |
+| F3 | Idempotency key сравнивается целиком. History проверяется по id/org/appointment/event type; projection — по canonical appointment/user/org. Любое несовпадение fail-closed с нулём dispatch. |
+| F4 | `occurrenceId` протянут отдельным typed field через lifecycle schema, integrator step и patient notification boundary. Inbox `integratorMessageId` включает booking reference и immutable occurrence: replay одного transition дедуплицируется, два честных reschedule не схлопываются. |
+| F5 | Reschedule patient messenger теперь под тем же suppression gate, что created/cancelled; persistent Notifications, calendar/reminders и разрешённые staff effects остаются. Явный staff suppression записывается в immutable history payload в canonical transaction и читается replay. |
+| F6 | Общий terminal helper распознаёт и `bookingLifecycle`, и прежний `paymentCaptured`, пишет один стабильный low-cardinality incident без payload/PII/идентификаторов/error text и затем оставляет queue row dead. Retry/backoff/reclaim и отсутствие `dispatching` не менялись. |
+
+Прямые post-commit emits для scoped created/rescheduled/cancelled/no-show удалены из patient create/service и staff
+manual production paths; atomic trigger и signed durable replay остались единственным producer/consumer passage.
+Новых тестов не добавлялось. Независимые acceptance assertions аудитора сохранены; fixtures дополнены canonical
+history/payment reads и явным typed `occurrenceId`. Старые D14 assertions, требовавшие удалённый второй producer,
+удалены либо переведены на наблюдение canonical write.
+
+### Correction checks
+
+| Команда | Результат |
+| --- | --- |
+| `pnpm --dir apps/webapp exec vitest run src/app/api/integrator/appointments/lifecycle/route.route.test.ts src/modules/payments/providerWebhookSettlement.test.ts src/modules/patient-notifications/patientWebPushNotify.unit.test.ts src/app-layer/booking/staffBookingIntegratorEvent.d14.test.ts src/app-layer/booking/appointmentPaymentConfirmedHandler.d14.test.ts src/modules/patient-booking/canonicalCreate.d14.test.ts src/modules/patient-booking/service.d14.test.ts src/app/api/doctor/booking-engine/appointments/manual/route.route.test.ts src/app/api/doctor/booking-engine/appointments/manual-patient-visit/route.route.test.ts src/app-layer/booking/bookingCreatedEffects.test.ts` | PASS: 10 files, 63 tests |
+| `pnpm exec vitest run src/integrations/bersoncare/bookingLifecycleRoute.emptyAudience.test.ts src/integrations/bersoncare/bookingLifecycleRoute.d14.test.ts src/integrations/bersoncare/bookingLifecycleRoute.stepIsolation.test.ts src/integrations/bersoncare/bookingLifecycleRoute.patientSuppression.test.ts src/integrations/bersoncare/bookingLifecycleRoute.dedup.test.ts src/integrations/bersoncare/bookingLifecycleRoute.portContext.test.ts src/integrations/bersoncare/bookingLifecycleRoute.reminderPlan.test.ts src/infra/runtime/worker/outgoingDeliveryWorker.finalize.test.ts src/infra/runtime/worker/outgoingDeliveryWorker.bookingLifecycle.s11.test.ts` (cwd `apps/integrator`) | PASS: 9 files, 59 tests; transient retry остаётся green |
+| `pnpm --dir apps/webapp exec vitest run src/modules/payments/service.test.ts src/app-layer/booking/createVerifiedPublicBooking.unit.test.ts src/app/api/booking/public/create/route.route.test.ts src/app/api/booking/public/create/confirm/route.route.test.ts src/modules/patient-booking/catalogRemovalB14.unit.test.ts src/modules/booking-appointment-lifecycle/service.unit.test.ts src/app/api/doctor/booking-engine/_doctorAppointmentMutationScope.route.test.ts src/app/api/doctor/booking-engine/appointments/[id]/manual-reschedule/financials.route.test.ts src/app/api/doctor/booking-engine/appointments/[id]/manual-reschedule/patientChange.route.test.ts` | PASS: 9 files, 53 tests |
+| `pnpm --dir apps/webapp typecheck` / `pnpm --dir apps/integrator typecheck` | PASS / PASS |
+| `pnpm --dir apps/webapp lint` / `pnpm --dir apps/integrator lint` | PASS / PASS |
+| `bash apps/webapp/scripts/check-drizzle-migration-order.sh` | PASS |
+| `pnpm run check:db-privileges-generated` | PASS: DEV/TEST/PROD privileges, allowlists и port-context artifacts byte-for-byte current |
+| `/home/dev/brain/host-orch/run-tests.sh "pnpm run test:db-privileges"` | PASS: 391 total; 188 pass, 203 skip, 0 fail |
+| `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot` | PASS: owner-ordered named-DEV apply + rollback; `pending=3 total=235 reapplied=0 unapplied=0` |
+| `git diff --check` | PASS |
+
+### Correction privilege analysis
+
+Correction не меняет migration/function body и не создаёт relations, columns, policies или runtime roles. Поэтому
+timestamp-forward identity migration `20260918T203840_booking_lifecycle_outbox_producers.sql` сохранена; новый
+forward migration не нужен. Точный поиск
+`rg -n -i '(^|[[:space:]])(grant|revoke|create policy|alter policy|drop policy)([[:space:]]|$)' apps/webapp/db/drizzle-migrations/20260918T203840_booking_lifecycle_outbox_producers.sql`
+не нашёл ACL/policy statements.
+
+- Существующие `app.enqueue_booking_lifecycle_from_appointment()` и
+  `app.enqueue_booking_lifecycle_from_history()` остаются `SECURITY DEFINER` owner
+  `app_seam_payment_webhook_owner`; их relation surface не изменился: только `INSERT` девяти объявленных колонок
+  `public.outgoing_delivery_queue`. Triggers по-прежнему устанавливает `app_object_owner`; runtime roles/PUBLIC не
+  получают `EXECUTE` этих функций.
+- Новый named read выполняет webapp staff runtime под уже проверенным organization principal через существующий
+  Drizzle port. Нужные операции: `SELECT` на `public.be_appointments`,
+  `public.be_appointment_history_events` и `public.be_appointment_reschedules`; optional projection/payment reads
+  используют уже объявленные существующие ports. Все три canonical relations уже имеют table-level `SELECT` для
+  `app_staff`. Declaration gap был только metadata: к `public.be_appointment_reschedules.codePaths` добавлен
+  `pgBookingEngine.ts`; новых GRANT/operation/column surfaces не потребовалось.
+- Integrator correction не добавляет relation operation: queue claim/retry/dead и operator incident recorder
+  используют прежние declared ports. Generated DEV/TEST/PROD artifacts после declaration change совпали
+  побайтно; owner-aware preflight выполнил candidate от declared owners и полностью откатил named DEV.
+
+По запрету correction brief не запускались full CI, execute, live UI, deploy, push и новый audit; scope
+money/reminders/visit/reconciliation не расширялся.
