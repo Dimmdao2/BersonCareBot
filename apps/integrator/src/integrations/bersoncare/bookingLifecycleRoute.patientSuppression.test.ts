@@ -137,3 +137,27 @@ describe('booking.payment_captured: подавление fallback-сообщен
     expect(recipientsOf(dispatchOutgoing)).toEqual([]);
   });
 });
+
+describe('booking.rescheduled: suppression относится только к внешним каналам', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('не отправляет пациенту messenger-сообщение, но сохраняет persistent lifecycle step', async () => {
+    const dispatchOutgoing = vi.fn(async () => ({}));
+    const webappEventsPort = fakeWebappEventsPort();
+
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.rescheduled',
+        idempotencyKey: 'booking.lifecycle:rescheduled:transition-1',
+        payload: { ...basePayload(), suppressPatientNotification: true },
+      },
+      { dispatchOutgoing } as unknown as DispatchPort,
+      { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort },
+    );
+
+    expect(recipientsOf(dispatchOutgoing)).not.toContain('123');
+    expect(webappEventsPort.notifyPatientWebPush).toHaveBeenCalledOnce();
+  });
+});

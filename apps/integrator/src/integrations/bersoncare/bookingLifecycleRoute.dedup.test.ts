@@ -36,7 +36,11 @@ import type {
   BookingLifecycleEventValidated,
   BookingLifecyclePayloadValidated,
 } from './bookingLifecycleSchema.js';
-import type { DispatchPort, IdempotencyPort } from '../../kernel/contracts/index.js';
+import type {
+  DispatchPort,
+  IdempotencyPort,
+  WebappEventsPort,
+} from '../../kernel/contracts/index.js';
 
 function payload(): BookingLifecyclePayloadValidated {
   return {
@@ -164,5 +168,39 @@ describe('D20 item 16: booking-lifecycle event dedup — persistent idempotency 
       { idempotencyPort: persistentPort },
     );
     expect(retryCode).toHaveBeenCalledWith(200);
+  });
+
+  it('keeps two honest reschedule transitions of one booking distinct at the persistent inbox boundary', async () => {
+    const route = await import('./bookingLifecycleRoute.js');
+    const notifyPatientWebPush = vi.fn(
+      async (_input: { body: string; idempotencyKey: string }) => ({ ok: true, status: 200 }),
+    );
+    const webappEventsPort = {
+      notifyPatientWebPush,
+      materializeAppointmentReminders: vi.fn(async () => ({ ok: true, status: 200 })),
+    } as unknown as WebappEventsPort;
+    const rescheduled = (transitionId: string): BookingLifecycleEventValidated => ({
+      eventType: 'booking.rescheduled',
+      idempotencyKey: `booking.lifecycle:rescheduled:${transitionId}`,
+      payload: payload(),
+    });
+
+    await route.handleBookingLifecycleEvent(
+      rescheduled('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+      fakeDispatchPort(),
+      { idempotencyPort: fakePersistentIdempotencyPort(), webappEventsPort },
+    );
+    await route.handleBookingLifecycleEvent(
+      rescheduled('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+      fakeDispatchPort(),
+      { idempotencyPort: fakePersistentIdempotencyPort(), webappEventsPort },
+    );
+
+    const stableKeys = notifyPatientWebPush.mock.calls.map(([input]) => {
+      const body = JSON.parse(input.body) as { stableKey: string };
+      return body.stableKey;
+    });
+    expect(stableKeys).toHaveLength(2);
+    expect(new Set(stableKeys).size).toBe(2);
   });
 });
