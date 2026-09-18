@@ -157,6 +157,7 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'saas_org_entitlement_overrides'),
   ('public', 'saas_organization_trials'),
   ('public', 'specialist_tasks'),
+  ('public', 'support_conversation_manual_unread'),
   ('public', 'support_conversation_messages'),
   ('public', 'support_conversations'),
   ('public', 'support_question_messages'),
