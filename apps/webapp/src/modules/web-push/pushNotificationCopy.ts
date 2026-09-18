@@ -200,7 +200,11 @@ export function buildNewsPushCopy(broadcastTitle: string): { title: string; body
   };
 }
 
-export type AppointmentLifecycleVariant = 'created' | 'cancelled' | 'rescheduled';
+export type AppointmentLifecycleVariant =
+  | 'created'
+  | 'cancelled'
+  | 'rescheduled'
+  | 'payment_captured';
 
 export function buildAppointmentLifecyclePushCopy(
   variant: AppointmentLifecycleVariant,
@@ -208,6 +212,9 @@ export function buildAppointmentLifecyclePushCopy(
   timeZone: string,
 ): { title: string; body: string } {
   const dateLabel = formatBookingDateTimeMediumRu(slotStartIso, timeZone);
+  if (variant === 'payment_captured') {
+    return { title: 'Оплата подтверждена', body: `Оплата записи на ${dateLabel} подтверждена.` };
+  }
   switch (variant) {
     case 'created':
       return {

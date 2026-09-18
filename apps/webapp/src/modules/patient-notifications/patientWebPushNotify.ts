@@ -55,10 +55,12 @@ export const integratorPatientWebPushNotifyBodySchema = z
     platformUserId: z.string().uuid().optional(),
     topicCode: z.string().min(1).max(120).default(REMINDER_NOTIFICATION_TOPIC_APPOINTMENT),
     intentType: z.enum(['appointment_lifecycle', 'appointment_reminder', 'news']),
-    variant: z.enum(['created', 'cancelled', 'rescheduled']).optional(),
+    variant: z.enum(['created', 'cancelled', 'rescheduled', 'payment_captured']).optional(),
     slotStartIso: z.string().min(1).max(64).optional(),
     openUrl: z.string().min(1).max(4000),
     stableKey: z.string().min(1).max(240),
+    /** Lifecycle facts must reach the persistent inbox even when push is disabled. */
+    suppressExternalPush: z.boolean().optional(),
     broadcastTitle: z.string().max(500).optional(),
     nowIso: z.string().max(64).optional(),
   })
@@ -118,7 +120,7 @@ function buildPatientNotificationsOpenUrl(appBaseUrl: string): string {
 }
 
 function bookingIdFromLifecycleStableKey(stableKey: string): string | null {
-  const m = stableKey.match(/^booking-(?:created|cancelled|rescheduled):(.+)$/);
+  const m = stableKey.match(/^booking-(?:created|cancelled|rescheduled|payment):(.+)$/);
   return m?.[1] ?? null;
 }
 
@@ -246,6 +248,9 @@ export async function runPatientWebPushNotify(
   if (resolved === 'muted') return { ok: true, skipped: 'muted' };
   if (!resolved) return { ok: true, skipped: 'no_platform_user' };
 
+  if (body.suppressExternalPush === true) {
+    return { ok: true, skipped: 'web_push_suppressed' };
+  }
   if (!resolved.selectedChannels.includes('web_push')) {
     return {
       ok: true,

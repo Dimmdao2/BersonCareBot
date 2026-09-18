@@ -51,13 +51,6 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
       { notifyPatient: true, notifyStaff: true },
       notificationSettings,
     );
-    // Правка ведущего: этот выход стоял здесь до S8 и остаётся. Отключённые уведомления гасили
-    // событие целиком — вместе с напоминаниями и календарной синхронизацией, которые оно везёт.
-    // Это отдельный дефект, и он вынесен владельцу вопросом, а не чинится заодно: S8 обязан
-    // изменить ТОЛЬКО количество сообщений, иначе клиника с выключенными уведомлениями внезапно
-    // начнёт рассылать напоминания.
-    if (!paymentNotify.notifyPatient && !paymentNotify.notifyStaff) return;
-
     const timeZone = await getAppDisplayTimeZone();
     // Слоты перечисляются в сообщении по времени приёма, а не в порядке, в котором их вернула
     // цепочка: человек читает «вы записаны на …» как расписание.
@@ -110,9 +103,9 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
           ...(carriesDoctorMessage ? { doctorMessageText } : {}),
           ...resolveBookingCalendarSyncFields('booking.payment_captured'),
         },
-        // Ждём НАМЕРЕННО: бросок отсюда уходит вызывающему вебхука платежей, и повтор вебхука —
-        // единственное, что доигрывает это событие. Отложить его = потерять повтор.
-        waitForDelivery: true,
+        // Delivery preference only controls the two external message legs. Calendar and reminder
+        // materialisation remain lifecycle effects, so no clinic preference may suppress them.
+        // The lifecycle receiver owns independent step deduplication and retries.
       });
     }
   };

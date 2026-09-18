@@ -568,7 +568,8 @@ async function sendBookingWebPush(input: {
   intentType: 'appointment_lifecycle' | 'appointment_reminder';
   slotStartIso: string;
   stableKey: string;
-  variant?: 'created' | 'cancelled' | 'rescheduled';
+  variant?: 'created' | 'cancelled' | 'rescheduled' | 'payment_captured';
+  suppressExternalPush?: boolean;
   nowIso?: string;
 }): Promise<void> {
   if (!input.webappEventsPort?.notifyPatientWebPush || !input.phoneNormalized) return;
@@ -583,6 +584,7 @@ async function sendBookingWebPush(input: {
     topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
     intentType: input.intentType,
     ...(input.variant ? { variant: input.variant } : {}),
+    ...(input.suppressExternalPush === true ? { suppressExternalPush: true } : {}),
     slotStartIso: input.slotStartIso,
     openUrl,
     stableKey: input.stableKey,
@@ -716,7 +718,7 @@ function bookingLifecycleSteps(input: {
 
   const patientPushStep = (
     stableKey: string,
-    variant: 'created' | 'cancelled' | 'rescheduled',
+    variant: 'created' | 'cancelled' | 'rescheduled' | 'payment_captured',
   ): BookingLifecycleStep => ({
     name: 'patient_web_push',
     run: () =>
@@ -728,6 +730,7 @@ function bookingLifecycleSteps(input: {
         variant,
         slotStartIso: payload.slotStart,
         stableKey,
+        suppressExternalPush: payload.suppressPatientNotification === true,
       }),
   });
 
@@ -786,6 +789,10 @@ function bookingLifecycleSteps(input: {
       );
     }
     steps.push(
+      // Inbox is a product fact, not an external channel. The web-push passage appends it
+      // before applying recipient channel selection; an explicit message suppression only
+      // suppresses external delivery.
+      patientPushStep(`booking-created:${bookingId}`, 'created'),
       remindersStep({
         ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
         cancelPending: shouldCancelPendingReminders(payload) && !payload.reminderPlan?.enabled,
@@ -892,6 +899,7 @@ function bookingLifecycleSteps(input: {
       );
     }
     steps.push(
+      patientPushStep(`booking-payment:${bookingId}`, 'payment_captured'),
       remindersStep({
         ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
         cancelPending: false,
