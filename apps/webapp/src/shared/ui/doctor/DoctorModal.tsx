@@ -41,12 +41,15 @@ import {
   doctorSectionTitleClass,
 } from '@/shared/ui/doctor/doctorVisual';
 
-/**
- * Единая нижняя панель действий модалки: одинаковая геометрия, safe area и равные
- * по ширине кнопки на mobile. Живёт здесь, чтобы у экранов не появлялось локальных копий.
- */
+/** Общая геометрия закреплённого футера; раскладку действий задаёт presentation модалки. */
 const doctorModalFooterBarClass =
-  'grid shrink-0 grid-cols-1 gap-2 border-t border-border/60 bg-muted/30 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] [&>*]:min-w-0 [&>*]:w-full max-sm:[&>div]:contents max-sm:[&>div>*]:w-full sm:flex sm:justify-end sm:[&>*]:w-auto';
+  'shrink-0 gap-2 border-t border-border/60 bg-muted/30 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]';
+
+/** Mobile drawer / right sheet: 1 действие справа на 1/2, 2–3 в ряд, 4 — сеткой 2×2. */
+const doctorModalActionGridClass = 'doctor-modal-actions';
+
+/** Компактный desktop-dialog сохраняет обычные кнопки по содержимому справа. */
+const doctorModalDialogActionsClass = 'flex justify-end [&>*]:w-auto';
 
 type DoctorModalFooterSlot = {
   container: HTMLElement | null;
@@ -72,7 +75,11 @@ export function DoctorModalFooter({ children }: { children: ReactNode }) {
     return () => setHasContent(false);
   }, [setHasContent]);
 
-  if (!slot) return <div className={doctorModalFooterBarClass}>{children}</div>;
+  if (!slot) {
+    return (
+      <div className={cn(doctorModalFooterBarClass, doctorModalActionGridClass)}>{children}</div>
+    );
+  }
   if (!slot.container) return null;
   return createPortal(children, slot.container);
 }
@@ -469,7 +476,11 @@ export function DoctorModal({
   const footerNode = (
     <div
       ref={setFooterSlotElement}
-      className={cn(doctorModalFooterBarClass, !hasFooter && 'hidden')}
+      className={cn(
+        doctorModalFooterBarClass,
+        isMobile || usesRightSheet ? doctorModalActionGridClass : doctorModalDialogActionsClass,
+        !hasFooter && 'hidden',
+      )}
     >
       {footer}
     </div>

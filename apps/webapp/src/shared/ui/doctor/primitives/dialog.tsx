@@ -177,7 +177,7 @@ function DialogFooter({
   return (
     <div
       className={cn(
-        '-mx-4 -mb-4 flex flex-col-reverse gap-2 border-t bg-muted/50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]',
+        'doctor-modal-actions -mx-4 -mb-4 gap-2 border-t bg-muted/50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]',
         className,
       )}
       {...props}

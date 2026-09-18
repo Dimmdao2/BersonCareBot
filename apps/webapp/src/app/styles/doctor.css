@@ -294,6 +294,37 @@ body:has(#app-shell-doctor),
   }
 }
 
+/*
+ * Canonical footer layout for mobile doctor modals and right panels.
+ * One action occupies the right half; two and three share one row; four form a 2×2 grid.
+ * A single wrapper is flattened because several panels pass a named footer group instead of
+ * direct buttons.
+ */
+.doctor-modal-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.doctor-modal-actions > *,
+.doctor-modal-actions > div:only-child > * {
+  min-width: 0;
+  width: 100%;
+}
+
+.doctor-modal-actions > div:only-child {
+  display: contents;
+}
+
+.doctor-modal-actions:has(> :nth-child(3):last-child),
+.doctor-modal-actions:has(> div:only-child > :nth-child(3):last-child) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.doctor-modal-actions:has(> :only-child:not(div)) > :only-child,
+.doctor-modal-actions:has(> div:only-child > :only-child) > div:only-child > :only-child {
+  grid-column: 2;
+}
+
 .doctor-difficulty-1to10-range {
   -webkit-appearance: none;
   appearance: none;
