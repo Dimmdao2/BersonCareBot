@@ -4,12 +4,14 @@ import { cn } from '@/lib/utils';
 type DoctorResultCountProps = Omit<ComponentPropsWithoutRef<'p'>, 'children'> & {
   label: ReactNode;
   value: ReactNode;
+  valueClassName?: string;
 };
 
 export function DoctorResultCount({
   className,
   label,
   value,
+  valueClassName,
   ...props
 }: DoctorResultCountProps) {
   return (
@@ -21,7 +23,7 @@ export function DoctorResultCount({
       {...props}
     >
       <span>{label}:</span>
-      <span className="text-base font-semibold text-foreground">{value}</span>
+      <span className={cn('text-base font-semibold text-foreground', valueClassName)}>{value}</span>
     </p>
   );
 }
