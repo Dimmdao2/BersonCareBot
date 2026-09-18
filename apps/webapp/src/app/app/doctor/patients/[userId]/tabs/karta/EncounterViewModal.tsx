@@ -51,7 +51,6 @@ export function EncounterViewModal({
           patientName={patientName}
           patientOnSupport={patientOnSupport}
           patientVariant="context"
-          entityClassName="text-primary"
         />
       }
       footer={

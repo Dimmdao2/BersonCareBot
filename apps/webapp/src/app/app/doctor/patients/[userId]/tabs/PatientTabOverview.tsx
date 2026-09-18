@@ -11,7 +11,7 @@
  * Pattern mirrors PatientTabRecords.tsx / PatientTabKarta.tsx.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { ListPlus, ListTodo, NotebookPen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
@@ -41,7 +41,10 @@ import {
   deriveOverviewProgramWidgetFromDetail,
   pickOpenTreatmentProgramInstance,
 } from '../../treatmentProgramInstanceOpen';
-import { expectedStageControlDateIso } from '@/modules/treatment-program/stage-semantics';
+import {
+  expectedStageControlDateIso,
+  sortDoctorInstanceStageGroupsForDisplay,
+} from '@/modules/treatment-program/stage-semantics';
 import {
   doctorBodyTextClass,
   doctorMetaTextClass,
@@ -895,6 +898,35 @@ function StageExerciseRow({
   );
 }
 
+/** Visual separator for an exercise group inside the otherwise flat stage list. */
+function StageExerciseGroupRow({
+  title,
+  scheduleText,
+}: {
+  title: string;
+  scheduleText: string | null;
+}) {
+  const schedule = scheduleText?.trim();
+
+  return (
+    <li
+      className={cn(
+        doctorDnaFlatListRowClass,
+        'mt-2 min-h-[72px] flex-wrap items-end gap-x-3 gap-y-1 bg-[var(--doctor-group-header-background)] py-3 first:mt-0',
+      )}
+    >
+      <p className="min-w-[60%] flex-1 line-clamp-2 whitespace-normal text-base leading-snug font-medium text-foreground">
+        {title}
+      </p>
+      {schedule ? (
+        <p className={cn(doctorDnaFlatListMetaClass, 'ml-auto max-w-full shrink-0 text-right')}>
+          {schedule}
+        </p>
+      ) : null}
+    </li>
+  );
+}
+
 export function PatientTabOverview({
   active = true,
   userId,
@@ -1605,6 +1637,20 @@ export function PatientTabOverview({
         .filter((item) => item.itemType === 'exercise' && item.status !== 'disabled')
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
     : [];
+  const displayStageExerciseGroups = displayStage
+    ? sortDoctorInstanceStageGroupsForDisplay(displayStage.groups)
+        .map((group) => ({
+          group,
+          exercises: displayStageExercises.filter((item) => item.groupId === group.id),
+        }))
+        .filter(({ exercises }) => exercises.length > 0)
+    : [];
+  const displayedStageExerciseGroupIds = new Set(
+    displayStageExerciseGroups.map(({ group }) => group.id),
+  );
+  const displayUngroupedStageExercises = displayStageExercises.filter(
+    (item) => !item.groupId || !displayedStageExerciseGroupIds.has(item.groupId),
+  );
   const selectedStageExercise =
     displayStageExercises.find((item) => item.id === selectedStageExerciseId) ?? null;
   /**
@@ -2244,7 +2290,6 @@ export function PatientTabOverview({
               patientName={patientHeaderName}
               patientOnSupport={header?.support.isOnSupport === true}
               patientVariant="context"
-              entityClassName="text-primary"
             />
           }
           size="lg"
@@ -2252,7 +2297,22 @@ export function PatientTabOverview({
         >
           {displayStageExercises.length > 0 ? (
             <DoctorDnaFlatList>
-              {displayStageExercises.map((item) => (
+              {displayStageExerciseGroups.map(({ group, exercises }) => (
+                <Fragment key={group.id}>
+                  <StageExerciseGroupRow title={group.title} scheduleText={group.scheduleText} />
+                  {exercises.map((item) => (
+                    <StageExerciseRow
+                      key={item.id}
+                      stageItemId={item.id}
+                      title={stageItemSnapshotTitle(item.snapshot, item.itemType)}
+                      media={primaryMediaForStageItem(item)}
+                      unread={stageExerciseUnread(item.id)}
+                      onOpen={openStageExerciseDiscussion}
+                    />
+                  ))}
+                </Fragment>
+              ))}
+              {displayUngroupedStageExercises.map((item) => (
                 <StageExerciseRow
                   key={item.id}
                   stageItemId={item.id}

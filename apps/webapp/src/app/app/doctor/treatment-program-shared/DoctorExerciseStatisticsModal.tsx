@@ -831,7 +831,6 @@ export function DoctorExerciseStatisticsModal({
           patientHref={patientCardHref(patientUserId)}
           patientOnSupport={patientOnSupport}
           patientVariant={patientVariant}
-          entityClassName={patientVariant === 'context' ? 'text-primary' : undefined}
         />
       }
       size="content"

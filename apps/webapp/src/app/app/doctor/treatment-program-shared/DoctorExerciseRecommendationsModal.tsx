@@ -187,7 +187,6 @@ export function DoctorExerciseRecommendationsModal(props: {
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
           patientOnSupport={patientOnSupport}
           patientVariant={patientVariant}
-          entityClassName={patientVariant === 'context' ? 'text-primary' : undefined}
         />
       }
       size="lg"
