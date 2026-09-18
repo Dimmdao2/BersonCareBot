@@ -324,6 +324,7 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
   async function createPaymentUnlocked(
     input: PaymentStateInput & {
       action: StaffAppointmentPaymentAction;
+      idempotencyKey?: string;
       amountMinor?: number;
       purpose?: 'prepayment' | 'full' | 'partial';
       createdBy: string;
@@ -333,6 +334,25 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
     const payments = deps.payments;
     if (!payments) throw new Error('payments_unavailable');
     const state = await getPaymentState(input);
+    // Legacy callers get one stable request identity, never an identity derived from the ledger.
+    // A deliberate second collection (including after a refund) must supply a new request key.
+    const cashKey = `staff-appointment-cash:${input.appointmentId}:${
+      input.idempotencyKey?.trim() ||
+      `legacy:${input.amountMinor ?? 'remaining'}:${input.purpose ?? 'full'}`
+    }`;
+    const replay =
+      input.action === 'cash'
+        ? state.manualPayments.find((payment) => payment.idempotencyKey === cashKey)
+        : undefined;
+    if (replay) {
+      if (
+        replay.status !== 'paid' ||
+        (input.amountMinor !== undefined && replay.amountMinor !== input.amountMinor)
+      ) {
+        return { ok: false as const, error: 'invalid_payment_amount' as const };
+      }
+      return { ok: true as const, payment: replay, remainingMinor: state.remainingMinor };
+    }
     if (!state.summary || state.totalMinor === null || state.totalMinor <= 0) {
       return { ok: false as const, error: 'appointment_amount_unavailable' as const };
     }
@@ -364,7 +384,7 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
             : input.purpose === 'partial'
               ? 'Частичная оплата наличными в карточке записи'
               : 'Оплачено наличными в карточке записи',
-        idempotencyKey: `staff-appointment-cash:${input.appointmentId}:${requestedAmountMinor}:${state.manualPayments[0]?.id ?? 'initial'}`,
+        idempotencyKey: cashKey,
         createdBy: input.createdBy,
       });
       return {
@@ -413,6 +433,7 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
   async function createPayment(
     input: PaymentStateInput & {
       action: StaffAppointmentPaymentAction;
+      idempotencyKey?: string;
       amountMinor?: number;
       purpose?: 'prepayment' | 'full' | 'partial';
       createdBy: string;
@@ -448,6 +469,16 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
         : 0;
     const netPaidMinor = Math.max(0, capturedMinor + state.manualPaidMinor);
     if (input.method === 'cash') {
+      const cashKey =
+        input.idempotencyKey?.trim() ||
+        `staff-appointment-refund-cash:${input.appointmentId}:legacy:${input.amountMinor}`;
+      const replay = state.manualPayments.find((payment) => payment.idempotencyKey === cashKey);
+      if (replay) {
+        if (replay.status !== 'refunded' || replay.amountMinor !== input.amountMinor) {
+          return { ok: false as const, error: 'invalid_refund_amount' as const };
+        }
+        return { ok: true as const, refundedMinor: replay.amountMinor, payment: replay };
+      }
       if (input.amountMinor <= 0 || input.amountMinor > netPaidMinor) {
         return { ok: false as const, error: 'refund_amount_exceeds_payment' as const };
       }
@@ -462,9 +493,7 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
         currency: 'RUB',
         comment: input.reason ?? 'Возврат наличными по записи',
         service: booking?.serviceTitleSnapshot ?? null,
-        idempotencyKey:
-          input.idempotencyKey?.trim() ||
-          `staff-appointment-refund-cash:${input.appointmentId}:${input.amountMinor}:${state.manualPayments[0]?.id ?? 'initial'}`,
+        idempotencyKey: cashKey,
         createdBy: input.createdBy,
       });
       return { ok: true as const, refundedMinor: input.amountMinor, payment };

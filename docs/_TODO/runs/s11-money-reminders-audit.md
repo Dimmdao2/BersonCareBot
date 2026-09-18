@@ -246,3 +246,67 @@ pnpm --dir apps/webapp exec vitest run src/modules/booking-notifications/appoint
 
 Handoff: исправить F1–F5, прогнать сохранённый красный набор и обязательный lint. Ни этот FAIL, ни зелёные
 изолированные проверки не закрывают S11 и не разрешают landing.
+
+
+## Correction F1–F5 — 19.09.2026
+
+Correction исходного audit `83b7da2b9`, база рабочего дерева `b0a480084` (`git log -3 --oneline`).
+Новый blind-pass/kill-set не запускался. Исторический FAIL выше сохранён; S11/taskdb не закрываются.
+
+| Finding | Исправленный общий root / identity и подтверждение |
+| --- | --- |
+| F1 | Signed `appointments/lifecycle` проверяет canonical status/start/due/offset, затем вызывает существующий `replaceGeneration` с `checkOccurrence`. Тот же `app.replace_appointment_reminder_generation(uuid,uuid,timestamptz,text,text)` принимает read-only `operation=read`: exact `event_id=booking.lifecycle:reminder_due:<reminderId>`, tenant/appointment/payload identity, active queue status, canonical status/start/deleted_at и configured due обязательны. Dead/replaced lease не доставляется; отдельной таблицы/route-памяти нет. Красные K2 теперь PASS; SQL generation predicate проверен чтением, не объявляется live runtime proof. |
+| F2 | `AppointmentPaymentSection` сохраняет requestId после неуспешной попытки; HTTP schema пропускает его в `createPayment/refundPayment`. Cash key — `staff-appointment-cash:<appointmentId>:<requestId>`, refund сохраняет уже существующий explicit requestId без переписывания. Для старых вызовов без ID ключ стабилен от appointment + исходной суммы/purpose (`remaining` для отсутствующей суммы), никогда от ledger state; новый осознанный платёж требует новой identity. `settle_appointment_cash_prepayment(text)` / `refund_appointment_cash_payment(text)` после existing appointment `FOR UPDATE` ищут тот же ledger key ДО проверки остатка и отвергают несовпадение patient/amount/currency/kind/status. Повтор не INSERT-ит ledger, значит AFTER INSERT не создаёт второго lifecycle fact. Красные K7 cash/refund теперь PASS. |
+| F3 | `applyCancelPaymentOutcome` переиспользует history того же payment; `appendHistoryEvent` сохраняет existing `ON CONFLICT DO NOTHING`. Новый `be_payment_history_retention_uidx` закрепляет business uniqueness `(organization_id, appointment_id, payment_id) WHERE event_type='prepayment_retained'` для non-null appointment/payment, включая конкурирующие отмены. Терминальная отмена записи не переоткрывается текущей FSM; общий payment нескольких слотов сохраняет отдельное удержание каждого appointment. History/outbox остаются атомарны existing AFTER INSERT. Красный K5 теперь PASS. |
+| F4 | `pgBookingEngine.transitionAppointmentStatus` блокирует canonical row, повторно применяет existing FSM и возвращает current при same-status ДО UPDATE/history/timeline. Первый переход пишет настоящий from/to и историю с existing outbox-trigger в той же транзакции. Проверено чтением полного root; живой DB transition не запускался. |
+| F5 | Provider-backed `jsonError` имеет literal fallback `payment_provider_unavailable/503`, cash — literal `financials_update_failed/500`; gate не изменён. Итог webapp lint указан ниже. |
+
+Миграция `20260918T233800_money_reminder_retry_identity.sql`: retention index создаёт `app_object_owner`;
+reminder root остаётся у `app_seam_reminder_materialization_owner`, cash roots — у
+`app_seam_payment_webhook_owner`. Cash SELECT/INSERT/UPDATE и appointment lock уже покрыты declaration;
+для reminder добавлен только SELECT `be_appointments.appointment_reminder_offsets_minutes`, generated SQL
+пересоздан штатным генератором. Новых runtime EXECUTE, таблиц, очередей, статусов и GRANT/REVOKE в migration нет.
+Read occurrence использует existing queue event-id unique, retention — собственный узкий unique index.
+
+Тесты по §10a: новых файлов/cases нет, сохранённые красные acceptance assertions не изменены.
+Единственная правка теста — прежний S10 K2 «cash paid again after a full refund» получает разные
+`idempotencyKey` для осознанных платежей. Oracle — явное условие correction F2 «новый осознанный платёж
+той же суммы остаётся возможен с новой identity»; прежний observable `remainingMinor === 0` сохранён.
+Это проверка денег через публичный service, не текста, DOM или промежуточного DTO.
+
+Логи всех команд: `/tmp/s11-money-correction/`.
+
+```sh
+# before.log: на исходном коде 8 failed / 14 passed; после fix этот же red oracle включён в набор ниже.
+pnpm --dir apps/webapp exec vitest run src/app/api/integrator/appointments/lifecycle/route.moneyReminders.route.test.ts src/app-layer/booking/staffAppointmentPayments.s10.unit.test.ts
+# webapp-acceptance.log: 76 passed, 0 failed.
+pnpm --dir apps/webapp exec vitest run src/modules/booking-notifications/appointmentReminderMaterialization.test.ts src/app/api/integrator/appointments/lifecycle/route.route.test.ts src/app/api/integrator/appointments/lifecycle/route.moneyReminders.route.test.ts src/app/api/integrator/appointment-reminders/materialize/route.s11.route.test.ts src/infra/repos/pgPatientPayments.appointmentCash.unit.test.ts src/app-layer/booking/staffAppointmentPayments.s10.unit.test.ts src/modules/payments/providerWebhookSettlement.test.ts src/modules/payments/service.test.ts src/modules/payments/service.mechanicWriteClearance.test.ts src/modules/patient-notifications/patientWebPushNotify.unit.test.ts
+# integrator-acceptance.log: 78 passed, 0 failed.
+pnpm --dir apps/integrator exec vitest run src/infra/runtime/worker/outgoingDeliveryWorker.bookingLifecycle.s11.test.ts src/infra/runtime/worker/outgoingDeliveryWorker.reminderGeneration.d21.test.ts src/integrations/bersoncare/bookingLifecycleRoute.d14.test.ts src/integrations/bersoncare/bookingLifecycleRoute.dedup.test.ts src/integrations/bersoncare/bookingLifecycleRoute.emptyAudience.test.ts src/integrations/bersoncare/bookingLifecycleRoute.patientSuppression.test.ts src/integrations/bersoncare/bookingLifecycleRoute.portContext.test.ts src/integrations/bersoncare/bookingLifecycleRoute.reminderPlan.test.ts src/integrations/bersoncare/bookingLifecycleRoute.stepIsolation.test.ts src/integrations/bersoncare/bookingLifecycleSchema.organizationScope.acceptance.test.ts
+# payment-route.log: 11 passed, 0 failed.
+pnpm --dir apps/webapp exec vitest run 'src/app/api/doctor/booking-engine/appointments/[id]/payment/route.route.test.ts'
+```
+
+| Команда | Correction result |
+| --- | --- |
+| `pnpm --dir apps/webapp typecheck` | PASS, webapp-typecheck.log |
+| `pnpm --dir apps/integrator typecheck` | PASS, integrator-typecheck.log |
+| `pnpm --dir apps/webapp lint` | PASS, включая migration privilege/order, safe-user-error и их self-tests; webapp-lint.log |
+| `pnpm --dir apps/integrator lint` | PASS, integrator-lint.log |
+| `node deploy/postgres/privileges/generate-cli.mjs --check && node deploy/postgres/privileges/generate-cli.mjs --all --check --port-context-only` | PASS, generated artifacts соответствуют declaration; offline, без подключения к PROD |
+| `node deploy/postgres/privileges/generate-cli.mjs --census` | PASS для всех declaration profiles |
+| `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot` | PASS, `pending=3 total=240 reapplied=0 foreign-ledger-rows=4 unapplied=0`, явный ROLLBACK; preflight.log. Только owner-aware DDL validation, без apply/ledger и live money/feed proof |
+| `/home/dev/brain/host-orch/run-tests.sh "pnpm test:db-privileges"` | FAIL: 187 passed / 1 failed / 203 opt-in skipped; privileges.log. Единственный отказ — исходный `relation-access.test.mjs` / `no direct INSERT or UPDATE grant is table-wide`, `public.support_conversation_manual_unread app_staff` |
+| `git diff --check` | PASS |
+
+Исходный privilege blocker воспроизведён без correction: `git show HEAD:deploy/postgres/privileges/<file>`
+сохранил в `/tmp/s11-money-correction/baseline-privileges/` ровно `declaration.ts`, `types.ts`,
+`function-census.ts`, `relation-access.ts`, `relation-access.test.mjs` с исходного `b0a480084`, затем:
+
+```sh
+node --test --test-name-pattern='no direct INSERT or UPDATE grant is table-wide' /tmp/s11-money-correction/baseline-privileges/relation-access.test.mjs
+```
+
+Тот же FAIL `public.support_conversation_manual_unread app_staff`; privileges-baseline.log.
+Это blocker общего privilege gate вне F1–F5; его grant/test не правились. Correction не объявляется
+полным зелёным land-ready. Execute/full CI/live/deploy/push не запускались.

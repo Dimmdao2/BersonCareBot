@@ -55,7 +55,11 @@ export function appointmentReminderQueueRow(
 export function createPgAppointmentReminderMaterializationPort(): AppointmentReminderMaterializationPort {
   return {
     async replaceGeneration(input) {
-      const deliveriesJson = JSON.stringify(input.deliveries.map(appointmentReminderQueueRow));
+      const deliveriesJson = JSON.stringify(
+        input.checkOccurrence
+          ? { operation: 'read', ...input.checkOccurrence }
+          : input.deliveries.map(appointmentReminderQueueRow),
+      );
       const args = [
         input.organizationId,
         input.appointmentId,

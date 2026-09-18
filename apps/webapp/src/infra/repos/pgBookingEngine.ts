@@ -1,3 +1,4 @@
+import { assertValidAppointmentStatusTransition } from '@/modules/booking-engine/appointmentStatusFsm';
 import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
@@ -2018,10 +2019,14 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           .select()
           .from(beAppointments)
           .where(eq(beAppointments.id, input.appointmentId))
-          .limit(1);
+          .limit(1)
+          .for('update');
         const current = currentRows[0];
         if (!current) throw new Error('appointment_not_found');
-        const fromStatus = current.status;
+        const fromStatus = mapAppointment(current).status;
+        // Recheck under the write lock: concurrent retries must not mint another history/outbox fact.
+        assertValidAppointmentStatusTransition(fromStatus, input.toStatus);
+        if (fromStatus === input.toStatus) return mapAppointment(current);
         await tx
           .update(beAppointments)
           .set({
@@ -2033,7 +2038,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
                 : current.rescheduleCount,
           })
           .where(eq(beAppointments.id, input.appointmentId));
-        const payload = { fromStatus, toStatus: input.toStatus, ...(input.payload ?? {}) };
+        const payload = { ...(input.payload ?? {}), fromStatus, toStatus: input.toStatus };
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: current.organizationId,
           appointmentId: input.appointmentId,

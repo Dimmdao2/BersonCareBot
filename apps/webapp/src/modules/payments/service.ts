@@ -870,6 +870,18 @@ export function createPaymentsService(deps: {
       );
 
       if (input.prepaymentRetained) {
+        const history = await deps.port.listHistoryForAppointment(
+          input.appointmentId,
+          input.organizationId,
+        );
+        if (
+          history.some(
+            (event) => event.eventType === 'prepayment_retained' && event.paymentId === payment.id,
+          )
+        ) {
+          return { ok: true as const, skipped: false as const, action: 'retained' as const };
+        }
+        // The history's business unique key also arbitrates concurrent cancellations in the DB.
         await deps.port.appendHistoryEvent({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,

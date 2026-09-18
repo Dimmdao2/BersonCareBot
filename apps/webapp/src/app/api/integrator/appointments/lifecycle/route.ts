@@ -143,16 +143,47 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'canonical_history_mismatch' }, { status: 409 });
   }
 
-  if (
-    input.fact === 'reminder_due' &&
-    (!input.generationStartAt ||
-      Date.parse(appointment.startAt) !== Date.parse(input.generationStartAt) ||
+  if (input.fact === 'reminder_due') {
+    if (
+      !input.generationStartAt ||
       !input.dueAt ||
-      !input.reminderId?.startsWith(
-        `${appointment.id}:${encodeURIComponent(input.generationStartAt)}:${encodeURIComponent(input.dueAt)}:`,
-      ))
-  ) {
-    return NextResponse.json({ ok: false, error: 'canonical_reminder_mismatch' }, { status: 409 });
+      !input.reminderId ||
+      Date.parse(appointment.startAt) !== Date.parse(input.generationStartAt) ||
+      ![
+        'created',
+        'awaiting_payment',
+        'paid',
+        'confirmed',
+        'rescheduled',
+        'visit_confirmed',
+        'charged_to_package',
+      ].includes(appointment.status) ||
+      !appointment.appointmentReminderOffsetsMinutes.some(
+        (offset) => Date.parse(input.dueAt!) === Date.parse(appointment.startAt) - offset * 60_000,
+      ) ||
+      Date.parse(input.dueAt) > Date.now()
+    ) {
+      return NextResponse.json(
+        { ok: false, error: 'canonical_reminder_mismatch' },
+        { status: 409 },
+      );
+    }
+    // A matching start/offset alone cannot identify the generation. The immutable queue occurrence
+    // must still be active: replacement may have revoked it after the worker took its lease.
+    const generation = await deps.appointmentReminderMaterialization.replaceGeneration({
+      organizationId: input.organizationId,
+      appointmentId: input.appointmentId,
+      generationStartAt: input.generationStartAt,
+      deliveries: [],
+      reason: 'appointment_reminder_replay',
+      checkOccurrence: { reminderId: input.reminderId, dueAt: input.dueAt },
+    });
+    if (!generation.current) {
+      return NextResponse.json(
+        { ok: false, error: 'canonical_reminder_mismatch' },
+        { status: 409 },
+      );
+    }
   }
 
   const moneyFactKind =

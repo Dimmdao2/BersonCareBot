@@ -141,9 +141,10 @@ describe('S10 independent money acceptance', () => {
 
   it('K2: cash paid again after a full refund credits the appointment again', async () => {
     const { staff } = harness();
-    await staff.createPayment({ ...input, action: 'cash', amountMinor: 10_000 });
+    await staff.createPayment({ ...input, action: 'cash', amountMinor: 10_000, idempotencyKey: 'first-collection' });
     await staff.refundPayment({ ...input, method: 'cash', amountMinor: 10_000 });
-    await staff.createPayment({ ...input, action: 'cash', amountMinor: 10_000 });
+    // Owner correction F2: a deliberate new payment has a new request identity, even at the same amount.
+    await staff.createPayment({ ...input, action: 'cash', amountMinor: 10_000, idempotencyKey: 'second-collection' });
     expect((await staff.getPaymentState(input)).remainingMinor).toBe(0);
   });
 

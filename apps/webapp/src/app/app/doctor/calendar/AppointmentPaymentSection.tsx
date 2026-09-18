@@ -140,6 +140,16 @@ export function AppointmentPaymentSection({
   const [chatSent, setChatSent] = useState(false);
   const [pending, startTransition] = useTransition();
   const requestVersion = useRef(0);
+  const paymentAttempt = useRef<{ fingerprint: string; requestId: string } | null>(null);
+  // Keep the same identity after a lost response, and allocate a new one after acknowledged success
+  // or an explicit change of action/amount. The ledger never determines request identity.
+  const paymentRequestId = (body: Record<string, unknown>) => {
+    const fingerprint = JSON.stringify({ apiBase, appointmentId, ...body });
+    if (paymentAttempt.current?.fingerprint !== fingerprint) {
+      paymentAttempt.current = { fingerprint, requestId: crypto.randomUUID() };
+    }
+    return paymentAttempt.current.requestId;
+  };
   const currentRef = useRef(view);
   const onPaymentChangeRef = useRef(onPaymentChange);
 
@@ -181,13 +191,14 @@ export function AppointmentPaymentSection({
       const version = requestVersion.current + 1;
       requestVersion.current = version;
       const targetAppointmentId = appointmentId;
+      const requestId = paymentRequestId({ action, amountMinor, purpose });
       try {
         const response = await fetch(
           `${apiBase}/appointments/${encodeURIComponent(targetAppointmentId)}/payment`,
           {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ action, amountMinor, purpose }),
+            body: JSON.stringify({ action, amountMinor, purpose, requestId }),
           },
         );
         const json = (await response.json()) as {
@@ -204,6 +215,7 @@ export function AppointmentPaymentSection({
         }
         if (action === 'cash') setCollectOpen(false);
         await reload(targetAppointmentId, version);
+        if (paymentAttempt.current?.requestId === requestId) paymentAttempt.current = null;
       } catch (cause) {
         if (version === requestVersion.current) {
           toast.error(
@@ -220,7 +232,13 @@ export function AppointmentPaymentSection({
     startTransition(async () => {
       const version = requestVersion.current + 1;
       requestVersion.current = version;
-      const requestId = crypto.randomUUID();
+      const requestId = paymentRequestId({
+        action: 'refund',
+        method: refundMethod,
+        amountMinor,
+        retainCommission,
+        retainPrepayment,
+      });
       try {
         const response = await fetch(
           `${apiBase}/appointments/${encodeURIComponent(appointmentId)}/payment`,
@@ -248,6 +266,7 @@ export function AppointmentPaymentSection({
         if (!response.ok || !json.ok) throw new Error(json.error ?? 'request_failed');
         setRefundOpen(false);
         await reload(appointmentId, version);
+        if (paymentAttempt.current?.requestId === requestId) paymentAttempt.current = null;
       } catch (cause) {
         toast.error(
           errorLabel(

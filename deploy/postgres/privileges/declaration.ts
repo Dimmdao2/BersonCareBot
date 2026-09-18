@@ -27060,9 +27060,9 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_appointments',
-          columns: ['id', 'organization_id', 'start_at', 'status', 'deleted_at'],
+          columns: ['id', 'organization_id', 'start_at', 'status', 'deleted_at', 'appointment_reminder_offsets_minutes'],
           operations: ['SELECT' as const],
-          evidence: 'exact currency EXISTS in migration 0034' as const },
+          evidence: 'generation currency and leased occurrence due revalidation in migration 20260918T233800' as const },
         { relation: 'public.outgoing_delivery_queue',
           columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status',
             'attempt_count', 'max_attempts', 'next_retry_at', 'last_error', 'dead_at', 'priority',
