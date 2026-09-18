@@ -1183,7 +1183,9 @@ const paymentsService =
               );
             }
           : undefined,
-        onAppointmentPaymentConfirmed,
+        // Captured appointment payments are completed by the durable payment-level queue consumer.
+        // Invoking this here would race it for the same lifecycle step keys after the SQL commit.
+        onAppointmentPaymentConfirmed: undefined,
         syncServicePrepaymentApplicable: async (serviceId, applicable) => {
           if (!bookingEngineCorePort) return;
           const svc = await bookingEngineService.services.getService(serviceId);
@@ -2325,6 +2327,8 @@ function _buildAppDeps() {
     resolvePatientPublicOrigin,
     bookingEngine: bookingEngineService,
     bookingSync: bookingSyncPortForPayments,
+    /** Durable payment-lifecycle worker re-enters the same projection and notification passage. */
+    appointmentPaymentConfirmed: onAppointmentPaymentConfirmed,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
     bookingEnginePort,
     bookingScheduling: bookingSchedulingService,

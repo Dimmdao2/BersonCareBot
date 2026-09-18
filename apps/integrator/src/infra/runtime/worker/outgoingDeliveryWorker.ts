@@ -678,6 +678,21 @@ export async function processOutgoingDeliveryRow(
   const { db, writePort, dispatchOutgoing, resolveWorkspaceModuleEnabled, doctorBroadcastMenu } =
     deps;
   if (row.kind === 'booking_lifecycle') {
+    const durablePayment = row.payloadJson.paymentCaptured;
+    if (durablePayment && typeof durablePayment === 'object' && !Array.isArray(durablePayment)) {
+      if (!deps.bookingLifecycle?.webappEventsPort?.processCapturedBookingPayment) {
+        throw new Error('BOOKING_LIFECYCLE_PAYMENT_WORKER_UNCONFIGURED');
+      }
+      const result = await deps.bookingLifecycle.webappEventsPort.processCapturedBookingPayment({
+        body: JSON.stringify(durablePayment),
+        idempotencyKey: row.eventId,
+      });
+      if (!result.ok) {
+        throw new Error(`WEBAPP_CAPTURED_PAYMENT_LIFECYCLE_FAILED:${result.status}:${result.error ?? ''}`);
+      }
+      await queueMarkSent(db, row.id);
+      return;
+    }
     const parsed = parseBookingLifecycleEvent(row.payloadJson.event);
     if (!parsed.success) throw new Error('INVALID_BOOKING_LIFECYCLE_QUEUE_PAYLOAD');
     if (!deps.bookingLifecycle) throw new Error('BOOKING_LIFECYCLE_WORKER_UNCONFIGURED');
