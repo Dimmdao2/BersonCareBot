@@ -284,6 +284,8 @@ const ACCESS_TERMINAL_STATE_LABELS: Record<AccessTerminalState, string> = {
   disabled: 'выключено',
 };
 
+const BYTES_PER_GIGABYTE = 1024 * 1024 * 1024;
+
 /**
  * §5a item 2.6a — `warnable` says whether this mechanic has an early-warning threshold at all.
  * The owner named patients and file volume; Т12 (19.08) took the client count away entirely, so
@@ -311,6 +313,8 @@ function NumericLimitEditor({
   quota: TariffQuota | null;
   onChange: (quota: TariffQuota | null) => void;
 }) {
+  const [gigabytesDraft, setGigabytesDraft] = useState<string | null>(null);
+
   function changeKind(kind: 'none' | TariffQuota['kind']) {
     if (kind === 'none') {
       onChange(null);
@@ -348,11 +352,34 @@ function NumericLimitEditor({
         <Input
           type="number"
           min="0"
-          aria-label={label}
-          value={quota.limit ?? 0}
-          onChange={(event) =>
-            onChange({ ...quota, limit: Math.max(0, Number(event.target.value) || 0) })
+          step={unit === 'bytes' ? '0.1' : '1'}
+          aria-label={unit === 'bytes' ? `${label}, ГБ` : label}
+          value={
+            unit === 'bytes'
+              ? (gigabytesDraft ?? ((quota.limit ?? 0) / BYTES_PER_GIGABYTE).toFixed(1))
+              : (quota.limit ?? 0)
           }
+          onFocus={() => {
+            if (unit === 'bytes') {
+              setGigabytesDraft(((quota.limit ?? 0) / BYTES_PER_GIGABYTE).toFixed(1));
+            }
+          }}
+          onBlur={() => setGigabytesDraft(null)}
+          onChange={(event) => {
+            if (unit === 'bytes') {
+              if (!/^\d*(?:\.\d?)?$/.test(event.target.value)) return;
+              setGigabytesDraft(event.target.value);
+              const gigabytes = Number(event.target.value);
+              if (Number.isFinite(gigabytes)) {
+                onChange({
+                  ...quota,
+                  limit: Math.round(Math.max(0, gigabytes) * BYTES_PER_GIGABYTE),
+                });
+              }
+              return;
+            }
+            onChange({ ...quota, limit: Math.max(0, Number(event.target.value) || 0) });
+          }}
         />
       ) : null}
       {quota && warnable ? (
@@ -777,8 +804,6 @@ function BillingPeriodsPanel({
  * (`saas_tariff_period_price_missing`). Снятый с продажи пакет не удаляется: он остаётся у
  * купивших его организаций, поэтому здесь есть «Продаётся», но нет «Удалить».
  */
-const BYTES_PER_GIGABYTE = 1024 * 1024 * 1024;
-
 type StoragePackagePriceDraft = { billingPeriodCode: string; priceRub: string };
 
 type StoragePackageDraft = {
@@ -1551,7 +1576,7 @@ export function CommercialConstructorClient() {
                 );
               })}
               <div className="space-y-2 rounded-xl border border-border/70 p-3">
-                <Label>Объём файлов</Label>
+                <Label>Объём файлов, ГБ</Label>
                 <NumericLimitEditor
                   label="Объём файлов"
                   unit="bytes"
@@ -1833,7 +1858,10 @@ export function CommercialConstructorClient() {
           {MECHANIC_REGISTRY[overrideMechanic].class === 'объём' ||
           MECHANIC_REGISTRY[overrideMechanic].class === 'запас' ? (
             <div className="space-y-1">
-              <Label>{MECHANIC_REGISTRY[overrideMechanic].label} для организации</Label>
+              <Label>
+                {MECHANIC_REGISTRY[overrideMechanic].label} для организации
+                {MECHANIC_REGISTRY[overrideMechanic].class === 'объём' ? ', ГБ' : ''}
+              </Label>
               <NumericLimitEditor
                 label={`${MECHANIC_REGISTRY[overrideMechanic].label} для организации`}
                 unit={MECHANIC_REGISTRY[overrideMechanic].class === 'объём' ? 'bytes' : 'items'}
