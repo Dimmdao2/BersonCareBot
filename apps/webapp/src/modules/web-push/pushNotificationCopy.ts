@@ -207,7 +207,11 @@ export type AppointmentLifecycleVariant =
   | 'awaiting_payment'
   | 'cancelled'
   | 'rescheduled'
-  | 'payment_captured';
+  | 'payment_captured'
+  | 'cash_payment'
+  | 'refund_succeeded'
+  | 'prepayment_retained'
+  | 'visit_completed';
 
 export function buildAppointmentLifecyclePushCopy(
   variant: AppointmentLifecycleVariant,
@@ -226,6 +230,30 @@ export function buildAppointmentLifecyclePushCopy(
   }
   if (variant === 'payment_captured') {
     return { title: 'Оплата подтверждена', body: `Оплата записи на ${dateLabel} подтверждена.` };
+  }
+  if (variant === 'cash_payment') {
+    return {
+      title: notificationText.paymentSucceeded,
+      body: notificationText.appointmentCashPaymentReceived,
+    };
+  }
+  if (variant === 'refund_succeeded') {
+    return {
+      title: notificationText.appointmentRefundSucceeded,
+      body: notificationText.appointmentRefundSucceeded,
+    };
+  }
+  if (variant === 'prepayment_retained') {
+    return {
+      title: notificationText.appointmentPrepaymentRetained,
+      body: notificationText.appointmentPrepaymentRetained,
+    };
+  }
+  if (variant === 'visit_completed') {
+    return {
+      title: notificationText.appointmentVisitCompleted,
+      body: notificationText.appointmentVisitCompleted,
+    };
   }
   switch (variant) {
     case 'created':

@@ -42,11 +42,11 @@ export type AppointmentReminderMessengerStep = {
   recipient: Record<string, unknown>;
 };
 
-export type AppointmentReminderReadyOutgoingDelivery = {
+export type AppointmentReminderExternalOutgoingDelivery = {
   organizationId: string;
   eventId: string;
   kind: 'appointment_reminder';
-  channel: 'telegram' | 'max' | 'web_push';
+  channel: 'telegram' | 'max';
   intent: OutgoingIntent;
   nextRetryAt: string;
   appointmentId: string;
@@ -55,6 +55,25 @@ export type AppointmentReminderReadyOutgoingDelivery = {
   /** Messenger only. Duplicating a sole step preserves the legacy two-attempt behavior. */
   messengerLadder?: readonly AppointmentReminderMessengerStep[];
 };
+
+/**
+ * The persistent-feed occurrence is materialized beside the external reminder transports, but it
+ * is not itself a transport. It stays due even when recipient preferences select zero channels.
+ */
+export type AppointmentReminderLifecycleOutgoingDelivery = {
+  organizationId: string;
+  eventId: string;
+  kind: 'booking_lifecycle';
+  channel: 'internal';
+  nextRetryAt: string;
+  appointmentId: string;
+  generationStartAt: string;
+  dueAt: string;
+  reminderId: string;
+};
+
+export type AppointmentReminderReadyOutgoingDelivery =
+  AppointmentReminderExternalOutgoingDelivery | AppointmentReminderLifecycleOutgoingDelivery;
 
 export type PatientReminderReadyOutgoingDelivery = {
   organizationId: string;

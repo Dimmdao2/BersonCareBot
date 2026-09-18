@@ -33,7 +33,17 @@ const BookingLifecyclePayloadSchema = z.object({
   cancelPendingReminders: z.boolean().optional(),
   /** D14(2): вебапп решает, слать ли пуш пациенту и каким вариантом. null — не слать; строка — слать этот вариант; отсутствует → прежнее поведение. */
   patientPushVariant: z
-    .enum(['created', 'awaiting_payment', 'cancelled', 'rescheduled'])
+    .enum([
+      'created',
+      'awaiting_payment',
+      'cancelled',
+      'rescheduled',
+      'reminder_due',
+      'cash_payment',
+      'refund_succeeded',
+      'prepayment_retained',
+      'visit_completed',
+    ])
     .nullable()
     .optional(),
   /** D14(3): вебапп присылает готовый текст пациентского сообщения; интегратор доставляет его дословно, не сочиняя и не дополняя. Отсутствует → прежний текст интегратора. */
@@ -48,35 +58,42 @@ const BookingLifecyclePayloadSchema = z.object({
   calendarTitleMarker: z.enum(['none', 'cancelled', 'reschedule_pending']).optional(),
 });
 
-export const BookingLifecycleEventSchema = z.object({
-  eventType: z.enum([
-    'booking.created',
-    'booking.awaiting_payment',
-    'booking.cancelled',
-    'booking.rescheduled',
-    'booking.reschedule_requested',
-    'booking.deleted',
-    'booking.payment_captured',
-    'booking.package_linked',
-    'booking.package_unlinked',
-    'booking.reminder_updated',
-  ]),
-  idempotencyKey: z.string().optional(),
-  payload: BookingLifecyclePayloadSchema,
-}).superRefine((event, ctx) => {
-  if (
-    event.eventType === 'booking.awaiting_payment' &&
-    (!event.payload.paymentCheckoutUrl ||
-      !event.payload.paymentDeadlineAt ||
-      !event.payload.patientMessageText)
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['payload'],
-      message: 'awaiting_payment_binding_required',
-    });
-  }
-});
+export const BookingLifecycleEventSchema = z
+  .object({
+    eventType: z.enum([
+      'booking.created',
+      'booking.awaiting_payment',
+      'booking.cancelled',
+      'booking.rescheduled',
+      'booking.reschedule_requested',
+      'booking.deleted',
+      'booking.payment_captured',
+      'booking.reminder_due',
+      'booking.cash_payment',
+      'booking.refund_succeeded',
+      'booking.prepayment_retained',
+      'booking.visit_completed',
+      'booking.package_linked',
+      'booking.package_unlinked',
+      'booking.reminder_updated',
+    ]),
+    idempotencyKey: z.string().optional(),
+    payload: BookingLifecyclePayloadSchema,
+  })
+  .superRefine((event, ctx) => {
+    if (
+      event.eventType === 'booking.awaiting_payment' &&
+      (!event.payload.paymentCheckoutUrl ||
+        !event.payload.paymentDeadlineAt ||
+        !event.payload.patientMessageText)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['payload'],
+        message: 'awaiting_payment_binding_required',
+      });
+    }
+  });
 
 export type BookingLifecycleEventValidated = z.infer<typeof BookingLifecycleEventSchema>;
 export type BookingLifecyclePayloadValidated = z.infer<typeof BookingLifecyclePayloadSchema>;

@@ -7,7 +7,11 @@ import type {
   PolicyAppointmentContext,
   ReschedulePolicy,
 } from '@/modules/booking-policies/types';
-import type { AppointmentLifecyclePort, AppointmentNoShowRecord } from './ports';
+import type {
+  AppointmentLifecyclePort,
+  AppointmentNoShowRecord,
+  AppointmentPatientLifecycleFactKind,
+} from './ports';
 
 export type PreviewCancelResult =
   | {
@@ -87,6 +91,16 @@ export function createBookingAppointmentLifecycleService(deps: {
   policies: BookingPoliciesService;
 }) {
   return {
+    async readPatientLifecycleFact(
+      kind: AppointmentPatientLifecycleFactKind,
+      factId: string,
+      organizationId: string,
+    ) {
+      return (
+        (await deps.lifecyclePort.readPatientLifecycleFact?.(kind, factId, organizationId)) ?? null
+      );
+    },
+
     async previewPatientCancel(
       appointmentId: string,
       organizationId: string,

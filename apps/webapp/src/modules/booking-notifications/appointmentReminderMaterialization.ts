@@ -27,7 +27,10 @@ function generationKey(input: AppointmentReminderMaterializationInput, dueAt: st
   return `${input.appointmentId}:${encodeURIComponent(input.slotStartIso)}:${encodeURIComponent(dueAt)}:${encodeURIComponent(input.generationRevision)}`;
 }
 
-function messengerStep(channel: 'telegram' | 'max', externalId: string): AppointmentReminderMessengerStep {
+function messengerStep(
+  channel: 'telegram' | 'max',
+  externalId: string,
+): AppointmentReminderMessengerStep {
   return channel === 'telegram'
     ? { channel, recipient: { chatId: externalId } }
     : { channel, recipient: { userId: externalId } };
@@ -69,6 +72,21 @@ export function prepareAppointmentReminderDeliveries(
     const stable = generationKey(input, dueAt);
     const text = `${patientLabel}, Напоминание: приём ${appointmentLabel} (через ${offsetMinutes} мин.).`;
 
+    // The due occurrence is a product fact, not a transport choice. Keep one internal lifecycle
+    // row even when Telegram/MAX/Web Push are all unavailable or disabled; replay appends the
+    // persistent notification before it applies the optional Web Push preference.
+    const lifecycleDelivery: AppointmentReminderReadyOutgoingDelivery = {
+      organizationId: input.organizationId,
+      appointmentId: input.appointmentId,
+      generationStartAt: input.slotStartIso,
+      dueAt,
+      eventId: `booking.lifecycle:reminder_due:${stable}`,
+      reminderId: stable,
+      kind: 'booking_lifecycle',
+      channel: 'internal',
+      nextRetryAt: dueAt,
+    };
+
     if (messengerLadder.length > 0) {
       const first = messengerLadder[0]!;
       const eventId = `appointment-reminder:${stable}:messenger`;
@@ -105,44 +123,7 @@ export function prepareAppointmentReminderDeliveries(
       });
     }
 
-    if (allowed.has('web_push') && audience.hasWebPush) {
-      const eventId = `appointment-reminder:${stable}:web_push`;
-      deliveries.push({
-        organizationId: input.organizationId,
-        appointmentId: input.appointmentId,
-        generationStartAt: input.slotStartIso,
-        dueAt,
-        eventId,
-        kind: 'appointment_reminder',
-        channel: 'web_push',
-        nextRetryAt: dueAt,
-        intent: {
-          type: 'message.send',
-          meta: {
-            eventId,
-            occurredAt,
-            source: 'web_push',
-            userId: input.platformUserId,
-            outboundMessageClass: 'routine_product',
-            outboundCapability: 'app_push',
-          },
-          payload: {
-            recipient: { pushUserId: input.platformUserId },
-            title: 'Напоминание о записи',
-            message: { text },
-            url: '/app/patient/booking',
-            pushExtras: {
-              tag: eventId.slice(0, 240),
-              topicCode: 'appointment_reminders',
-              pushSurface: 'therapygo',
-              nativeRoute: '/app/patient/booking',
-              notificationKind: 'reminder',
-            },
-            delivery: { channels: ['web_push'], maxAttempts: 1 },
-          },
-        },
-      });
-    }
+    deliveries.push(lifecycleDelivery);
   }
   return deliveries;
 }

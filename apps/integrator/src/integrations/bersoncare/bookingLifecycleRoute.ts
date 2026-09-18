@@ -420,11 +420,14 @@ function shouldCancelPendingReminders(payload: BookingLifecyclePayloadValidated)
   return payload.cancelPendingReminders !== false;
 }
 
+type BookingPatientPushVariant =
+  NonNullable<BookingLifecyclePayloadValidated['patientPushVariant']> | 'payment_captured';
+
 /** D14(2): webapp's field (including explicit `null`) wins; absent field keeps the old per-event default. */
 function resolvePatientPushVariant(
   payload: BookingLifecyclePayloadValidated,
   defaultVariant: 'created' | 'awaiting_payment' | 'cancelled' | 'rescheduled',
-): 'created' | 'awaiting_payment' | 'cancelled' | 'rescheduled' | null {
+): BookingPatientPushVariant | null {
   return payload.patientPushVariant !== undefined ? payload.patientPushVariant : defaultVariant;
 }
 
@@ -571,7 +574,7 @@ async function sendBookingWebPush(input: {
   intentType: 'appointment_lifecycle' | 'appointment_reminder';
   slotStartIso: string;
   stableKey: string;
-  variant?: 'created' | 'awaiting_payment' | 'cancelled' | 'rescheduled' | 'payment_captured';
+  variant?: BookingPatientPushVariant;
   paymentCheckoutUrl?: string;
   paymentDeadlineAt?: string;
   suppressExternalPush?: boolean;
@@ -622,18 +625,18 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   if (eventType === 'booking.deleted') {
     if (appointmentId) {
       await syncCanonicalAppointmentToCalendar(
-          {
-            action: resolveCalendarAction(payload, 'canceled'),
-            appointmentId,
-            organizationId: payload.organizationId,
-            startAt: payload.slotStart,
-            endAt: payload.slotEnd,
-            clientName: payload.contactName,
-            serviceTitle: payload.serviceTitleSnapshot ?? null,
-            phoneNormalized: normalizeRuPhoneE164(payload.contactPhone ?? ''),
-          },
-          { dispatchPort, db: createDbPort() },
-        );
+        {
+          action: resolveCalendarAction(payload, 'canceled'),
+          appointmentId,
+          organizationId: payload.organizationId,
+          startAt: payload.slotStart,
+          endAt: payload.slotEnd,
+          clientName: payload.contactName,
+          serviceTitle: payload.serviceTitleSnapshot ?? null,
+          phoneNormalized: normalizeRuPhoneE164(payload.contactPhone ?? ''),
+        },
+        { dispatchPort, db: createDbPort() },
+      );
       return;
     }
     return;
@@ -656,19 +659,19 @@ async function trySyncCanonicalBookingToGoogleCalendar(
         ? 'reschedule_pending'
         : 'none';
   await syncCanonicalAppointmentToCalendar(
-      {
-        action: resolveCalendarAction(payload, computedAction),
-        appointmentId,
-        organizationId: payload.organizationId,
-        startAt: payload.slotStart,
-        endAt: payload.slotEnd,
-        clientName: payload.contactName,
-        serviceTitle: payload.serviceTitleSnapshot ?? null,
-        phoneNormalized: normalizeRuPhoneE164(payload.contactPhone ?? ''),
-        titleMarker: resolveCalendarTitleMarker(payload, computedTitleMarker),
-      },
-      { dispatchPort, db: createDbPort() },
-    );
+    {
+      action: resolveCalendarAction(payload, computedAction),
+      appointmentId,
+      organizationId: payload.organizationId,
+      startAt: payload.slotStart,
+      endAt: payload.slotEnd,
+      clientName: payload.contactName,
+      serviceTitle: payload.serviceTitleSnapshot ?? null,
+      phoneNormalized: normalizeRuPhoneE164(payload.contactPhone ?? ''),
+      titleMarker: resolveCalendarTitleMarker(payload, computedTitleMarker),
+    },
+    { dispatchPort, db: createDbPort() },
+  );
 }
 
 /**
@@ -724,7 +727,8 @@ function bookingLifecycleSteps(input: {
 
   const patientPushStep = (
     stableKey: string,
-    variant: 'created' | 'awaiting_payment' | 'cancelled' | 'rescheduled' | 'payment_captured',
+    variant: BookingPatientPushVariant,
+    intentType: 'appointment_lifecycle' | 'appointment_reminder' = 'appointment_lifecycle',
   ): BookingLifecycleStep => ({
     name: 'patient_web_push',
     run: () =>
@@ -735,11 +739,9 @@ function bookingLifecycleSteps(input: {
         ...(payload.userId ? { platformUserId: payload.userId } : {}),
         bookingId,
         ...(payload.occurrenceId ? { occurrenceId: payload.occurrenceId } : {}),
-        intentType: 'appointment_lifecycle',
+        intentType,
         variant,
-        ...(payload.paymentCheckoutUrl
-          ? { paymentCheckoutUrl: payload.paymentCheckoutUrl }
-          : {}),
+        ...(payload.paymentCheckoutUrl ? { paymentCheckoutUrl: payload.paymentCheckoutUrl } : {}),
         ...(payload.paymentDeadlineAt ? { paymentDeadlineAt: payload.paymentDeadlineAt } : {}),
         slotStartIso: payload.slotStart,
         stableKey,
@@ -779,6 +781,46 @@ function bookingLifecycleSteps(input: {
     eventType === 'booking.package_unlinked'
   ) {
     return [calendarStep];
+  }
+
+  if (eventType === 'booking.reminder_due') {
+    return [
+      patientPushStep(
+        `booking-reminder:${payload.occurrenceId ?? bookingId}`,
+        'reminder_due',
+        'appointment_reminder',
+      ),
+    ];
+  }
+
+  if (eventType === 'booking.cash_payment') {
+    return [
+      patientPushStep(`booking-cash-payment:${payload.occurrenceId ?? bookingId}`, 'cash_payment'),
+    ];
+  }
+
+  if (eventType === 'booking.refund_succeeded') {
+    return [
+      patientPushStep(`booking-refund:${payload.occurrenceId ?? bookingId}`, 'refund_succeeded'),
+    ];
+  }
+
+  if (eventType === 'booking.prepayment_retained') {
+    return [
+      patientPushStep(
+        `booking-prepayment-retained:${payload.occurrenceId ?? bookingId}`,
+        'prepayment_retained',
+      ),
+    ];
+  }
+
+  if (eventType === 'booking.visit_completed') {
+    return [
+      patientPushStep(
+        `booking-visit-completed:${payload.occurrenceId ?? bookingId}`,
+        'visit_completed',
+      ),
+    ];
   }
 
   if (eventType === 'booking.created') {
@@ -827,8 +869,9 @@ function bookingLifecycleSteps(input: {
     }
     if (shouldNotifyDoctor(payload)) {
       steps.push(
-        doctorMessageStep(`booking-awaiting-payment:${payload.occurrenceId ?? bookingId}`, async () =>
-          doctorCreatedText(payload, await displayTimeZone()),
+        doctorMessageStep(
+          `booking-awaiting-payment:${payload.occurrenceId ?? bookingId}`,
+          async () => doctorCreatedText(payload, await displayTimeZone()),
         ),
       );
     }

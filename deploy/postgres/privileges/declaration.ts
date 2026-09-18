@@ -26269,6 +26269,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'reminder.appointment-generation.replace',
       functionIdentity: 'app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)' },
+    booking_patient_lifecycle_fact_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'booking-lifecycle.patient-fact.read',
+      functionIdentity: 'app.read_booking_patient_lifecycle_fact(text,uuid)' },
     integrator_delivery_targets_read: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.delivery-targets.read',
@@ -26967,10 +26971,44 @@ const REV10_CONTEXT = {
     }),
     'app.enqueue_booking_lifecycle_from_history()': rev10Function({
       owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
-      execute: ['app_object_owner'], purpose: 'atomically enqueue an immutable appointment lifecycle history transition',
+      execute: ['app_object_owner'], purpose: 'atomically enqueue an immutable appointment lifecycle or completed-visit history transition',
       typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one immutable history id writes one queue row' as const },
+      ],
+    }),
+    'app.enqueue_appointment_cash_lifecycle()': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: ['app_object_owner'], purpose: 'atomically enqueue one appointment cash ledger fact',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one immutable cash ledger id writes one queue row' as const },
+      ],
+    }),
+    'app.enqueue_booking_payment_history_lifecycle()': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: ['app_object_owner'], purpose: 'atomically enqueue one successful refund or retained-prepayment history fact',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one immutable payment history id writes one queue row' as const },
+      ],
+    }),
+    'app.read_booking_patient_lifecycle_fact(text,uuid)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'], purpose: 'booking-lifecycle.patient-fact.read',
+      typedArgs: ['text', 'uuid'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.patient_payment',
+          columns: ['id', 'organization_id', 'appointment_id', 'patient_user_id', 'kind', 'status',
+            'amount_minor', 'currency', 'created_at'], operations: ['SELECT' as const],
+          evidence: 're-read one immutable appointment cash ledger fact' as const },
+        { relation: 'public.be_payment_history_events',
+          columns: ['id', 'organization_id', 'appointment_id', 'platform_user_id', 'event_type',
+            'status', 'amount_minor', 'currency', 'occurred_at'], operations: ['SELECT' as const],
+          evidence: 're-read one successful refund or retained-prepayment history fact' as const },
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'platform_user_id'], operations: ['SELECT' as const],
+          evidence: 'prove the canonical organization, patient and appointment binding' as const },
       ],
     }),
     // The single declared enqueue root for outbound messages (owner ruling 19.08: one universal
