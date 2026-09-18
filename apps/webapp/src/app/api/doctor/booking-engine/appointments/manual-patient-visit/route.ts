@@ -225,36 +225,23 @@ export async function POST(request: Request) {
         }
         const contactPhone = bookingRow?.contactPhone ?? created.patient.phoneNormalized;
         if (!created.replayed && contactPhone) {
-          try {
-            await createBookingSyncPort().emitBookingEvent({
-              eventType: 'booking.created',
-              idempotencyKey: `staff.booking.created:${created.appointment.id}:${created.appointment.startAt}`,
-              payload: {
-                organizationId: created.appointment.organizationId,
-                bookingId: bookingRow?.id ?? created.appointment.id,
-                userId: bookingRow?.userId ?? created.patient.userId,
-                bookingType: bookingRow?.bookingType ?? 'in_person',
-                city: bookingRow?.city ?? undefined,
-                category: bookingRow?.category ?? 'general',
-                slotStart: created.appointment.startAt,
-                slotEnd: created.appointment.endAt,
-                contactName:
-                  bookingRow?.contactName ??
-                  staffBookingContactNameFromAppointment(created.appointment),
-                contactPhone,
-                contactEmail: bookingRow?.contactEmail ?? undefined,
-                cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
-                serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(
-                  created.appointment,
-                  bookingRow,
-                ),
-                canonicalAppointmentId: created.appointment.id,
-                reminderPlan,
-              },
-            });
-          } catch {
-            // Lifecycle delivery is best-effort and cannot turn a committed visit into an API failure.
-          }
+          await createBookingSyncPort().emitBookingEvent({
+            eventType: 'booking.created',
+            idempotencyKey: `staff.booking.created:${created.appointment.id}:${created.appointment.startAt}`,
+            payload: {
+              organizationId: created.appointment.organizationId,
+              bookingId: bookingRow?.id ?? created.appointment.id,
+              userId: bookingRow?.userId ?? created.patient.userId,
+              bookingType: bookingRow?.bookingType ?? 'in_person', city: bookingRow?.city ?? undefined,
+              category: bookingRow?.category ?? 'general', slotStart: created.appointment.startAt,
+              slotEnd: created.appointment.endAt,
+              contactName: bookingRow?.contactName ?? staffBookingContactNameFromAppointment(created.appointment),
+              contactPhone, contactEmail: bookingRow?.contactEmail ?? undefined,
+              cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
+              serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(created.appointment, bookingRow),
+              canonicalAppointmentId: created.appointment.id, reminderPlan,
+            },
+          });
         }
         return created;
       },

@@ -260,32 +260,24 @@ export async function POST(request: Request) {
             appointmentId: created.id,
           });
         }
-        try {
-          await syncPort.emitBookingEvent({
-            eventType: 'booking.created',
-            idempotencyKey: `staff.booking.created:${created.id}:${created.startAt}`,
-            payload: {
-              organizationId: created.organizationId,
-              bookingId: bookingRow?.id ?? created.id,
-              userId: bookingRow?.userId ?? created.platformUserId ?? created.id,
-              bookingType: bookingRow?.bookingType ?? 'in_person',
-              city: bookingRow?.city ?? undefined,
-              category: bookingRow?.category ?? 'general',
-              slotStart: created.startAt,
-              slotEnd: created.endAt,
-              contactName:
-                bookingRow?.contactName ?? staffBookingContactNameFromAppointment(created),
-              contactPhone: bookingRow?.contactPhone ?? created.phoneNormalized ?? '+70000000000',
-              contactEmail: bookingRow?.contactEmail ?? undefined,
-              cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
-              serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(created, bookingRow),
-              canonicalAppointmentId: created.id,
-              reminderPlan,
-            },
-          });
-        } catch {
-          // Lifecycle event is best-effort for a committed staff manual create.
-        }
+        // Production BookingSyncPort suppresses this legacy post-commit handoff for lifecycle
+        // facts; retain the compatibility call for non-production port implementations.
+        await syncPort.emitBookingEvent({
+          eventType: 'booking.created',
+          idempotencyKey: `staff.booking.created:${created.id}:${created.startAt}`,
+          payload: {
+            organizationId: created.organizationId, bookingId: bookingRow?.id ?? created.id,
+            userId: bookingRow?.userId ?? created.platformUserId ?? created.id,
+            bookingType: bookingRow?.bookingType ?? 'in_person', city: bookingRow?.city ?? undefined,
+            category: bookingRow?.category ?? 'general', slotStart: created.startAt, slotEnd: created.endAt,
+            contactName: bookingRow?.contactName ?? staffBookingContactNameFromAppointment(created),
+            contactPhone: bookingRow?.contactPhone ?? created.phoneNormalized ?? '+70000000000',
+            contactEmail: bookingRow?.contactEmail ?? undefined,
+            cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
+            serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(created, bookingRow),
+            canonicalAppointmentId: created.id, reminderPlan,
+          },
+        });
         return created;
       },
     );

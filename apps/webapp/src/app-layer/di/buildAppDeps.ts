@@ -379,7 +379,6 @@ import { inMemoryIntegratorDeliveryTargetsPort } from '@/infra/repos/inMemoryInt
 import { createPatientBookingService } from '@/modules/patient-booking/service';
 import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
 import { enqueueAccountMergeLoginNotification } from '@/modules/auth/accountMergeNotification';
-import { createBookingCreatedEffects } from '@/app-layer/booking/bookingCreatedEffects';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import {
   createAppointmentPaymentConfirmedHandler,
@@ -1517,18 +1516,11 @@ const integratorDeliveryTargetsPort = inMemoryRepos
   ? inMemoryIntegratorDeliveryTargetsPort
   : createPgIntegratorDeliveryTargetsPort();
 
-const bookingCreatedEffectsPort = createBookingCreatedEffects({
-  outboundMessageQueue: createPgOutboundMessageQueue(),
-  deliveryTargets: {
-    getTargets: (params) =>
-      getDeliveryTargetsForIntegrator(params, {
-        integratorDeliveryTargets: integratorDeliveryTargetsPort,
-      }),
-  },
-});
-
 patientBookingService = createPatientBookingService({
-  bookingCreatedEffects: bookingCreatedEffectsPort,
+  // Canonical appointment creation now has an atomic lifecycle outbox producer.  Do not retain a
+  // second post-commit patient-message producer beside it; tests may still inject this optional
+  // port to verify the isolated legacy adapter contract.
+  bookingCreatedEffects: undefined,
   // Один объявленный корень постановки исходящего сообщения — письмо-подтверждение записи
   // больше не ждёт SMTP внутри запроса (решение владельца 19.08).
   outboundMessageQueue: createPgOutboundMessageQueue(),

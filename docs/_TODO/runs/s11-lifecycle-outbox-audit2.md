@@ -109,6 +109,25 @@ Evidence:
 
 ## Executed acceptance and gates
 
+## S11 booking producer worker evidence (2026-09-18)
+
+All seven scoped producers now enter `public.outgoing_delivery_queue` atomically.  The queue key
+uses the immutable canonical fact, and the resident worker replays the signed webapp seam before it
+marks the internal row sent; it does not use `Next after()` or a best-effort signed POST.
+
+| Producer path | Atomic root | Stable queue key | Disabled legacy handoff |
+| --- | --- | --- | --- |
+| Patient browser/widget/app confirmed creation | `AFTER INSERT public.be_appointments` | `booking.lifecycle:created:<appointment-id>` | `BookingSyncPort` no longer schedules `booking.created` through `after()` |
+| Patient browser/widget/app awaiting-payment creation | `AFTER INSERT public.be_appointments` | `booking.lifecycle:awaiting_payment:<appointment-id>` | direct post-commit booking-created effect is absent from production DI |
+| Staff manual booking | `AFTER INSERT public.be_appointments` | `booking.lifecycle:created:<appointment-id>` | manual route compatibility call reaches the disabled lifecycle branch of `BookingSyncPort` |
+| Patient reschedule | `AFTER INSERT public.be_appointment_history_events` (`rescheduled`) | `booking.lifecycle:rescheduled:<history-id>` | post-commit `booking.rescheduled` branch is disabled in `BookingSyncPort` |
+| Staff reschedule | `AFTER INSERT public.be_appointment_history_events` (`rescheduled`) | `booking.lifecycle:rescheduled:<history-id>` | `emitStaffCanonicalBookingEvent` can no longer reach external delivery through the production sync port |
+| Patient cancel | `AFTER INSERT public.be_appointment_history_events` (`cancelled`) | `booking.lifecycle:cancelled:<history-id>` | post-commit `booking.cancelled` branch is disabled in `BookingSyncPort` |
+| Staff cancel / existing no-show | `AFTER INSERT public.be_appointment_history_events` (`cancelled` / `no_show`) | `booking.lifecycle:cancelled:<history-id>` / `booking.lifecycle:no_show:<history-id>` | staff side-effect seam cannot bypass the atomic history producer |
+
+The S11 plan remains open: payment money/refund/retention and reminder inventory are intentionally
+outside this bounded booking-producer stage.
+
 Сохранённый oracle был запущен первым после чтения authority; FI K1–K5/K9 повторно не проводился.
 
 | Command | Result |

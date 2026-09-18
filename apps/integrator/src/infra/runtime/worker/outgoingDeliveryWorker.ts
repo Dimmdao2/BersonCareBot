@@ -706,6 +706,23 @@ export async function processOutgoingDeliveryRow(
   const { db, writePort, dispatchOutgoing, resolveWorkspaceModuleEnabled, doctorBroadcastMenu } =
     deps;
   if (row.kind === 'booking_lifecycle') {
+    const durableLifecycle = row.payloadJson.bookingLifecycle;
+    if (durableLifecycle && typeof durableLifecycle === 'object' && !Array.isArray(durableLifecycle)) {
+      if (!deps.bookingLifecycle?.webappEventsPort?.processBookingLifecycle) {
+        throw new Error('BOOKING_LIFECYCLE_WORKER_UNCONFIGURED');
+      }
+      const result = await deps.bookingLifecycle.webappEventsPort.processBookingLifecycle({
+        body: JSON.stringify(durableLifecycle),
+        idempotencyKey: row.eventId,
+      });
+      if (!result.ok) {
+        throw new Error(
+          `WEBAPP_BOOKING_LIFECYCLE_FAILED:${result.status}:${result.error ?? ''}`,
+        );
+      }
+      await queueMarkSent(db, row.id);
+      return;
+    }
     const durablePayment = row.payloadJson.paymentCaptured;
     if (durablePayment && typeof durablePayment === 'object' && !Array.isArray(durablePayment)) {
       if (!deps.bookingLifecycle?.webappEventsPort?.processCapturedBookingPayment) {

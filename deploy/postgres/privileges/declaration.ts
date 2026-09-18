@@ -26956,6 +26956,22 @@ const REV10_CONTEXT = {
         { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one idempotent durable lifecycle row per settled appointment' as const },
       ],
     }),
+    'app.enqueue_booking_lifecycle_from_appointment()': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: ['app_object_owner'], purpose: 'atomically enqueue a newly created confirmed or awaiting-payment appointment',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one immutable appointment creation fact writes one queue row' as const },
+      ],
+    }),
+    'app.enqueue_booking_lifecycle_from_history()': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: ['app_object_owner'], purpose: 'atomically enqueue an immutable appointment lifecycle history transition',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one immutable history id writes one queue row' as const },
+      ],
+    }),
     // The single declared enqueue root for outbound messages (owner ruling 19.08: one universal
     // mechanism taking a context, not one function per message kind). Runtime roles get EXECUTE
     // only -- no table grant on public.outgoing_delivery_queue is added for app_patient/app_staff.
