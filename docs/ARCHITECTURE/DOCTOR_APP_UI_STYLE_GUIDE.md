@@ -51,6 +51,7 @@
 | Border                     | разделение поверхностей              | `--border` (`#e3e8f0`)           |
 | Text primary               | основной текст                       | `--foreground`                   |
 | Text secondary             | подписи, мета                        | doctor `--muted-foreground: var(--bc-ink-2)` |
+| Entity title               | название сущности в шапке модалки    | `--doctor-entity-title`          |
 | Primary                    | кнопки, акцент, active/focus, ссылки | doctor-zone `--primary: #4573b1` |
 | Primary soft               | hover/active фон акцентных элементов | `bg-primary/10…/15`              |
 | Success / Warning / Danger | статусы                              | мягкие, не кислотные (§17)       |
@@ -104,7 +105,7 @@
 | --------------------------------- | ------------------------------ | ------------------------------------------ | ------- |
 | Page title (h1)                   | `doctorPageTitleClass`         | `text-[18px] font-medium tracking-tight`   | 18      |
 | Заголовок модалки                 | `doctorModalTitleClass`        | `text-base font-medium tracking-tight`     | 16      |
-| Название сущности в модалке       | `doctorModalEntityTitleClass`  | наследует `doctorModalTitleClass`          | 16      |
+| Название сущности в модалке       | `doctorModalEntityTitleClass`  | `text-[17px] font-semibold`, серо-синий    | 17      |
 | Имя пациента в entity-header     | `doctorClientDisplayNameClass` | `text-[18px] font-bold leading-6`           | 18      |
 | Section title (h2/h3)             | `doctorSectionTitleClass`      | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
 | Body                              | `doctorBodyTextClass`          | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
@@ -262,7 +263,7 @@ tablet `768–1023px` используется узкий sidebar rail, раск
 | ------------------------------- | ------------- | ------------------------------------------------------------- |
 | Заголовок страницы (h1)         | `h1`          | `text-[18px] font-medium tracking-tight text-foreground`      |
 | Заголовок модалки               | `h1` или `h2` | `text-base font-medium tracking-tight text-foreground`        |
-| Название сущности в модалке     | `h2` или `h3` | наследует `doctorModalTitleClass`                            |
+| Название сущности в модалке     | `h2` или `h3` | `doctorModalEntityTitleClass` — 17px, серо-синий             |
 | Заголовок секции / панели       | `h2` или `h3` | mobile `text-base`, desktop `text-sm`, `font-semibold`        |
 | Первичная строка сущности       | `p`           | `text-base font-normal text-foreground`                       |
 | Обычный текст                   | `p`           | mobile `text-base`, desktop `text-sm`, `text-foreground`      |

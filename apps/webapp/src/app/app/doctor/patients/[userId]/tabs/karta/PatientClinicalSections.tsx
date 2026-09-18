@@ -109,7 +109,6 @@ function patientTitle(
       patientName={patientName}
       patientOnSupport={patientOnSupport}
       patientVariant="context"
-      entityClassName={entity ? 'text-primary' : undefined}
     />
   );
 }

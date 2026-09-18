@@ -56,9 +56,9 @@ export const doctorPageTitleClass = 'text-[18px] font-medium tracking-tight text
 /** Title in the shared doctor modal header. */
 export const doctorModalTitleClass = 'text-base font-medium tracking-tight text-foreground';
 
-/** Entity name in a doctor modal header; matches the primary exercise title in comment lists. */
+/** Prominent entity name in a doctor modal header (stage, program, symptom, exercise). */
 export const doctorModalEntityTitleClass =
-  'text-[15px] leading-5 font-semibold tracking-tight text-foreground';
+  'text-[17px] leading-[22px] font-semibold tracking-tight text-[var(--doctor-entity-title)]';
 
 /** Section title for h2/h3 in doctor pages. */
 export const doctorSectionTitleClass =
