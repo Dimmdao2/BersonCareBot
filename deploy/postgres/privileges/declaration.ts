@@ -20349,6 +20349,21 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
+  "public.support_conversation_manual_unread": {
+    "kind": "direct",
+    "purpose": "personal staff reminder that a support conversation needs attention",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgSupportCommunication.ts",
+      "apps/webapp/src/modules/messaging/doctorSupportMessagingService.ts"
+    ],
+    "grants": [
+      {
+        "role": "app_staff",
+        "operations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+        "columns": "table"
+      }
+    ]
+  },
   "public.support_conversations": {
     "kind": "direct",
     "purpose": "диалоги поддержки — без неё нет переписки врач↔пациент",
@@ -23945,6 +23960,7 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.staff_security_profiles', cls: 'S', wall: 'definer-only', why: 'второй фактор персонала — 2FA '
     + 'сотрудников', wallWhy: W_AUTH_DEFINER, defect: ['I1-definer-plus-force'] },
   { t: 'public.support_conversation_messages', cls: 'P', org: true, why: 'сообщения диалога — тело переписки' },
+  { t: 'public.support_conversation_manual_unread', cls: 'P', org: true, why: 'личная метка сотрудника о непрочитанном диалоге' },
   { t: 'public.support_conversations', cls: 'P', org: true, why: 'диалоги поддержки — без неё нет переписки врач↔пациент' },
   { t: 'public.support_question_messages', cls: 'P', org: true, why: 'реплики внутри вопроса — тело вопроса' },
   { t: 'public.support_questions', cls: 'P', org: true, why: 'вопросы пациента из бота — очередь «вопрос из мессенджера → врач»' },
@@ -26958,7 +26974,7 @@ const REV10_CONTEXT = {
         { relation: 'public.be_payment_intents', columns: ['id', 'organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id'], operations: ['SELECT' as const], evidence: 'resolve settled booking intent' as const },
         { relation: 'public.be_payments', columns: ['id', 'organization_id', 'payment_intent_id'], operations: ['SELECT' as const], evidence: 'stable captured payment event id' as const },
         { relation: 'public.be_appointments', columns: ['id', 'organization_id', 'chain_id', 'chain_position', 'start_at', 'platform_user_id'], operations: ['SELECT' as const], evidence: 'payment chain durable payload' as const },
-        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one idempotent durable lifecycle row per settled appointment' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'targeted ON CONFLICT(event_id) arbitration and one idempotent durable lifecycle row per settled appointment' as const },
       ],
     }),
     'app.enqueue_booking_lifecycle_from_appointment()': rev10Function({
@@ -26966,7 +26982,7 @@ const REV10_CONTEXT = {
       execute: ['app_object_owner'], purpose: 'atomically enqueue a newly created confirmed or awaiting-payment appointment',
       typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
-        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one immutable appointment creation fact writes one queue row' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'targeted ON CONFLICT(event_id) arbitration and one immutable appointment creation fact writes one queue row' as const },
       ],
     }),
     'app.enqueue_booking_lifecycle_from_history()': rev10Function({
@@ -26974,7 +26990,7 @@ const REV10_CONTEXT = {
       execute: ['app_object_owner'], purpose: 'atomically enqueue an immutable appointment lifecycle or completed-visit history transition',
       typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
-        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one immutable history id writes one queue row' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'targeted ON CONFLICT(event_id) arbitration and one immutable history id writes one queue row' as const },
       ],
     }),
     'app.enqueue_appointment_cash_lifecycle()': rev10Function({
@@ -31947,6 +31963,11 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"support_conversations\" AS \"b4f_conv\" WHERE \"b4f_conv\".\"id\" = \"conversation_id\" AND \"b4f_conv\".\"platform_user_id\" = app.current_patient_user_id() )))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM \"public\".\"support_conversations\" AS \"b4f_conv\" WHERE \"b4f_conv\".\"id\" = \"conversation_id\" AND \"b4f_conv\".\"platform_user_id\" = app.current_patient_user_id() ))))",
   },
+  "public.support_conversation_manual_unread": {
+    policyName: "support_manual_unread_current_staff",
+    strictPredicate: "(app.is_staff() AND app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id() AND app.current_actor_user_id() IS NOT NULL AND \"staff_user_id\" = app.current_actor_user_id())",
+    dormantCompatPredicate: "(app.is_staff() AND app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id() AND app.current_actor_user_id() IS NOT NULL AND \"staff_user_id\" = app.current_actor_user_id())",
+  },
   "public.support_conversations": {
     policyName: "saas_org_dormant_p0_8_3",
     strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
@@ -33075,6 +33096,7 @@ const REV10_TENANT_DIRECT_ORG = new Set([
   'public.platform_user_contacts', 'public.product_analytics_user_hourly', 'public.product_push_notifications',
   'public.program_action_log',
   'public.reminder_rules', 'public.specialist_tasks', 'public.support_conversation_messages',
+  'public.support_conversation_manual_unread',
   'public.support_conversations', 'public.support_question_messages',
   'public.support_questions', 'public.symptom_entries', 'public.symptom_trackings', 'public.test_attempts',
   'public.treatment_program_events', 'public.treatment_program_instance_stage_items',

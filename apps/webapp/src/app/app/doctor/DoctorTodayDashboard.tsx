@@ -346,6 +346,7 @@ export function DoctorTodayDashboard({
               title={supportGroupLabel}
               value={data.onSupportPeopleCount}
               valuePlacement="side-center"
+              reserveTwoDigitValue
               opensDetails={data.onSupportPeopleCount > 0}
               onClick={data.onSupportPeopleCount > 0 ? () => setMobileModal('support') : undefined}
             />
@@ -354,6 +355,7 @@ export function DoctorTodayDashboard({
               title={<span className="whitespace-nowrap">Записи сегодня</span>}
               value={activeTodayAppointments.length}
               valuePlacement="side-center"
+              reserveTwoDigitValue
               className={
                 activeTodayAppointments.length === 0
                   ? 'border-border/60 hover:border-border/60'
@@ -363,7 +365,7 @@ export function DoctorTodayDashboard({
               detailsIcon={
                 <CalendarDays
                   className={isMobile ? 'size-3.5' : 'size-3.5 opacity-0'}
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                 />
               }
               onClick={isMobile ? () => setMobileModal('calendar') : undefined}

@@ -5,7 +5,12 @@
  * Domain SQL as typed Drizzle fragments on `execute(sql)`; no direct `pool.query`.
  */
 
-import { sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import {
+  supportConversationManualUnread,
+  supportConversationMessages,
+} from '../../../db/schema/schema';
 import { getPool } from '@/infra/db/client';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
@@ -153,6 +158,7 @@ type AdminConversationListDbRow = {
   channel_external_id: string | null;
   last_message_text: string | null;
   last_sender_role: string | null;
+  last_message_id: string;
   unread_from_user_count: number;
 };
 
@@ -178,7 +184,10 @@ function mapAdminConversationListRow(row: AdminConversationListDbRow): AdminConv
     channelExternalId: row.channel_external_id,
     lastMessageText: row.last_message_text,
     lastSenderRole: row.last_sender_role,
+    lastMessageId: row.last_message_id,
     unreadFromUserCount: Number(row.unread_from_user_count ?? 0),
+    manuallyUnread: false,
+    manualUnreadTargetMessageId: null,
   };
 }
 
@@ -499,12 +508,13 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           sc.channel_external_id,
           last_personal.last_msg_text AS last_message_text,
           last_personal.last_sender_role AS last_sender_role,
+          last_personal.last_msg_id AS last_message_id,
           COALESCE(unread.unread_from_user_count, 0)::int AS unread_from_user_count
          FROM support_conversations sc
          LEFT JOIN platform_users pu ON pu.id = sc.platform_user_id
          ${sql.raw(USER_IDENTITY_FIO_JOIN)}
          LEFT JOIN LATERAL (
-           SELECT m.text AS last_msg_text, m.sender_role AS last_sender_role, m.created_at AS personal_msg_at
+           SELECT m.id AS last_msg_id, m.text AS last_msg_text, m.sender_role AS last_sender_role, m.created_at AS personal_msg_at
            FROM support_conversation_messages m
            WHERE m.conversation_id = sc.id
              AND NOT ${sql.raw(SUPPORT_NOTIFICATION_SQL)}
@@ -543,7 +553,32 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
                   COALESCE(last_personal.personal_msg_at, sc.created_at) DESC
          LIMIT ${limit}`,
       );
-      return r.rows.map(mapAdminConversationListRow);
+      const rows = r.rows.map(mapAdminConversationListRow);
+      if (rows.length === 0 || !params.staffUserId) return rows;
+      const markers = await getDrizzle()
+        .select({
+          conversationId: supportConversationManualUnread.conversationId,
+          targetMessageId: supportConversationManualUnread.targetMessageId,
+        })
+        .from(supportConversationManualUnread)
+        .where(
+          and(
+            eq(supportConversationManualUnread.organizationId, organizationId),
+            eq(supportConversationManualUnread.staffUserId, params.staffUserId),
+            inArray(
+              supportConversationManualUnread.conversationId,
+              rows.map((row) => row.conversationId),
+            ),
+          ),
+        );
+      const markerByConversation = new Map(
+        markers.map((marker) => [marker.conversationId, marker.targetMessageId]),
+      );
+      return rows.map((row) => ({
+        ...row,
+        manuallyUnread: markerByConversation.has(row.conversationId),
+        manualUnreadTargetMessageId: markerByConversation.get(row.conversationId) ?? null,
+      }));
     },
 
     async ensureWebappConversationForUser(platformUserId) {
@@ -915,6 +950,54 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            SET updated_at = now()
            WHERE id = ${conversationId}::uuid AND organization_id = ${organizationId}::uuid`,
         );
+      });
+    },
+
+    async setManualUnreadMarker(params) {
+      return runDrizzleMutationTransaction(async (tx) => {
+        const message = await tx
+          .select({ id: supportConversationMessages.id })
+          .from(supportConversationMessages)
+          .where(
+            and(
+              eq(supportConversationMessages.id, params.targetMessageId),
+              eq(supportConversationMessages.conversationId, params.conversationId),
+              eq(supportConversationMessages.organizationId, params.organizationId),
+            ),
+          )
+          .limit(1);
+        if (!message[0]) return false;
+        await tx
+          .insert(supportConversationManualUnread)
+          .values({
+            organizationId: params.organizationId,
+            staffUserId: params.staffUserId,
+            conversationId: params.conversationId,
+            targetMessageId: params.targetMessageId,
+          })
+          .onConflictDoUpdate({
+            target: [
+              supportConversationManualUnread.organizationId,
+              supportConversationManualUnread.staffUserId,
+              supportConversationManualUnread.conversationId,
+            ],
+            set: { targetMessageId: params.targetMessageId, markedAt: new Date().toISOString() },
+          });
+        return true;
+      });
+    },
+
+    async clearManualUnreadMarker(params) {
+      await runDrizzleMutationTransaction(async (tx) => {
+        await tx
+          .delete(supportConversationManualUnread)
+          .where(
+            and(
+              eq(supportConversationManualUnread.organizationId, params.organizationId),
+              eq(supportConversationManualUnread.staffUserId, params.staffUserId),
+              eq(supportConversationManualUnread.conversationId, params.conversationId),
+            ),
+          );
       });
     },
 

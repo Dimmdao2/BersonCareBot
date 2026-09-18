@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
 import { DayPicker } from 'react-day-picker';
 import { ru } from 'react-day-picker/locale';
-import { CalendarDays, Columns3, Filter, List, Search } from 'lucide-react';
+import { Broom, CalendarDays, Columns3, Columns4, Filter, List, Search } from 'lucide-react';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
@@ -66,7 +66,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
-import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorMetricValueClass,
+  doctorSectionCardClass,
+  doctorSectionTitleClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
 import { patientCardHref } from '../../patients/patientCardHref';
@@ -221,6 +225,7 @@ export function ScheduleCalendarTab({
   const [view, setViewState] = useState<CalV26View>(
     () => bootstrap?.view ?? resolveView(deepLinkParams.view),
   );
+  const mobileInitialViewResolvedRef = useRef(false);
   const [anchorDate, setAnchorDateState] = useState<string>(
     () => bootstrap?.anchorDate ?? resolveAnchorDate(deepLinkParams.date, timeZone),
   );
@@ -428,6 +433,12 @@ export function ScheduleCalendarTab({
     [onDeepLinkChange],
   );
 
+  useEffect(() => {
+    if (!isMobileViewport || mobileInitialViewResolvedRef.current) return;
+    mobileInitialViewResolvedRef.current = true;
+    if (!deepLinkParams.view && view === 'weekgrid') setView('3days');
+  }, [deepLinkParams.view, isMobileViewport, setView, view]);
+
   const updateMobileVisibleDate = useCallback((dateKey: string, commit = false) => {
     // Раньше здесь же переписывался текст кнопки периода форматом «месяц год». Владелец 15.09
     // (п.6) заменил формат на границы периода датами, и единственным источником подписи стал
@@ -439,14 +450,6 @@ export function ScheduleCalendarTab({
       setMobileVisibleDateState((current) => (current === dateKey ? current : dateKey));
     }
   }, []);
-
-  useEffect(() => {
-    if (!isActive || !isMobileViewport || view !== 'weekgrid') return;
-    queueMicrotask(() => {
-      setCalendarLoading(true);
-      setViewState('3days');
-    });
-  }, [isActive, isMobileViewport, view]);
 
   // ─── Drill-down day ────────────────────────────────────────────────────────
 
@@ -1137,14 +1140,18 @@ export function ScheduleCalendarTab({
     });
   }, []);
 
-  /**
-   * Контролы фильтров идут одной колонкой; шаг между ними задаёт вызывающий. Владелец 15.09: «в
-   * фильтрах большие расстояния — можно чуть меньше» — 8px между контролами высотой 32px сжаты до
-   * 6px. Отступ строк от края блока владелец трогать не велел («ну хотя оставь»), поэтому padding
-   * карточки остался канонический.
-   */
+  /** Контролы фильтров идут одной плотной колонкой; шаг между ними задаёт вызывающий. */
   const renderScheduleFilters = (className: string, controlClassName?: string) => (
     <div className={className}>
+      {renderScheduleSearchControls()}
+      <label className="flex h-8 w-full cursor-pointer items-center gap-2 px-1 text-sm text-foreground">
+        <Switch
+          checked={showCancelledAppointments}
+          onCheckedChange={setShowCancelledAppointments}
+          aria-label="Показывать отмены"
+        />
+        <span>Показывать отмены</span>
+      </label>
       <DoctorCalendarToolbarFilter
         noneLabel="Все филиалы"
         options={filters.branches}
@@ -1175,17 +1182,7 @@ export function ScheduleCalendarTab({
         onOpenChange={handleCalendarFilterOpenChange}
         className={controlClassName}
       />
-      {/* Владелец 15.09: «флажок показывать отмены расположить рядом с фразой а не в другом конце
-          экрана» — переключатель прижат к подписи, а не разведён с ней по краям строки. */}
-      <label className="flex h-8 w-full cursor-pointer items-center gap-2 px-1 text-sm text-foreground">
-        <Switch
-          checked={showCancelledAppointments}
-          onCheckedChange={setShowCancelledAppointments}
-          aria-label="Показывать отмены"
-        />
-        <span>Показывать отмены</span>
-      </label>
-      {renderScheduleSearchControls()}
+      {renderScheduleResultCount()}
     </div>
   );
 
@@ -1254,19 +1251,14 @@ export function ScheduleCalendarTab({
     [],
   );
 
-  /**
-   * Владелец 15.09: «вижу что съехало слово список - давай там иконку списка рисовать без слова».
-   * Четыре подписи в ряд не помещались в ширину правой панели, и «Список» переносился на свою
-   * строку. Режим списка — единственный не-календарный, поэтому именно он уходит в иконку;
-   * подпись остаётся доступной как `aria-label` и всплывающая подсказка.
-   */
+  /** «Список» остаётся компактной иконкой; подпись доступна через aria-label/title. */
   const scheduleViewOptions: Array<{
     key: CalV26View | 'list';
     label: string;
     iconOnly?: boolean;
   }> = [
     { key: '3days', label: '3 дня' },
-    ...(isMobileViewport ? [] : [{ key: 'weekgrid' as const, label: 'Неделя' }]),
+    { key: 'weekgrid', label: 'Неделя' },
     { key: 'month', label: 'Месяц' },
     { key: 'list', label: 'Список', iconOnly: true },
   ];
@@ -1283,48 +1275,57 @@ export function ScheduleCalendarTab({
    * же: какой отрезок времени показан. Теперь это одна карточка в две строки; рамка, заголовок и
    * межблочный зазор экономятся в пользу фильтров ниже.
    *
-   * «Список» — один из вариантов длины периода, отдельной иконки календаря нет. «Неделя» на
-   * мобильном не предлагается (владелец 15.09: «только без недели») — недельная сетка там всё
-   * равно не живёт, отдельный эффект разворачивает `weekgrid` обратно в `3days` на узком экране.
+   * «Список» — один из вариантов длины периода, отдельной иконки календаря нет. По более новому
+   * решению владельца 19.09 недельная сетка снова доступна и на мобильном.
    *
    * Заголовок блока скрыт на десктопе (`xl:hidden`, владелец 15.09) — в постоянно открытой
    * панели он лишний шум; в модалке (планшет и мобильный) остаётся: там блоки идут подряд без
    * контекста страницы.
    */
   const renderSchedulePeriodBlock = (slotKey: 'aside' | 'modal') => (
-    <section className={doctorSectionCardClass}>
-      <h2 className={cn(doctorSectionTitleClass, 'xl:hidden')}>Период</h2>
-      <div className="flex flex-wrap gap-1" role="group" aria-label="Режим отображения">
-        {scheduleViewOptions.map(({ key, label, iconOnly }) => {
-          const active =
-            key === 'list' ? renderMode === 'list' : renderMode === 'calendar' && view === key;
-          return (
-            <Button
-              key={key}
-              type="button"
-              size="sm"
-              variant={active ? 'default' : 'outline'}
-              className={active ? undefined : INACTIVE_TOOLBAR_BUTTON_CLASS}
-              onClick={() => {
-                setFiltersPanelOpen(false);
-                if (view === 'day') {
-                  setDrillBackView(null);
-                  onDeepLinkChange('from', null);
-                }
-                if (key === 'list') {
-                  setRenderMode('list');
-                  return;
-                }
-                setRenderMode('calendar');
-                setView(key);
-              }}
-              data-testid={key === 'list' ? 'render-btn-list' : `view-btn-${key}`}
-              {...(iconOnly ? { 'aria-label': label, title: label } : {})}
-            >
-              {iconOnly ? <List className="size-4" aria-hidden /> : label}
-            </Button>
-          );
-        })}
+    <section className={cn(doctorSectionCardClass, slotKey === 'modal' && 'gap-2 p-3')}>
+      <div className="flex min-w-0 items-center gap-2">
+        <h2 className={cn(doctorSectionTitleClass, 'shrink-0 xl:hidden')}>Период</h2>
+        <div
+          className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1"
+          role="group"
+          aria-label="Режим отображения"
+        >
+          {scheduleViewOptions.map(({ key, label, iconOnly }) => {
+            const active =
+              key === 'list' ? renderMode === 'list' : renderMode === 'calendar' && view === key;
+            return (
+              <Button
+                key={key}
+                type="button"
+                size="sm"
+                variant={active ? 'default' : 'outline'}
+                className={cn(
+                  'h-8 px-2 text-xs',
+                  !active && INACTIVE_TOOLBAR_BUTTON_CLASS,
+                  iconOnly && 'w-8 px-0',
+                )}
+                onClick={() => {
+                  setFiltersPanelOpen(false);
+                  if (view === 'day') {
+                    setDrillBackView(null);
+                    onDeepLinkChange('from', null);
+                  }
+                  if (key === 'list') {
+                    setRenderMode('list');
+                    return;
+                  }
+                  setRenderMode('calendar');
+                  setView(key);
+                }}
+                data-testid={key === 'list' ? 'render-btn-list' : `view-btn-${key}`}
+                {...(iconOnly ? { 'aria-label': label, title: label } : {})}
+              >
+                {iconOnly ? <List className="size-4" aria-hidden /> : label}
+              </Button>
+            );
+          })}
+        </div>
       </div>
       {/* Drill-down «День»: показываем если сейчас day (клик по дню в месяце) */}
       {view === 'day' ? (
@@ -1387,15 +1388,14 @@ export function ScheduleCalendarTab({
     </section>
   );
 
-  /**
-   * Поиск по записям. Владелец 15.09: «поиск перенести под блок с выбором филиала/услуги/отмен —
-   * и в десктопе/планшете и в мобиле». Сначала это была отдельная карточка сразу под фильтрами,
-   * теперь — «поиск влей в фильтры» (владелец 15.09): строка поиска стоит последним контролом
-   * ВНУТРИ блока фильтров, рядом с филиалом/сотрудником/услугой/отменами. Она такой же фильтр
-   * выдачи, как они, и собственная рамка с заголовком делала из неё отдельную сущность.
-   * С мобильного верхнего тулбара строка убрана тем же решением — на телефоне она живёт здесь же,
-   * в модалке фильтров.
-   */
+  const clearScheduleSearch = () => {
+    setSearchQuery('');
+    setServerSearchQuery(null);
+    setServerSearchItems([]);
+    setServerSearchTotal(null);
+    setServerSearchHasMore(false);
+  };
+
   const renderScheduleSearchControls = () => (
     <>
       <div className="relative">
@@ -1408,28 +1408,22 @@ export function ScheduleCalendarTab({
           placeholder="Поиск записей…"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          className="h-8 pl-8 text-sm"
+          className="h-8 border-primary/80 pl-8 pr-8 text-sm focus-visible:border-primary"
           aria-label="Поиск записей"
         />
+        {searchQuery ? (
+          <button
+            type="button"
+            className="absolute right-1 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={clearScheduleSearch}
+            aria-label="Очистить поиск"
+          >
+            <Broom className="size-4" aria-hidden />
+          </button>
+        ) : null}
       </div>
       {renderMode === 'list' && searchQuery.trim() ? (
         <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-          <div className="flex items-center justify-between gap-3">
-            <DoctorResultCount
-              data-testid="search-count"
-              label="Найдено"
-              value={serverSearchTotal ?? visibleListAppointments.length}
-            />
-            {/*
-              Владелец 15.09: «в режиме списка, поскольку мы подгружаем так же историю, писать не
-              только сколько найдено но и с какого периода». У ленты нет конца периода — есть
-              граница, докуда её дотянули, поэтому вместо диапазона пишем одну дату: самую раннюю
-              из найденного.
-            */}
-            {searchResultsFromLabel ? (
-              <span data-testid="search-from">с {searchResultsFromLabel}</span>
-            ) : null}
-          </div>
           {searchQuery.trim().length >= 3 && !serverSearchQuery ? (
             <button
               type="button"
@@ -1443,6 +1437,25 @@ export function ScheduleCalendarTab({
         </div>
       ) : null}
     </>
+  );
+
+  const renderScheduleResultCount = () => (
+    <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+      <DoctorResultCount
+        data-testid="search-count"
+        className="py-1"
+        label="Найдено"
+        value={
+          renderMode === 'list'
+            ? (serverSearchTotal ?? visibleListAppointments.length)
+            : searchedCalendarEvents.filter((event) => event.kind === 'appointment').length
+        }
+        valueClassName={doctorMetricValueClass}
+      />
+      {renderMode === 'list' && searchQuery.trim() && searchResultsFromLabel ? (
+        <span data-testid="search-from">с {searchResultsFromLabel}</span>
+      ) : null}
+    </div>
   );
 
   const kpiFilterPredicate = useMemo<
@@ -2519,7 +2532,9 @@ export function ScheduleCalendarTab({
                   ? 'Список. Переключить на три дня'
                   : view === 'month'
                     ? 'Месяц. Переключить на список'
-                    : 'Три дня. Переключить на месяц'
+                    : view === 'weekgrid'
+                      ? 'Неделя. Переключить на месяц'
+                      : 'Три дня. Переключить на неделю'
               }
               onClick={() => {
                 setFiltersPanelOpen(false);
@@ -2537,13 +2552,15 @@ export function ScheduleCalendarTab({
                   setDrillBackView(null);
                   onDeepLinkChange('from', null);
                 }
-                setView('month');
+                setView(view === '3days' ? 'weekgrid' : 'month');
               }}
             >
               {renderMode === 'list' ? (
                 <List className="size-4" aria-hidden />
               ) : view === 'month' ? (
                 <CalendarDays className="size-4" aria-hidden />
+              ) : view === 'weekgrid' ? (
+                <Columns4 className="size-4" aria-hidden />
               ) : (
                 <Columns3 className="size-4" aria-hidden />
               )}
@@ -3089,7 +3106,7 @@ export function ScheduleCalendarTab({
               «ты в режиме списка убрал фильтры, а надо было цифры в них». Плитки в ленте остаются
               все пять (это единственный доступ к отбору), уходят только числа и подпись периода:
               и то и другое посчитано по якорному периоду, а лента тянет историю месяцами. Сколько
-              найдено — говорит счётчик в блоке фильтров (`renderScheduleSearchControls`). */}
+              найдено — говорит счётчик внизу блока фильтров (`renderScheduleResultCount`). */}
           {showKpi ? (
             <KpiRowTab
               kpis={kpis}
@@ -3206,13 +3223,12 @@ export function ScheduleCalendarTab({
         title="Фильтры"
         size="lg"
         variant="panel"
-        bodyClassName="p-4"
+        bodyClassName="p-3"
       >
         <div id="schedule-filters-panel" className="flex flex-col gap-3">
-          {/* Владелец 15.09: «в модалке мобильного пусть будет так же две верхние строки — выбор
-              периода на экране и режима» — блок «Период» (режим + дата одной карточкой, «слей
-              блоки период и дата в один») показывается и на мобильном, раньше стоял только для
-              планшета. Поиск — последняя строка блока фильтров («поиск влей в фильтры»). */}
+          {/* Блок «Период» (режим + дата одной карточкой) показывается и на мобильном. Поиск и
+              переключатель отмен стоят первыми в следующем блоке, над фильтрами филиала,
+              сотрудника и услуги. */}
           {renderSchedulePeriodBlock('modal')}
           {renderScheduleFilters('flex flex-col gap-1.5', 'w-full')}
           {/* То же, что и в `<aside>`: в ленте плитки остаются отбором, без чисел и без подписи

@@ -16,6 +16,8 @@ import {
   doctorDnaFlatListSelectedPrimaryClass,
   doctorDnaFlatListUnreadTextClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { Mail } from 'lucide-react';
+import { DoctorMobileSwipeAction } from '@/shared/ui/doctor/DoctorMobileSwipeAction';
 
 export type DoctorConversationListRowData = {
   conversationId: string;
@@ -26,7 +28,9 @@ export type DoctorConversationListRowData = {
   lastMessageAt: string;
   lastMessageText: string | null;
   lastSenderRole?: string | null;
+  lastMessageId?: string;
   unreadFromUserCount: number;
+  manuallyUnread?: boolean;
   onSupport?: boolean;
 };
 
@@ -37,6 +41,7 @@ type DoctorConversationListRowProps = {
   variant?: 'default' | 'unread-preview';
   href?: string;
   onClick?: () => void;
+  onMarkUnread?: () => void | Promise<void>;
 };
 
 function formatConversationTime(value: string, timeZone: string): string {
@@ -68,9 +73,11 @@ export function DoctorConversationListRow({
   variant = 'default',
   href,
   onClick,
+  onMarkUnread,
 }: DoctorConversationListRowProps) {
   const hasStructuredName = Boolean(conversation.lastName ?? conversation.firstName);
   const isUnreadPreview = variant === 'unread-preview';
+  const unread = conversation.unreadFromUserCount > 0 || conversation.manuallyUnread === true;
   const content = (
     <>
       {selected ? <DoctorDnaFlatListSelectionStrip /> : null}
@@ -87,7 +94,7 @@ export function DoctorConversationListRow({
               'min-w-0 truncate',
               doctorDnaFlatListPrimaryClass,
               selected && doctorDnaFlatListSelectedPrimaryClass,
-              conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
+              unread && doctorDnaFlatListUnreadTextClass,
             )}
           >
             {hasStructuredName
@@ -99,14 +106,20 @@ export function DoctorConversationListRow({
               className={cn(
                 doctorDnaFlatListMetaClass,
                 !isUnreadPreview &&
-                  conversation.unreadFromUserCount > 0 &&
+                  unread &&
                   doctorDnaFlatListUnreadTextClass,
               )}
             >
               {formatConversationTime(conversation.lastMessageAt, displayIana)}
             </span>
             {isUnreadPreview ? (
-              <DoctorAttentionBadge count={conversation.unreadFromUserCount} />
+              conversation.unreadFromUserCount > 0 ? (
+                <DoctorAttentionBadge count={conversation.unreadFromUserCount} />
+              ) : conversation.manuallyUnread ? (
+                <span className="relative size-3" aria-label="Отмечен непрочитанным">
+                  <DoctorAttentionBadge count={1} dot tone="primary" />
+                </span>
+              ) : null
             ) : null}
           </span>
         </div>
@@ -117,7 +130,7 @@ export function DoctorConversationListRow({
                 ? doctorListPreviewTextClass
                 : cn('mt-0.5 truncate', doctorDnaFlatListSecondaryClass),
               !isUnreadPreview &&
-                conversation.unreadFromUserCount > 0 &&
+                unread &&
                 doctorDnaFlatListUnreadTextClass,
             )}
           >
@@ -127,7 +140,13 @@ export function DoctorConversationListRow({
         ) : null}
       </div>
       {!isUnreadPreview ? (
-        <DoctorAttentionBadge count={conversation.unreadFromUserCount} className="self-center" />
+        conversation.unreadFromUserCount > 0 ? (
+          <DoctorAttentionBadge count={conversation.unreadFromUserCount} className="self-center" />
+        ) : conversation.manuallyUnread ? (
+          <span className="relative size-3 self-center" aria-label="Отмечен непрочитанным">
+            <DoctorAttentionBadge count={1} dot tone="primary" />
+          </span>
+        ) : null
       ) : null}
     </>
   );
@@ -137,17 +156,29 @@ export function DoctorConversationListRow({
     'h-auto w-full rounded-none bg-transparent text-left shadow-none',
   );
 
-  if (href) {
+  const row = href ? (
+    <Link href={href} className={rowClassName}>
+      {content}
+    </Link>
+  ) : (
+    <Button type="button" variant="ghost" onClick={onClick} className={rowClassName}>
+      {content}
+    </Button>
+  );
+
+  if (!onMarkUnread || unread) {
     return (
-      <Link href={href} className={rowClassName}>
-        {content}
-      </Link>
+      row
     );
   }
 
   return (
-    <Button type="button" variant="ghost" onClick={onClick} className={rowClassName}>
-      {content}
-    </Button>
+    <DoctorMobileSwipeAction
+      action={<Mail className="size-6" aria-hidden />}
+      actionLabel="Отметить непрочитанным"
+      onAction={onMarkUnread}
+    >
+      {row}
+    </DoctorMobileSwipeAction>
   );
 }

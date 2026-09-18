@@ -78,6 +78,11 @@ export function createSpecialistTasksService(
       return port.complete(taskId, ownerUserId);
     },
 
+    reactivate(taskId: string, ownerUserId: string) {
+      deps?.assertWriteClearance?.('specialist_tasks');
+      return port.reactivate(taskId, ownerUserId);
+    },
+
     delete(taskId: string, ownerUserId: string) {
       deps?.assertWriteClearance?.('specialist_tasks');
       return port.delete(taskId, ownerUserId);

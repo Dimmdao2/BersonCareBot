@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { ListPlus, ListTodo } from 'lucide-react';
+import toast from 'react-hot-toast';
 import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskDueOnDate } from '@/modules/specialist-tasks/taskPriority';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
@@ -38,6 +39,7 @@ import {
   NAV_STRIP_ICON_STROKE,
 } from '@/shared/ui/doctor/navChrome';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Pane = { kind: 'details' | 'edit'; taskId: string } | null;
 type TaskView = 'open' | 'completed';
@@ -207,17 +209,21 @@ export function DoctorTasksPageClient({
   const complete = async (taskId: string): Promise<boolean> => {
     setBusy(true);
     setError(null);
+    const reportFailure = () => {
+      setError(notificationText.specialistTaskCompleteFailed);
+      toast.error(notificationText.specialistTaskCompleteFailed);
+    };
     try {
       const response = await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, {
         method: 'POST',
       });
       if (!response.ok) {
-        setError('Не удалось выполнить задачу');
+        reportFailure();
         return false;
       }
       const data = (await response.json()) as { task?: Task };
       if (!data.task) {
-        setError('Не удалось выполнить задачу');
+        reportFailure();
         return false;
       }
       const completedTask = data.task;
@@ -226,7 +232,35 @@ export function DoctorTasksPageClient({
       setPane(null);
       return true;
     } catch {
-      setError('Ошибка сети');
+      reportFailure();
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reactivate = async (taskId: string): Promise<boolean> => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/reactivate`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        setError(notificationText.specialistTaskReactivateFailed);
+        return false;
+      }
+      const data = (await response.json()) as { task?: Task };
+      if (!data.task) {
+        setError(notificationText.specialistTaskReactivateFailed);
+        return false;
+      }
+      setTasks((current) => current.map((task) => (task.id === taskId ? data.task! : task)));
+      notifyDoctorTasksChanged();
+      setPane(null);
+      return true;
+    } catch {
+      setError(notificationText.specialistTaskReactivateFailed);
       return false;
     } finally {
       setBusy(false);
@@ -271,7 +305,11 @@ export function DoctorTasksPageClient({
               <Button disabled={busy} onClick={() => void complete(selected.id)}>
                 Выполнить
               </Button>
-            ) : null}
+            ) : (
+              <Button disabled={busy} onClick={() => void reactivate(selected.id)}>
+                Активировать
+              </Button>
+            )}
           </div>
         ) : null}
       </div>
@@ -383,6 +421,9 @@ export function DoctorTasksPageClient({
                             mobileFlat
                             onOpen={(row) => setPane({ kind: 'details', taskId: row.id })}
                             active={selected?.id === task.id}
+                            canMutate={canMutate}
+                            busy={busy}
+                            onComplete={(taskId) => void complete(taskId)}
                           />
                         ))}
                       </DoctorDnaFlatList>
@@ -418,6 +459,7 @@ export function DoctorTasksPageClient({
           busy={busy}
           variant="panel"
           onComplete={complete}
+          onReactivate={reactivate}
           onTaskSaved={saveTask}
           onTaskDeleted={deleteTask}
         />

@@ -14,6 +14,7 @@ import type {
 } from './types';
 import { exerciseArchiveRequiresAcknowledgement } from './types';
 import { UserFacingError } from '@/shared/errors/userFacingError';
+import { normalizeHumanText } from '@/shared/lib/normalizeHumanText';
 import { notificationText } from '@/shared/notifications/notificationText';
 
 export type LfkExerciseWriteOptions = {
@@ -46,17 +47,21 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       createdBy: string | null,
       options?: LfkExerciseWriteOptions,
     ) {
-      const title = input.title?.trim() ?? '';
+      const title = normalizeHumanText(input.title?.trim() ?? '');
       if (!title) {
         throw new UserFacingError(notificationText.exerciseNameRequired);
       }
+      const description = input.description?.trim() || null;
+      const contraindications = input.contraindications?.trim() || null;
       return runExerciseWrite(options, () =>
         port.create(
           {
             ...input,
             title,
-            description: input.description?.trim() || null,
-            contraindications: input.contraindications?.trim() || null,
+            description: description === null ? null : normalizeHumanText(description),
+            contraindications:
+              contraindications === null ? null : normalizeHumanText(contraindications),
+            tags: input.tags?.map(normalizeHumanText) ?? null,
           },
           createdBy,
         ),
@@ -75,15 +80,21 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       }
       const patch: UpdateExerciseInput = { ...input };
       if (input.title !== undefined) {
-        const t = input.title.trim();
+        const t = normalizeHumanText(input.title.trim());
         if (!t) throw new UserFacingError(notificationText.exerciseNameRequired);
         patch.title = t;
       }
       if (input.description !== undefined) {
-        patch.description = input.description?.trim() || null;
+        const description = input.description?.trim() || null;
+        patch.description = description === null ? null : normalizeHumanText(description);
       }
       if (input.contraindications !== undefined) {
-        patch.contraindications = input.contraindications?.trim() || null;
+        const contraindications = input.contraindications?.trim() || null;
+        patch.contraindications =
+          contraindications === null ? null : normalizeHumanText(contraindications);
+      }
+      if (input.tags !== undefined) {
+        patch.tags = input.tags?.map(normalizeHumanText) ?? null;
       }
       const row = await runExerciseWrite(options, () => port.update(id, patch));
       if (!row) throw new UserFacingError(notificationText.exerciseNotFound);

@@ -30,6 +30,7 @@ import {
   getSpecialistTaskPatientContextContent,
 } from './SpecialistTaskRow';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   open: boolean;
@@ -43,6 +44,7 @@ type Props = {
   busy?: boolean;
   variant?: DoctorModalVariant;
   onComplete: (taskId: string) => Promise<boolean>;
+  onReactivate?: (taskId: string) => Promise<boolean>;
   onTaskSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
   onTaskDeleted?: (taskId: string) => void;
 };
@@ -170,6 +172,7 @@ export function SpecialistTaskDetailsDialog({
   busy = false,
   variant = 'panel',
   onComplete,
+  onReactivate,
   onTaskSaved,
   onTaskDeleted,
 }: Props) {
@@ -192,7 +195,18 @@ export function SpecialistTaskDetailsDialog({
       onClose();
       return;
     }
-    setError('Не удалось выполнить задачу');
+    setError(notificationText.specialistTaskCompleteFailed);
+  };
+
+  const reactivate = async () => {
+    if (!task || !onReactivate) return;
+    setError(null);
+    const activated = await onReactivate(task.id);
+    if (activated) {
+      onClose();
+      return;
+    }
+    setError(notificationText.specialistTaskReactivateFailed);
   };
 
   return (
@@ -226,6 +240,10 @@ export function SpecialistTaskDetailsDialog({
             {task && !task.completedAt ? (
               <Button type="button" disabled={busy} onClick={() => void complete()}>
                 Выполнить
+              </Button>
+            ) : task && onReactivate ? (
+              <Button type="button" disabled={busy} onClick={() => void reactivate()}>
+                Активировать
               </Button>
             ) : null}
           </>

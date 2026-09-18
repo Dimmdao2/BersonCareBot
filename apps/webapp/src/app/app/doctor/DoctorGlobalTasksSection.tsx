@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
 import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
 import { SpecialistTaskDetailsDialog } from './clients/SpecialistTaskDetailsDialog';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 /** How many non-overdue tasks to show in the compact preview before collapsing into "Все задачи". */
 const NEAREST_UPCOMING_PREVIEW_LIMIT = 3;
@@ -86,6 +88,11 @@ export function DoctorGlobalTasksSection({
   // the nearest N upcoming; everything else is reachable via the "Все задачи" button/modal.
   const visibleTasks = sortedTasks.slice(0, overdueCount + NEAREST_UPCOMING_PREVIEW_LIMIT);
   const hasMore = tasksTotal > visibleTasks.length;
+  const completeFromRow = async (taskId: string) => {
+    if (!(await onComplete(taskId))) {
+      toast.error(notificationText.specialistTaskCompleteFailed);
+    }
+  };
 
   if (!readable) return null;
 
@@ -123,6 +130,8 @@ export function DoctorGlobalTasksSection({
                   displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false
                 }
                 canMutate={available}
+                busy={busy}
+                onComplete={(taskId) => void completeFromRow(taskId)}
                 onOpen={(selected) => setSelectedTaskId(selected.id)}
               />
             ))}
@@ -164,6 +173,8 @@ export function DoctorGlobalTasksSection({
               }
               dueToday={displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false}
               canMutate={available}
+              busy={busy}
+              onComplete={(taskId) => void completeFromRow(taskId)}
               onOpen={(selected) => {
                 setSelectedTaskId(selected.id);
               }}
