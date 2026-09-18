@@ -296,6 +296,15 @@ function formatDaysRu(days: number): string {
   return `${days} дней`;
 }
 
+function formatExerciseCountRu(count: number): string {
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 14) return `${count} упражнений`;
+  const mod10 = count % 10;
+  if (mod10 === 1) return `${count} упражнение`;
+  if (mod10 >= 2 && mod10 <= 4) return `${count} упражнения`;
+  return `${count} упражнений`;
+}
+
 function utcCalendarDayIndex(iso: string): number | null {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
@@ -1582,12 +1591,8 @@ export function PatientTabOverview({
       ? elapsedProgramDays(displayStage.startedAt, clientNowIso)
       : null;
   const stageTimingLabel =
-    stageElapsedDays != null
-      ? `${formatDaysRu(stageElapsedDays)}${
-          displayStage?.expectedDurationDays != null
-            ? ` (по плану ${formatDaysRu(displayStage.expectedDurationDays)})`
-            : ''
-        }`
+    stageElapsedDays != null && displayStage?.startedAt
+      ? `с ${fmtDateShort(displayStage.startedAt)} (${formatDaysRu(stageElapsedDays)})`
       : !displayStage?.startedAt && displayStage?.expectedDurationDays != null
         ? `по плану ${formatDaysRu(displayStage.expectedDurationDays)}`
         : null;
@@ -2204,13 +2209,18 @@ export function PatientTabOverview({
                   variant="ghost"
                   onClick={() => setStageExercisesModalOpen(true)}
                   className={cn(
-                    'relative h-auto min-h-9 w-full justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
+                    'relative h-auto min-h-9 w-full items-start justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
                     currentStageUnread > 0
                       ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive'
                       : 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary',
                   )}
                 >
-                  <span className="line-clamp-2">{displayStage.title}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block line-clamp-2">{displayStage.title}</span>
+                    <span className="mt-0.5 block text-sm text-foreground">
+                      {formatExerciseCountRu(displayStageExercises.length)}
+                    </span>
+                  </span>
                   <DoctorAttentionBadge count={currentStageUnread} dot />
                 </Button>
               ) : null}
