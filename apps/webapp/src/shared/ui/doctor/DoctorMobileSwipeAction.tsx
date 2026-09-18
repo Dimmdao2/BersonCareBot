@@ -104,7 +104,11 @@ export function DoctorMobileSwipeAction({
     <Container className={cn('relative overflow-hidden', className)}>
       {enabled ? (
         <div
-          className="absolute inset-y-0 right-0 flex w-[72px] items-center justify-center bg-primary text-primary-foreground"
+          className={cn(
+            'absolute inset-y-0 right-0 flex items-center justify-center overflow-hidden bg-primary text-primary-foreground',
+            !dragging && 'transition-[width] duration-150 ease-out',
+          )}
+          style={{ width: Math.abs(offset) }}
           aria-label={actionLabel}
           aria-hidden
         >

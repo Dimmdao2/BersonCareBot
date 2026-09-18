@@ -38,6 +38,7 @@ import {
   NAV_STRIP_ICON_STROKE,
 } from '@/shared/ui/doctor/navChrome';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Pane = { kind: 'details' | 'edit'; taskId: string } | null;
 type TaskView = 'open' | 'completed';
@@ -212,12 +213,12 @@ export function DoctorTasksPageClient({
         method: 'POST',
       });
       if (!response.ok) {
-        setError('Не удалось выполнить задачу');
+        setError(notificationText.specialistTaskCompleteFailed);
         return false;
       }
       const data = (await response.json()) as { task?: Task };
       if (!data.task) {
-        setError('Не удалось выполнить задачу');
+        setError(notificationText.specialistTaskCompleteFailed);
         return false;
       }
       const completedTask = data.task;
@@ -226,7 +227,7 @@ export function DoctorTasksPageClient({
       setPane(null);
       return true;
     } catch {
-      setError('Ошибка сети');
+      setError(notificationText.specialistTaskCompleteFailed);
       return false;
     } finally {
       setBusy(false);
@@ -241,12 +242,12 @@ export function DoctorTasksPageClient({
         method: 'POST',
       });
       if (!response.ok) {
-        setError('Не удалось активировать задачу');
+        setError(notificationText.specialistTaskReactivateFailed);
         return false;
       }
       const data = (await response.json()) as { task?: Task };
       if (!data.task) {
-        setError('Не удалось активировать задачу');
+        setError(notificationText.specialistTaskReactivateFailed);
         return false;
       }
       setTasks((current) => current.map((task) => (task.id === taskId ? data.task! : task)));
@@ -254,7 +255,7 @@ export function DoctorTasksPageClient({
       setPane(null);
       return true;
     } catch {
-      setError('Ошибка сети');
+      setError(notificationText.specialistTaskReactivateFailed);
       return false;
     } finally {
       setBusy(false);

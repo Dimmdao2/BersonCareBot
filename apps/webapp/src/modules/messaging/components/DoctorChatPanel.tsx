@@ -112,12 +112,12 @@ export function DoctorChatPanel({
           },
         );
         if (!response.ok) {
-          setError('Не удалось отметить диалог непрочитанным');
+          setError(notificationText.messagingMarkUnreadFailed);
           return;
         }
         await onManualUnreadChangedRef.current?.();
       } catch {
-        setError('Ошибка сети');
+        setError(notificationText.messagingMarkUnreadFailed);
       }
     },
     [conversationId],

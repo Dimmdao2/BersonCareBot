@@ -24,6 +24,7 @@ import {
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { patientCardHref } from '../patients/patientCardHref';
 import { ChatClientOverviewPanel } from './ChatClientOverviewPanel';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -222,7 +223,7 @@ export function DoctorSupportInbox({
         },
       );
       if (!response.ok) {
-        setError('Не удалось отметить диалог непрочитанным');
+        setError(notificationText.messagingMarkUnreadFailed);
         return;
       }
       setAllList((current) =>
@@ -237,7 +238,7 @@ export function DoctorSupportInbox({
         ),
       );
     } catch {
-      setError('Ошибка сети');
+      setError(notificationText.messagingMarkUnreadFailed);
     }
   }, []);
 

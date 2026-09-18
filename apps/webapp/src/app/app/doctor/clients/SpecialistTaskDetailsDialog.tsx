@@ -30,6 +30,7 @@ import {
   getSpecialistTaskPatientContextContent,
 } from './SpecialistTaskRow';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
+import { notificationText } from '@/shared/notifications/notificationText';
 
 type Props = {
   open: boolean;
@@ -194,7 +195,7 @@ export function SpecialistTaskDetailsDialog({
       onClose();
       return;
     }
-    setError('Не удалось выполнить задачу');
+    setError(notificationText.specialistTaskCompleteFailed);
   };
 
   const reactivate = async () => {
@@ -205,7 +206,7 @@ export function SpecialistTaskDetailsDialog({
       onClose();
       return;
     }
-    setError('Не удалось активировать задачу');
+    setError(notificationText.specialistTaskReactivateFailed);
   };
 
   return (
