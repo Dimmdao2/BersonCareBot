@@ -27,6 +27,28 @@ function deliveryBodyDeps() {
 }
 
 describe('scheduler leader cadence', () => {
+  /**
+   * Independent oracle: PAY-REL-04 requires resident automatic reconciliation; the signed wake is
+   * the scheduler's observable side effect. If this call silently disappears, missed provider
+   * money is never materialized for the durable worker.
+   */
+  it('wakes appointment payment reconciliation from the resident leader cadence', async () => {
+    const runAppointmentPaymentReconciliationWake = vi.fn(async () => true);
+    const coordinator = createSchedulerLockedTickCoordinator({
+      assertLockStillHeld: vi.fn(async () => undefined),
+      runOrganizationTicks: vi.fn(async () => 0),
+      ...deliveryBodyDeps(),
+      ...healthWakeDeps(),
+      runOperatorHealthProbeTick: vi.fn(async () => false),
+      runAppointmentPaymentReconciliationWake,
+      onOrganizationTickError: vi.fn(),
+    });
+
+    await coordinator.runTick();
+
+    expect(runAppointmentPaymentReconciliationWake).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['operator_health_digest_wake', 'runOperatorHealthDigestWake'],
     ['system_health_guard_wake', 'runSystemHealthGuardWake'],

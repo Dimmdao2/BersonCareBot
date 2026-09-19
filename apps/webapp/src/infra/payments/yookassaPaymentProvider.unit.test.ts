@@ -227,3 +227,76 @@ describe('yookassa listPayments — what the reconciliation actually gets', () =
     ]);
   });
 });
+
+/**
+ * Independent oracle: YooKassa's invoice flow says to GET the invoice first and, once
+ * `payment_details.id` appears, GET that payment object. The id returned by `POST /v3/invoices`
+ * is not a payment id:
+ * https://yookassa.ru/developers/payment-acceptance/scenario-extensions/invoices/payments
+ *
+ * Expensive silent failure: every appointment prepayment with a deadline stores an invoice id;
+ * treating it as a payment id makes the point-reconciliation lane exhaust without observing money.
+ */
+describe('yookassa appointment invoice point reconciliation', () => {
+  it('re-reads the provider ref returned at invoice creation after its linked payment succeeds', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === 'https://api.yookassa.ru/v3/invoices' && init?.method === 'POST') {
+        return jsonResponse(200, {
+          id: 'in-appointment-1',
+          delivery_method: { url: 'https://yookassa.example.test/invoice' },
+        });
+      }
+      if (url === 'https://api.yookassa.ru/v3/invoices/in-appointment-1') {
+        return jsonResponse(200, {
+          id: 'in-appointment-1',
+          status: 'succeeded',
+          payment_details: { id: 'payment-appointment-1', status: 'succeeded' },
+        });
+      }
+      if (url === 'https://api.yookassa.ru/v3/payments/payment-appointment-1') {
+        return jsonResponse(200, {
+          id: 'payment-appointment-1',
+          status: 'succeeded',
+          amount: { value: '100.00', currency: 'RUB' },
+          invoice_details: { id: 'in-appointment-1' },
+          metadata: {
+            idempotencyKey: 'appointment-payment-1',
+            payerRef: 'platform_user:user-1',
+            purpose: 'appointment_prepayment',
+            subjectRef: 'appointment-1',
+          },
+        });
+      }
+      return jsonResponse(404, { type: 'error', code: 'not_found' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = createYookassaPaymentProvider();
+
+    const created = await provider.createIntent({
+      ...createIntentParams,
+      idempotencyKey: 'appointment-payment-1',
+      payerRef: 'platform_user:user-1',
+      purpose: 'appointment_prepayment',
+      subjectRef: 'appointment-1',
+      invoice: {
+        description: 'Appointment prepayment',
+        expiresAt: '2026-09-20T00:00:00.000Z',
+      },
+    });
+
+    await expect(
+      provider.getPaymentStatus!({
+        providerObjectRef: created.providerIntentRef,
+        providerConfig,
+      }),
+    ).resolves.toMatchObject({
+      providerObjectRef: 'payment-appointment-1',
+      providerPaymentRef: 'in-appointment-1',
+      idempotencyKey: 'appointment-payment-1',
+      eventType: 'payment.succeeded',
+      amountMinor: 10_000,
+      currency: 'RUB',
+    });
+  });
+});
