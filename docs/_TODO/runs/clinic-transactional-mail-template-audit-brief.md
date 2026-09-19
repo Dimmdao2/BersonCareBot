@@ -1,5 +1,9 @@
 # Audit brief: clinic transactional mail template
 
+## Тест или взгляд
+
+Сначала классифицируй каждый риск ниже отдельно: повторяемое наблюдаемое поведение проверяй самым дешёвым публичным тестом и fault injection; UI, wiring, отсутствие параллельной сущности и согласованность consumer-полей проверяй чтением итогового кода. UI/DOM/copy-тесты запрещены.
+
 Exact candidate: `69ffd09c5` on `wt/mail-template-settings`.
 
 Authority:
