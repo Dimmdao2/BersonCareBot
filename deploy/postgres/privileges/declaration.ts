@@ -13239,6 +13239,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
+  "public.be_payment_reconciliation_checkpoints": {
+    "kind": "direct",
+    "purpose": "durable appointment payment provider reconciliation checkpoint",
+    "codePaths": [
+      "apps/webapp/src/infra/repos/pgPayments.ts"
+    ],
+    "grants": []
+  },
   "public.be_payment_provider_events": {
     "kind": "direct",
     "purpose": "сырые вебхуки платёжного провайдера — платёж не подтверждается автоматически",
@@ -23504,6 +23512,7 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.be_payment_history_events', cls: 'P', org: true, why: 'история платежей пациента — пропадает платёжная '
     + 'хронология в карточке пациента' },
   { t: 'public.be_payment_intents', cls: 'P', org: true, why: 'намерения оплаты — не создаётся ссылка на оплату/предоплату' },
+  { t: 'public.be_payment_reconciliation_checkpoints', cls: 'C', org: true, why: 'durable watermark не даёт provider sweep пропустить оплату после сбоя' },
   { t: 'public.be_payment_provider_events', cls: 'C', org: true, why: 'сырые вебхуки платёжного провайдера — платёж '
     + 'не подтверждается автоматически' },
   { t: 'public.be_payments', cls: 'P', org: true, why: 'платежи пациента — нет учёта оплат визитов' },
@@ -26133,6 +26142,21 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking-payment.webhook.settle',
       functionIdentity: 'app.settle_booking_payment_webhook_event(text,text,text,text,text)' },
+    booking_payment_reconciliation_materialize: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service', purpose: 'booking-payment.reconciliation.materialize',
+      functionIdentity: 'app.materialize_booking_payment_reconciliation(text,integer)' },
+    booking_payment_reconciliation_intent_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service', purpose: 'booking-payment.reconciliation.intent.read',
+      functionIdentity: 'app.read_booking_payment_reconciliation_intent(uuid)' },
+    booking_payment_reconciliation_intent_by_provider_ref_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service', purpose: 'booking-payment.reconciliation.intent-by-provider-ref.read',
+      functionIdentity: 'app.read_booking_payment_reconciliation_intent_by_provider_ref(text)' },
+    booking_payment_reconciliation_sweep_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service', purpose: 'booking-payment.reconciliation.sweep.read',
+      functionIdentity: 'app.read_booking_payment_reconciliation_sweep(text)' },
+    booking_payment_reconciliation_watermark_advance: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service', purpose: 'booking-payment.reconciliation.watermark.advance',
+      functionIdentity: 'app.advance_booking_payment_reconciliation_watermark(text,timestamp with time zone)' },
     // PAY-APPT-11: часовой... точнее ежеминутный тик истечения предоплаты. Работа межарендная —
     // заранее неизвестно, у какой клиники истёк срок, — а машинный тик входит без арендатора,
     // поэтому реляционного пути к `be_appointments` у него нет. Свой корень у ТОГО ЖЕ шва, что
@@ -26995,6 +27019,15 @@ const REV10_CONTEXT = {
         { relation: 'public.be_payments', columns: ['id', 'organization_id', 'payment_intent_id'], operations: ['SELECT' as const], evidence: 'stable captured payment event id' as const },
         { relation: 'public.be_appointments', columns: ['id', 'organization_id', 'chain_id', 'chain_position', 'start_at', 'platform_user_id'], operations: ['SELECT' as const], evidence: 'payment chain durable payload' as const },
         { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'targeted ON CONFLICT(event_id) arbitration and one idempotent durable lifecycle row per settled appointment' as const },
+      ],
+    }),
+    'app.apply_booking_payment_provider_terminal_observation()': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: ['app_object_owner'], purpose: 'atomically mark only unresolved appointment intents cancelled after provider terminal observation',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_payment_provider_events', columns: ['organization_id', 'provider_id', 'intent_ref', 'event_type', 'processed_at'], operations: ['SELECT' as const], evidence: 'terminal provider event trigger input' as const },
+        { relation: 'public.be_payment_intents', columns: ['organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id', 'status', 'updated_at'], operations: ['UPDATE' as const], operationColumns: { UPDATE: ['status', 'updated_at'] }, evidence: 'only pending or processing appointment intent terminal transition' as const },
       ],
     }),
     'app.enqueue_booking_lifecycle_from_appointment()': rev10Function({
@@ -28518,6 +28551,44 @@ const REV10_CONTEXT = {
     // внутри реляционной транзакции), поэтому дверь одна, а не десять. Повтор уведомления упирается в
     // уникальный ключ журнала событий провайдера и в compare-and-set намерения: второй раз деньги не
     // проводятся. Организация — только принятый контекст, аргументом её не назвать.
+    'app.materialize_booking_payment_reconciliation(text,integer)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_worker'], purpose: 'materialize bounded appointment-payment reconciliation queue rows',
+      typedArgs: ['text', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_payment_intents', columns: ['id', 'organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id', 'status', 'created_at'], operations: ['SELECT' as const], evidence: 'reconciliation due intents' as const },
+        { relation: 'public.be_payment_provider_events', columns: ['organization_id', 'provider_id', 'intent_ref', 'event_type', 'processed_at'], operations: ['SELECT' as const], evidence: 'terminal provider outcome releases late-intent reconciliation' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at', 'priority', 'sent_at', 'dead_at', 'created_at'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'bounded fair reconciliation work enqueue' as const },
+      ],
+    }),
+    'app.read_booking_payment_reconciliation_intent(uuid)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'], purpose: 'read one accepted-organization appointment payment reconciliation input',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.be_payment_intents', columns: ['id', 'organization_id', 'provider_id', 'provider_intent_ref', 'idempotency_key', 'amount_minor', 'currency', 'purpose', 'appointment_id', 'platform_user_id', 'status'], operations: ['SELECT' as const], evidence: 'accepted-organization intent read' as const }],
+    }),
+    'app.read_booking_payment_reconciliation_intent_by_provider_ref(text)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'], purpose: 'resolve one accepted-organization appointment payment by provider ref',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.be_payment_intents', columns: ['id', 'organization_id', 'provider_id', 'provider_intent_ref', 'idempotency_key', 'amount_minor', 'currency', 'purpose', 'appointment_id', 'platform_user_id', 'status', 'created_at'], operations: ['SELECT' as const], evidence: 'accepted-organization provider ref binding' as const }],
+    }),
+    'app.read_booking_payment_reconciliation_sweep(text)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'], purpose: 'read durable appointment payment reconciliation checkpoint and oldest unresolved intent',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_payment_reconciliation_checkpoints', columns: ['organization_id', 'provider_id', 'watermark'], operations: ['SELECT' as const], evidence: 'durable reconciliation checkpoint read' as const },
+        { relation: 'public.be_payment_intents', columns: ['organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id', 'status', 'created_at'], operations: ['SELECT' as const], evidence: 'oldest unresolved appointment intent' as const },
+        { relation: 'public.be_payment_provider_events', columns: ['organization_id', 'provider_id', 'intent_ref', 'event_type', 'processed_at'], operations: ['SELECT' as const], evidence: 'terminal provider outcome releases late-intent sweep anchor' as const },
+      ],
+    }),
+    'app.advance_booking_payment_reconciliation_watermark(text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
+      execute: ['app_tenant_service'], purpose: 'advance a fully completed accepted-organization appointment payment reconciliation checkpoint',
+      typedArgs: ['text', 'timestamp with time zone'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.be_payment_reconciliation_checkpoints', columns: ['organization_id', 'provider_id', 'watermark', 'updated_at'], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const], evidence: 'monotonic durable checkpoint upsert' as const }],
+    }),
     'app.settle_booking_payment_webhook_event(text,text,text,text,text)': rev10Function({
       owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],
@@ -31487,6 +31558,11 @@ export const REV10_LOCKED_POLICY_DATA: Readonly<Record<string, LockedPolicyEntry
     policyName: "saas_org_dormant_p0_8_3",
     strictPredicate: "((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id()))",
     dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND \"platform_user_id\" = app.current_patient_user_id())))",
+  },
+  "public.be_payment_reconciliation_checkpoints": {
+    policyName: "saas_org_dormant_p0_8_3",
+    strictPredicate: "(app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id()))",
+    dormantCompatPredicate: "((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND \"organization_id\" = app.current_org_id())))",
   },
   "public.be_payment_provider_events": {
     policyName: "saas_org_dormant_p0_8_3",

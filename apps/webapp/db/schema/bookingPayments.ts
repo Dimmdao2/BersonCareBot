@@ -264,6 +264,30 @@ export const bePaymentProviderEvents = pgTable(
   ],
 );
 
+/** Durable provider-list checkpoint; it is operational state, not another payment journal. */
+export const bePaymentReconciliationCheckpoints = pgTable(
+  'be_payment_reconciliation_checkpoints',
+  {
+    organizationId: uuid('organization_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    watermark: timestamp('watermark', { withTimezone: true, mode: 'string' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('be_payment_reconciliation_checkpoints_pkey').on(
+      table.organizationId,
+      table.providerId,
+    ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'be_payment_reconciliation_checkpoints_organization_id_fkey',
+    }).onDelete('cascade'),
+  ],
+);
+
 export const bePaymentHistoryEvents = pgTable(
   'be_payment_history_events',
   {

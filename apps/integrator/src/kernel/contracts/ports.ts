@@ -353,6 +353,13 @@ export type WebappEventsPort = {
     organizationId: string;
     patientPublicOrigin: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;
+  wakeAppointmentPaymentReconciliation?(input: {
+    wakeId: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
+  processAppointmentPaymentReconciliation?(input: {
+    body: string;
+    idempotencyKey: string;
+  }): Promise<{ ok: boolean; status: number; error?: string; incidentKey?: 'success_after_local_expiry' }>;
   /** Привязка мессенджера по одноразовому токену из deep-link (POST /api/integrator/channel-link/complete). */
   completeChannelLink?(params: {
     linkToken: string;

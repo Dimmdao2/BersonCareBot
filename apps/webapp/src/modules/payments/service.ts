@@ -17,7 +17,10 @@ import { parsePatientPackageProductRef } from '@/modules/memberships/patientPack
 import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildBookingPaymentReceipt } from './fiscalReceipt';
-import { resolvePaymentProviderWebhookSecret } from './providerPort';
+import {
+  resolvePaymentProviderWebhookSecret,
+  type PaymentProviderPaymentStatus,
+} from './providerPort';
 import { buildAppointmentPaymentCheckUrl } from './appointmentPaymentCheckUrl';
 
 /**
@@ -256,6 +259,80 @@ export function createPaymentsService(deps: {
         alreadyProcessed: wasSucceeded && existingPayment !== null,
       },
       confirmedAppointments,
+    };
+  }
+
+  function reconciliationFactMatchesIntent(
+    fact: PaymentProviderPaymentStatus,
+    intent: {
+      providerIntentRef: string;
+      idempotencyKey: string;
+      amountMinor: number;
+      currency: string;
+      purpose: string;
+      appointmentId: string;
+      platformUserId: string | null;
+    },
+  ): void {
+    const object = fact.payload.object;
+    const metadata = object && typeof object === 'object'
+      ? (object as { metadata?: unknown }).metadata
+      : undefined;
+    const meta = metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : null;
+    const expectedPayer = intent.platformUserId ? `platform_user:${intent.platformUserId}` : null;
+    if (
+      fact.providerPaymentRef !== intent.providerIntentRef ||
+      fact.idempotencyKey !== intent.idempotencyKey ||
+      fact.amountMinor !== intent.amountMinor ||
+      fact.currency !== intent.currency ||
+      !meta ||
+      meta.idempotencyKey !== intent.idempotencyKey ||
+      meta.purpose !== intent.purpose ||
+      meta.subjectRef !== intent.appointmentId ||
+      (expectedPayer !== null && meta.payerRef !== expectedPayer)
+    ) {
+      throw new Error('appointment_payment_reconciliation_binding_mismatch');
+    }
+  }
+
+  function isAppointmentLookingReconciliationFact(
+    fact: PaymentProviderPaymentStatus,
+    intent: Awaited<ReturnType<PaymentsPort['readAppointmentPaymentReconciliationIntentByProviderRef']>>,
+  ): boolean {
+    const object = fact.payload.object;
+    const metadata = object && typeof object === 'object'
+      ? (object as { metadata?: unknown }).metadata
+      : undefined;
+    const meta = metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : null;
+    const purpose = meta?.purpose;
+    const subjectRef = meta?.subjectRef;
+    return intent !== null ||
+      purpose === 'appointment_prepayment' ||
+      purpose === 'appointment_payment' ||
+      typeof meta?.appointmentId === 'string' ||
+      (typeof subjectRef === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(subjectRef));
+  }
+
+  async function settleReconciliationFact(input: {
+    organizationId: string;
+    providerId: string;
+    intent: Awaited<ReturnType<PaymentsPort['readAppointmentPaymentReconciliationIntent']>>;
+    fact: PaymentProviderPaymentStatus;
+  }): Promise<{ successAfterLocalExpiry: boolean }> {
+    if (!input.intent) throw new Error('appointment_payment_reconciliation_intent_not_found');
+    reconciliationFactMatchesIntent(input.fact, input.intent);
+    await deps.port.settleProviderWebhookEvent({
+      organizationId: input.organizationId,
+      providerId: input.providerId,
+      idempotencyKey: input.fact.idempotencyKey,
+      eventType: input.fact.eventType,
+      intentRef: input.fact.providerPaymentRef,
+      payloadJson: input.fact.payload,
+    });
+    return {
+      successAfterLocalExpiry:
+        input.fact.eventType === 'payment.succeeded' &&
+        (input.intent.status === 'cancelled' || input.intent.status === 'failed'),
     };
   }
 
@@ -782,6 +859,85 @@ export function createPaymentsService(deps: {
      */
     async expireDueBookingPrepayments(input: { limit: number }) {
       return deps.port.expireDueBookingPrepayments(input);
+    },
+
+    /** The signed resident wake only adds durable rows; all provider I/O happens in their worker turn. */
+    async materializeAppointmentPaymentReconciliation(input: { wakeId: string }) {
+      return deps.port.materializeAppointmentPaymentReconciliation({
+        wakeId: input.wakeId,
+        maxAttempts: 6,
+      });
+    },
+
+    /** One low-priority queue row, one authenticated provider point lookup, one canonical settlement root. */
+    async reconcileAppointmentPaymentIntent(input: { organizationId: string; intentId: string }) {
+      const intent = await deps.port.readAppointmentPaymentReconciliationIntent(input.intentId);
+      if (!intent) throw new Error('appointment_payment_reconciliation_intent_not_found');
+      const settings = await loadSettings(input.organizationId);
+      const provider = resolveActiveProvider(settings, intent.providerId);
+      const adapter = getPaymentProviderAdapter(intent.providerId);
+      if (!adapter.getPaymentStatus) throw new Error('appointment_payment_reconciliation_provider_unavailable');
+      const fact = await adapter.getPaymentStatus({
+        providerObjectRef: intent.providerIntentRef,
+        providerConfig: provider,
+      });
+      const settled = await settleReconciliationFact({
+        organizationId: input.organizationId,
+        providerId: intent.providerId,
+        intent,
+        fact,
+      });
+      return {
+        ok: true as const,
+        ...(settled.successAfterLocalExpiry
+          ? { incidentKey: 'success_after_local_expiry' as const }
+          : {}),
+      };
+    },
+
+    /** Overlapping provider-success sweep. The checkpoint advances only after every candidate settled. */
+    async reconcileAppointmentPaymentSweep(input: { organizationId: string; providerId: string }) {
+      const settings = await loadSettings(input.organizationId);
+      const provider = resolveActiveProvider(settings, input.providerId);
+      const adapter = getPaymentProviderAdapter(input.providerId);
+      if (!adapter.listPaymentStatuses) {
+        throw new Error('appointment_payment_reconciliation_provider_unavailable');
+      }
+      const sweep = await deps.port.readAppointmentPaymentReconciliationSweep(input.providerId);
+      const now = new Date();
+      const overlapMs = 60 * 60 * 1000;
+      const watermarkMs = sweep.watermark ? Date.parse(sweep.watermark) : now.getTime() - 24 * 60 * 60 * 1000;
+      const unresolvedMs = sweep.oldestUnresolvedCreatedAt
+        ? Date.parse(sweep.oldestUnresolvedCreatedAt)
+        : Number.POSITIVE_INFINITY;
+      const periodFrom = new Date(Math.min(watermarkMs - overlapMs, unresolvedMs)).toISOString();
+      const periodTo = now.toISOString();
+      const listed = await adapter.listPaymentStatuses({
+        periodFromIso: periodFrom,
+        periodToIso: periodTo,
+        providerConfig: provider,
+      });
+      if (listed.truncated) throw new Error('appointment_payment_reconciliation_provider_list_truncated');
+      for (const item of listed.items) {
+        // Provider metadata is never tenant authority. The accepted organization root resolves
+        // the local intent by the provider ref; absent or ambiguous binding holds the checkpoint.
+        const intent = await deps.port.readAppointmentPaymentReconciliationIntentByProviderRef(
+          item.providerPaymentRef,
+        );
+        if (!isAppointmentLookingReconciliationFact(item, intent)) continue;
+        if (!intent) throw new Error('appointment_payment_reconciliation_appointment_unbound');
+        await settleReconciliationFact({
+          organizationId: input.organizationId,
+          providerId: input.providerId,
+          intent,
+          fact: item,
+        });
+      }
+      await deps.port.advanceAppointmentPaymentReconciliationWatermark({
+        providerId: input.providerId,
+        watermark: periodTo,
+      });
+      return { ok: true as const };
     },
 
     async processProviderWebhook(input: {

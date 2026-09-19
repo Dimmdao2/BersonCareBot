@@ -7,6 +7,7 @@ export type SchedulerLockedTickDeps = {
   runOperatorHealthDigestWake: () => Promise<boolean>;
   runSystemHealthGuardWake: () => Promise<boolean>;
   runOperatorHealthProbeTick: () => Promise<boolean>;
+  runAppointmentPaymentReconciliationWake?: () => Promise<boolean>;
   onOrganizationTickError: (error: unknown) => void | Promise<void>;
   onOutgoingDeliveryTickError: (error: unknown) => void | Promise<void>;
 };
@@ -22,7 +23,8 @@ export type SchedulerLockedTickCoordinator = {
 export type SchedulerCadenceStep =
   | 'operator_health_digest_wake'
   | 'system_health_guard_wake'
-  | 'operator_health_probe';
+  | 'operator_health_probe'
+  | 'appointment_payment_reconciliation_wake';
 
 /** Safe, value-free identification of the periodic step that failed. */
 export class SchedulerCadenceStepError extends Error {
@@ -117,6 +119,10 @@ export function createSchedulerLockedTickCoordinator(
       await runCadenceStep('operator_health_digest_wake', deps.runOperatorHealthDigestWake);
       await runCadenceStep('system_health_guard_wake', deps.runSystemHealthGuardWake);
       await runCadenceStep('operator_health_probe', deps.runOperatorHealthProbeTick);
+      await runCadenceStep(
+        'appointment_payment_reconciliation_wake',
+        deps.runAppointmentPaymentReconciliationWake ?? (async () => false),
+      );
     },
 
     waitForOrganizationTick: organizationTick.wait,

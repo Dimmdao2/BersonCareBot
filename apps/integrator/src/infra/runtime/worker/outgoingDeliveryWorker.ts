@@ -197,7 +197,21 @@ async function finalizeClaimedRowFailure(
   const message = err instanceof Error ? err.message : String(err);
   const safeError = truncateDeliveryErrorMessage(message);
   if (row.attemptCount >= row.maxAttempts) {
-    await recordBookingLifecycleReplayDeadIncident(row);
+    try {
+      await recordBookingLifecycleReplayDeadIncident(row, safeError);
+    } catch (incidentError) {
+      logger.warn(
+        { err: incidentError, rowId: row.id, kind: row.kind },
+        'outgoing_delivery_terminal_incident_record_failed',
+      );
+      await queueReschedule(
+        db,
+        row.id,
+        retryDelaySecondsAfterFailure(row.attemptCount, row.kind),
+        safeError,
+      );
+      return;
+    }
     await queueMarkDead(db, row.id, safeError);
     return;
   }
@@ -211,7 +225,24 @@ async function finalizeClaimedRowFailure(
 
 async function recordBookingLifecycleReplayDeadIncident(
   row: OutgoingDeliveryQueueRow,
+  currentError: string,
 ): Promise<void> {
+  if (
+    row.kind === 'appointment_payment_reconciliation_intent' ||
+    row.kind === 'appointment_payment_reconciliation_sweep'
+  ) {
+    const errorClass = reconciliationIncidentClass(currentError);
+    // A terminal reconciliation row without its operator incident would silently lose the only
+    // durable explanation of why money stopped reconciling. Let persistence failure keep this row
+    // reclaimable; the canonical settlement path is idempotent when the worker retries.
+    await recordOperatorFailureIncident({
+      direction: 'appointment_payment_reconciliation',
+      integration: 'payment_provider',
+      errorClass,
+      errorDetail: 'appointment_payment_reconciliation_terminal_retry_failure',
+    });
+    return;
+  }
   if (row.kind !== 'booking_lifecycle') return;
   const bookingLifecycle = row.payloadJson.bookingLifecycle;
   const paymentCaptured = row.payloadJson.paymentCaptured;
@@ -232,20 +263,24 @@ async function recordBookingLifecycleReplayDeadIncident(
   const errorDetail = isBookingLifecycle
     ? 'booking_lifecycle_terminal_replay_failure'
     : 'payment_captured_terminal_replay_failure';
-  try {
-    await recordOperatorFailureIncident({
-      direction,
-      integration,
-      errorClass,
-      // Stable and deliberately low-cardinality: no identifiers, raw payload, PII, or error text.
-      errorDetail,
-    });
-  } catch (err) {
-    logger.warn(
-      { err, rowId: row.id, direction, errorClass },
-      'booking_lifecycle_replay_dead_incident_record_failed',
-    );
-  }
+  await recordOperatorFailureIncident({
+    direction,
+    integration,
+    errorClass,
+    // Stable and deliberately low-cardinality: no identifiers, raw payload, PII, or error text.
+    errorDetail,
+  });
+}
+
+function reconciliationIncidentClass(error: string): string {
+  const safeCodes = [
+    'appointment_payment_reconciliation_provider_list_truncated',
+    'appointment_payment_reconciliation_appointment_unbound',
+    'appointment_payment_reconciliation_binding_mismatch',
+    'appointment_payment_reconciliation_provider_unavailable',
+    'appointment_payment_reconciliation_provider_failed',
+  ];
+  return safeCodes.find((code) => error.includes(code)) ?? 'appointment_payment_reconciliation_terminal_retry_exhausted';
 }
 
 function asChatIdFromRecipient(recipient: unknown): number | null {
@@ -717,6 +752,47 @@ export async function processOutgoingDeliveryRow(
 ): Promise<void> {
   const { db, writePort, dispatchOutgoing, resolveWorkspaceModuleEnabled, doctorBroadcastMenu } =
     deps;
+  if (
+    row.kind === 'appointment_payment_reconciliation_intent' ||
+    row.kind === 'appointment_payment_reconciliation_sweep'
+  ) {
+    const payload = row.payloadJson;
+    const organizationId = typeof payload.organizationId === 'string' ? payload.organizationId : null;
+    const id =
+      row.kind === 'appointment_payment_reconciliation_intent'
+        ? typeof payload.intentId === 'string'
+          ? payload.intentId
+          : null
+        : typeof payload.providerId === 'string'
+          ? payload.providerId
+          : null;
+    if (!organizationId || !id || !deps.bookingLifecycle?.webappEventsPort?.processAppointmentPaymentReconciliation) {
+      throw new Error('APPOINTMENT_PAYMENT_RECONCILIATION_PAYLOAD_INVALID');
+    }
+    const kind = row.kind === 'appointment_payment_reconciliation_intent' ? 'intent' : 'sweep';
+    const body = JSON.stringify(
+      kind === 'intent'
+        ? { kind, organizationId, intentId: id }
+        : { kind, organizationId, providerId: id },
+    );
+    const result = await deps.bookingLifecycle.webappEventsPort.processAppointmentPaymentReconciliation({
+      body,
+      idempotencyKey: `appointment-payment-reconciliation:${kind}:${organizationId}:${id}`,
+    });
+    if (!result.ok) {
+      throw new Error(`APPOINTMENT_PAYMENT_RECONCILIATION_FAILED:${result.status}:${result.error ?? ''}`);
+    }
+    if (result.incidentKey === 'success_after_local_expiry') {
+      await recordOperatorFailureIncident({
+        direction: 'appointment_payment_reconciliation',
+        integration: 'payment_provider',
+        errorClass: 'success_after_local_expiry',
+        errorDetail: null,
+      });
+    }
+    await queueMarkSent(db, row.id);
+    return;
+  }
   if (row.kind === 'booking_lifecycle') {
     const durableLifecycle = row.payloadJson.bookingLifecycle;
     if (durableLifecycle && typeof durableLifecycle === 'object' && !Array.isArray(durableLifecycle)) {

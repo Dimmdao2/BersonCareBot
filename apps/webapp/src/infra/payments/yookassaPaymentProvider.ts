@@ -5,6 +5,7 @@ import {
   PaymentProviderTransportError,
   type PaymentProviderTransportCode,
   type PaymentProviderListedPayment,
+  type PaymentProviderPaymentStatus,
   type PaymentProviderPort,
   type PaymentReceipt,
 } from '@/modules/payments/providerPort';
@@ -123,13 +124,52 @@ type YookassaObjectResponse = {
   /** К4 — present on a payment created by paying a YooKassa invoice; points back at that invoice's
    *  own id (`in-...`), which is NOT the same id as the payment object itself (`remote.id`). */
   invoice_details?: { id?: string };
+  /** An invoice only names its linked payment after the payer has started one. */
+  payment_details?: { id?: string };
+  /** Invoice GET responses expose their payable total through the cart, not `amount`. */
+  cart?: Array<{
+    price?: { value?: string; currency?: string };
+    discount_price?: { value?: string; currency?: string };
+    quantity?: number | string;
+  }>;
   /** К6 — present when `save_payment_method: true` (or an existing saved method) was used; `saved`
    *  is only `true` once the provider actually persisted it for reuse. */
   payment_method?: { id?: string; saved?: boolean };
 };
 
+/** One normalization owns webhook and reconciliation identity; do not recreate it in a scheduler. */
+function normalizeYookassaPayment(
+  remote: YookassaObjectResponse,
+  localInvoiceRef?: string,
+): PaymentProviderPaymentStatus {
+  if (!remote.id) throw new Error('yookassa_payment_object_id_missing');
+  const status = remote.status ?? 'unknown';
+  const idempotencyKey =
+    typeof remote.metadata?.idempotencyKey === 'string' && remote.metadata.idempotencyKey.trim()
+      ? remote.metadata.idempotencyKey
+      : remote.id;
+  const amountMinor =
+    remote.amount?.value != null
+      ? Math.round(Number.parseFloat(String(remote.amount.value)) * 100)
+      : 0;
+  return {
+    providerObjectRef: remote.id,
+    providerPaymentRef: localInvoiceRef ?? remote.invoice_details?.id ?? remote.id,
+    idempotencyKey,
+    eventType: status === 'succeeded' ? 'payment.succeeded' : `payment.${status}`,
+    status,
+    amountMinor,
+    currency: remote.amount?.currency ?? '',
+    payload: {
+      event: status === 'succeeded' ? 'payment.succeeded' : `payment.${status}`,
+      object: remote,
+      currency: remote.amount?.currency,
+    },
+  };
+}
+
 async function fetchYookassaObject(
-  path: 'payments' | 'refunds',
+  path: 'payments' | 'refunds' | 'invoices',
   objectId: string,
   shopId: string,
   secretKey: string,
@@ -248,6 +288,29 @@ async function fetchYookassaPaymentsPage(
       return (await res.json()) as YookassaListResponse;
     },
   );
+}
+
+async function listYookassaPaymentStatuses(input: {
+  shopId: string;
+  secretKey: string;
+  periodFromIso: string;
+  periodToIso: string;
+}): Promise<{ items: PaymentProviderPaymentStatus[]; truncated: boolean }> {
+  const items: PaymentProviderPaymentStatus[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < YOOKASSA_LIST_MAX_PAGES; page += 1) {
+    const response = await fetchYookassaPaymentsPage(input.shopId, input.secretKey, {
+      periodFromIso: input.periodFromIso,
+      periodToIso: input.periodToIso,
+      cursor,
+    });
+    for (const item of response.items ?? []) {
+      if (item.id) items.push(normalizeYookassaPayment(item));
+    }
+    if (!response.next_cursor) return { items, truncated: false };
+    cursor = response.next_cursor;
+  }
+  return { items, truncated: true };
 }
 
 export function createYookassaPaymentProvider(): PaymentProviderPort {
@@ -455,30 +518,29 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       );
       if (!remote.id) throw new Error('invalid_webhook_signature');
 
-      const idempotencyKey =
-        typeof remote.metadata?.idempotencyKey === 'string'
-          ? remote.metadata.idempotencyKey
-          : remote.id;
-      const eventType =
-        remote.status === 'succeeded'
-          ? `${untrusted.domain}.succeeded`
-          : `${untrusted.domain}.${remote.status ?? 'unknown'}`;
-      const amountMinor =
-        remote.amount?.value != null
-          ? Math.round(Number.parseFloat(String(remote.amount.value)) * 100)
-          : undefined;
+      const normalized = normalizeYookassaPayment(remote);
 
       return {
-        idempotencyKey,
-        eventType,
-        payload: { event: eventType, object: remote, currency: remote.amount?.currency },
+        idempotencyKey: normalized.idempotencyKey,
+        eventType:
+          untrusted.domain === 'refund'
+            ? `refund.${remote.status ?? 'unknown'}`
+            : normalized.eventType,
+        payload: {
+          event:
+            untrusted.domain === 'refund'
+              ? `refund.${remote.status ?? 'unknown'}`
+              : normalized.eventType,
+          object: remote,
+          currency: remote.amount?.currency,
+        },
         // К4: a payment created by paying an invoice carries the INVOICE's id here, never its own
         // — that invoice id is what `attachSaasBillingInvoiceProviderIntent` stored as our
         // `providerInvoiceRef` at invoice-creation time, before any payment existed to have an id
         // of its own. Direct payments (createIntent, no invoice involved) have no `invoice_details`
         // and fall back to the payment's own id, unchanged from before.
         intentRef: remote.invoice_details?.id ?? remote.id,
-        amountMinor,
+        amountMinor: normalized.amountMinor,
         savedPaymentMethodId:
           remote.payment_method?.saved === true && remote.payment_method.id
             ? remote.payment_method.id
@@ -488,40 +550,74 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
 
     async listPayments({ periodFromIso, periodToIso, providerConfig }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
-      const items: PaymentProviderListedPayment[] = [];
-      let cursor: string | undefined;
-      let truncated = false;
-      for (let page = 0; page < YOOKASSA_LIST_MAX_PAGES; page += 1) {
-        const response = await fetchYookassaPaymentsPage(shopId, secretKey, {
-          periodFromIso,
-          periodToIso,
-          cursor,
-        });
-        for (const item of response.items ?? []) {
-          // Same derivation as `verifyWebhook` above, for the same reason: an invoice-paid payment
-          // carries the invoice's id here, and that is the id our journal stored.
-          const providerPaymentRef = item.invoice_details?.id ?? item.id;
-          if (!providerPaymentRef) continue;
-          items.push({
-            providerPaymentRef,
-            status: item.status ?? 'unknown',
-            amountMinor:
-              item.amount?.value != null
-                ? Math.round(Number.parseFloat(String(item.amount.value)) * 100)
-                : 0,
-            currency: item.amount?.currency ?? '',
-            metadata: item.metadata,
-            refundedAmountMinor:
-              item.refunded_amount?.value != null
-                ? Math.round(Number.parseFloat(String(item.refunded_amount.value)) * 100)
-                : 0,
-          });
+      const listed = await listYookassaPaymentStatuses({ shopId, secretKey, periodFromIso, periodToIso });
+      const items: PaymentProviderListedPayment[] = listed.items.map((item) => {
+        const object = item.payload.object as { metadata?: Record<string, unknown>; refunded_amount?: { value?: string } };
+        return {
+          providerPaymentRef: item.providerPaymentRef,
+          status: item.status,
+          amountMinor: item.amountMinor,
+          currency: item.currency,
+          metadata: object.metadata,
+          refundedAmountMinor:
+            object.refunded_amount?.value != null
+              ? Math.round(Number.parseFloat(String(object.refunded_amount.value)) * 100)
+              : 0,
+        };
+      });
+      return { items, truncated: listed.truncated };
+    },
+
+    async getPaymentStatus({ providerObjectRef, providerConfig }) {
+      const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
+      // Invoice refs are persisted for shareable appointment prepayments. Older rows have no
+      // discriminator metadata, but YooKassa invoice ids are `in-…`; resolve them through the
+      // documented invoice -> payment chain and keep the local invoice ref for canonical binding.
+      if (providerObjectRef.startsWith('in-')) {
+        const invoice = await fetchYookassaObject('invoices', providerObjectRef, shopId, secretKey);
+        const paymentId = invoice.payment_details?.id;
+        if (!paymentId) {
+          // YooKassa documents `canceled` as a final invoice status even when no payment object was
+          // ever created (expiry/manual cancellation). Persist that authenticated terminal fact so
+          // the local intent stops anchoring reconciliation forever. A pending invoice remains
+          // retryable because it can still acquire a payment_details.id later.
+          if (invoice.status !== 'canceled' || !invoice.id) {
+            throw new Error('yookassa_invoice_payment_unavailable');
+          }
+          const amountMinor = (invoice.cart ?? []).reduce((sum, item) => {
+            const amount = item.discount_price ?? item.price;
+            const quantity = Number(item.quantity ?? 0);
+            const unitMinor = Math.round(Number.parseFloat(String(amount?.value ?? '0')) * 100);
+            return sum + (Number.isFinite(quantity) && Number.isFinite(unitMinor) ? unitMinor * quantity : 0);
+          }, 0);
+          const currency = (invoice.cart ?? [])
+            .map((item) => (item.discount_price ?? item.price)?.currency)
+            .find((value): value is string => typeof value === 'string') ?? '';
+          const idempotencyKey =
+            typeof invoice.metadata?.idempotencyKey === 'string' && invoice.metadata.idempotencyKey.trim()
+              ? invoice.metadata.idempotencyKey
+              : invoice.id;
+          return {
+            providerObjectRef: invoice.id,
+            providerPaymentRef: providerObjectRef,
+            idempotencyKey,
+            eventType: 'payment.canceled',
+            status: 'canceled',
+            amountMinor,
+            currency,
+            payload: { event: 'payment.canceled', object: invoice, currency },
+          };
         }
-        if (!response.next_cursor) break;
-        cursor = response.next_cursor;
-        if (page === YOOKASSA_LIST_MAX_PAGES - 1) truncated = true;
+        const payment = await fetchYookassaObject('payments', paymentId, shopId, secretKey);
+        return normalizeYookassaPayment(payment, providerObjectRef);
       }
-      return { items, truncated };
+      const remote = await fetchYookassaObject('payments', providerObjectRef, shopId, secretKey);
+      return normalizeYookassaPayment(remote);
+    },
+
+    async listPaymentStatuses({ periodFromIso, periodToIso, providerConfig }) {
+      const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
+      return listYookassaPaymentStatuses({ shopId, secretKey, periodFromIso, periodToIso });
     },
   };
 }
