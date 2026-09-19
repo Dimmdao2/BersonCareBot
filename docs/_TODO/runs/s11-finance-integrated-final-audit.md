@@ -389,3 +389,19 @@ bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-pro
 - `pnpm --dir apps/webapp exec eslint src/modules/payments/service.ts src/modules/payments/ports.ts src/infra/repos/pgPayments.ts src/modules/patient-booking/service.ts src/app-layer/booking/staffManualCancelAfterCanonical.ts src/app-layer/booking/staffAppointmentPayments.s10.unit.test.ts src/infra/payments/paymentProviderIdentity.unit.test.ts`
   — exit `0`.
 - Full CI, push, deploy, migration execute и обращения к TEST/PROD не выполнялись.
+
+## Lead correction RA1–RA2 — 2026-09-19
+
+- **RA1 исправлен.** Оба канонических cancellation writer-а теперь сохраняют
+  `prepayment_refunded=true` для `decisionType='free'`, ровно как уже действующий immediate-path.
+  Поэтому тот же cancellation commit вызывает trigger и атомарно создаёт durable refund job.
+- **RA2 исправлен.** Внутренняя cancellation-refund операция трактует сумму как целевой итог возврата
+  по записи: из неё вычитается уже записанный успешный возврат. После успешного immediate refund replay
+  получает нулевой остаток и завершается успешно без второго provider call; после прежнего частичного
+  возврата доигрывается только остаток. Публичный ручной refund сохраняет прежнюю delta-семантику.
+- Сохранён один поведенческий oracle: два последовательных вызова cancellation-refund дают одно внешнее
+  денежное движение и один `refund_succeeded`. Fault injection (снятие target-mode на втором входе) вернул
+  точный `refund_amount_exceeds_payment`: `1 failed | 15 passed`; после восстановления — `16 passed`.
+- Полный целевой финансовый набор после исправления: `80 passed`; webapp typecheck, scoped ESLint и
+  `git diff --check` — PASS. Нового blind-pass того же сценария по §24.5 не требуется; финальный
+  интеграционный аудит всего финансового контура остаётся отдельным PAY-REL-05 после landing.
