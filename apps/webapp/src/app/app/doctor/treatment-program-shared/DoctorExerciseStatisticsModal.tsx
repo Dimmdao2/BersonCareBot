@@ -276,7 +276,7 @@ function ChartSideAxis({
   return (
     <div className="relative h-64 w-4 shrink-0" aria-hidden="true">
       <span
-        className={cn('absolute top-[22px] bottom-[66px] w-px', isLeft ? 'right-0' : 'left-0')}
+        className={cn('absolute top-[10px] bottom-[66px] w-px', isLeft ? 'right-0' : 'left-0')}
         style={{ backgroundColor: color }}
       />
       {values.map((value, index) => (
@@ -287,7 +287,7 @@ function ChartSideAxis({
             isLeft ? 'right-1 text-right' : 'left-1 text-left',
             !isLeft && value === 10 && '-translate-x-[3px]',
           )}
-          style={{ top: `${22 + (index / (values.length - 1)) * 168}px`, color }}
+          style={{ top: `${10 + (index / (values.length - 1)) * 180}px`, color }}
         >
           {value}
         </span>
@@ -369,6 +369,8 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
   }));
   const hasValues = days.some((day) => day.completions.length > 0);
   const visibleDays = days.slice(visibleRange.start, visibleRange.end);
+  const visibleMonthDate =
+    visibleDays[Math.floor(visibleDays.length / 2)]?.date ?? days.at(-1)?.date ?? null;
   const volumeTicks = volumeAxisTicks(visibleDays.length > 0 ? visibleDays : days.slice(-8));
 
   useEffect(() => {
@@ -408,16 +410,20 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
     <section className="shrink-0 space-y-3 pt-3 pb-4" aria-label="Динамика">
       {hasValues ? (
         <div>
-          <div className="flex items-start justify-between px-4">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-start px-2">
             <div>
               <p className="text-sm font-semibold text-primary">Объём</p>
-              <p className={doctorMetaTextClass}>подходы × повторы</p>
+              <p className={doctorMetaTextClass}>подх. × повт.</p>
             </div>
+            <p className="pt-px text-[13px] leading-5 font-normal text-foreground">
+              {visibleMonthDate ? monthLabel(visibleMonthDate) : null}
+            </p>
             <div className="text-right">
               <p className="text-sm font-semibold text-[var(--doctor-exercise-pain-chart)]">Боль</p>
+              <p className={doctorMetaTextClass}>1–10</p>
             </div>
           </div>
-          <div className="mt-1 flex px-1">
+          <div className="flex px-1">
             <ChartSideAxis
               values={[...volumeTicks].reverse()}
               side="left"
@@ -439,7 +445,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
                   width={width}
                   height={256}
                   data={days}
-                  margin={{ top: 22, right: 0, bottom: 12, left: 0 }}
+                  margin={{ top: 10, right: 0, bottom: 12, left: 0 }}
                 >
                   <CartesianGrid
                     vertical
@@ -487,7 +493,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
                       <Cell
                         key={day.chartKey}
                         fill={difficultyColor[day.difficulty ?? 'none']}
-                        fillOpacity={0.8}
+                        fillOpacity={0.9}
                       />
                     ))}
                     <LabelList
@@ -617,13 +623,13 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
         <div>
           <div
             data-journal-columns
-            className="sticky top-0 z-10 grid grid-cols-[3.25rem_4.5rem_3rem_2.5rem_minmax(3.5rem,1fr)_1.5rem] gap-x-1 border-b border-border/70 bg-white px-2 py-2 text-[10px] text-muted-foreground"
+            className="sticky top-0 z-10 grid grid-cols-[3.5rem_minmax(0,1.35fr)_3rem_2.5rem_minmax(0,1.1fr)_1.5rem] gap-x-1 border-b border-border/70 bg-white px-2 py-2 text-[10px] text-muted-foreground"
           >
             <span>Дата</span>
             <span>Повт. × подх.</span>
             <span>Вес</span>
             <span>Боль</span>
-            <span>Сложн.</span>
+            <span className="text-center">Сложн.</span>
             <span aria-label="Комментарии" />
           </div>
           {days.flatMap((day, dayIndex) => {
@@ -651,14 +657,14 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                 return (
                   <div
                     key={point?.completionId ?? `${day.date}-empty`}
-                    className="grid min-h-12 grid-cols-[3.25rem_4.5rem_3rem_2.5rem_minmax(3.5rem,1fr)_1.5rem] items-center gap-x-1 border-b border-border/60 px-2 py-1.5 text-sm text-foreground"
+                    className="grid min-h-12 grid-cols-[3.5rem_minmax(0,1.35fr)_3rem_2.5rem_minmax(0,1.1fr)_1.5rem] items-center gap-x-1 border-b border-border/60 px-2 py-1.5 text-sm text-foreground"
                   >
                     <div className="flex items-center gap-1.5">
                       <span
                         className={cn(
                           'inline-flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-semibold tabular-nums',
                           complete
-                            ? 'bg-[var(--doctor-exercise-completion-bg)] text-[var(--doctor-exercise-completion-text)]'
+                            ? 'text-[var(--doctor-exercise-completion-text)]'
                             : 'text-[var(--doctor-exercise-date-inactive)]',
                         )}
                       >
@@ -692,7 +698,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                       {point?.difficulty ? (
                         <span
                           className={cn(
-                            'inline-flex h-7 w-full max-w-16 items-center justify-center rounded-lg px-1 text-xs font-medium whitespace-nowrap',
+                            'inline-flex h-7 w-full items-center justify-center rounded-[5px] px-1 text-xs font-medium whitespace-nowrap',
                             point.difficulty === 'easy' &&
                               'bg-[color:color-mix(in_srgb,var(--doctor-exercise-difficulty-easy)_45%,white)] text-[var(--doctor-exercise-completion-text)]',
                             point.difficulty === 'medium' &&
