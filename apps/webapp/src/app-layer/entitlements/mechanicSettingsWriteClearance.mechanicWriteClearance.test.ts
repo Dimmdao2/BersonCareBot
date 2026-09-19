@@ -11,16 +11,18 @@ import { ORG_CUSTOM_DOMAIN_HOSTNAME_KEY } from '@/modules/system-settings/orgCus
 
 function buildWrappedService() {
   const updateSetting = vi.fn(async (..._args: unknown[]) => ({ id: 'row-1' }) as never);
+  const persistSettingsBatch = vi.fn(async (..._args: unknown[]) => [] as never);
   const base = {
     getSetting: vi.fn(async () => null),
     updateSetting,
     updateSettingIfUnchanged: vi.fn(async () => null),
+    persistSettingsBatch,
   };
   const wrapped = wrapSystemSettingsServiceWithTariffMechanicWriteClearance(
     base,
     assertMechanicWriteClearance,
   );
-  return { wrapped, updateSetting };
+  return { wrapped, updateSetting, persistSettingsBatch };
 }
 
 describe('tariff mechanic settings write clearance — 3.2 physical door', () => {
@@ -34,6 +36,42 @@ describe('tariff mechanic settings write clearance — 3.2 physical door', () =>
       ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
     });
     expect(updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('refuses a branded mail-template write without branding clearance', async () => {
+    const { wrapped, updateSetting } = buildWrappedService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        wrapped.updateSetting(
+          'clinic_transactional_mail_template',
+          'admin',
+          { value: {} },
+          'user-1',
+          { organizationId: 'org-1' },
+        ),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('refuses a batch write of the branded mail template without branding clearance', async () => {
+    const { wrapped, persistSettingsBatch } = buildWrappedService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        wrapped.persistSettingsBatch(
+          [
+            {
+              key: 'clinic_transactional_mail_template',
+              scope: 'admin',
+              value: { value: {} },
+            },
+          ],
+          'user-1',
+          { organizationId: 'org-1' },
+        ),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(persistSettingsBatch).not.toHaveBeenCalled();
   });
 
   it('proceeds for booking_min_notice_hours once booking was cleared', async () => {

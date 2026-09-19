@@ -501,6 +501,8 @@ export const SYSTEM_SETTING_REGISTRY = {
     restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
     auditObjectField('password'),
   ),
+  /** Owner-authored branded pair for clinic patient auth-code delivery; no platform-copy fallback. */
+  clinic_transactional_mail_template: runtime('admin', 'per_org', 'server', 'structured', 'absent'),
   /** Dedicated outbound SMSC credential. The platform credential remains an essential-delivery fallback. */
   clinic_smsc_api_key: restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
   /** Dedicated clinic bots are outbound credentials; inbound binding/webhook routing remains S6.5. */

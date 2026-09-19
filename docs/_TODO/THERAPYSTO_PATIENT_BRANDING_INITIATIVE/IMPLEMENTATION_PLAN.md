@@ -1054,6 +1054,12 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
   patient auth явно передаёт `patient`, а clinic SMTP остаётся patient override. Targeted 85 integrator и 66 webapp
   tests, privilege generator и rollback-only DEV preflight зелёные. `C3`/`C4`, `TPB-12a`/`TPB-12b`/`TPB-13a` остаются
   открытыми: credentials не вводились, provider API/real delivery и TEST gates не запускались.
+  **Candidate readiness C4 (19.09.2026):** owner can now write the per-org admin/server structured
+  `clinic_transactional_mail_template` through the existing settings route and branding mechanic; webapp uses
+  the same inner shape, length limits and required placeholders as `mailProfile.ts`, while the integrator keeps
+  the existing fail-closed owner-copy read. Candidate checks: `pnpm --dir apps/webapp exec vitest run
+  src/modules/system-settings/clinicDeliverySettings.unit.test.ts src/app-layer/entitlements/mechanicSettingsWriteClearance.mechanicWriteClearance.test.ts src/app/api/admin/settings/route.route.test.ts`
+  (52 passed), `pnpm --dir apps/webapp typecheck`, and scoped ESLint. `C4` remains open until live delivery.
 - `C5` **Переписан по решению владельца 23.08.2026 (§1.2h).** Гейт готовности встаёт ровно в двух местах, а не
   на пути по умолчанию:
   - [ ] `C5a` **Свой домен клиники не включается**, пока ожидаемая A-запись либо допустимая CNAME-запись не ведёт на наш edge,

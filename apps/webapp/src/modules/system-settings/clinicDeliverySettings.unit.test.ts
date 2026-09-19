@@ -30,6 +30,86 @@ describe('clinic delivery settings', () => {
     expect(isPerOrgSettingKey('clinic_max_bot_api_key')).toBe(true);
   });
 
+  it('stores only a complete owner-authored branded auth-mail template in its clinic row', async () => {
+    const organizationId = '11111111-1111-4111-8111-111111111111';
+    const otherOrganizationId = '22222222-2222-4222-8222-222222222222';
+    const service = createSystemSettingsService(createInMemorySystemSettingsPort());
+
+    await expect(
+      service.updateSetting(
+        'clinic_transactional_mail_template',
+        'admin',
+        {
+          value: {
+            senderDisplayNameTemplate: '{{clinicName}}',
+            authCodeSubjectTemplate: '{{senderDisplayName}}',
+            authCodeTextTemplate: '{{senderDisplayName}} {{code}}',
+          },
+        },
+        'actor',
+        { organizationId },
+      ),
+    ).rejects.toThrow('invalid_setting_value: clinic_transactional_mail_template');
+
+    await service.updateSetting(
+      'clinic_transactional_mail_template',
+      'admin',
+      {
+        value: {
+          senderDisplayNameTemplate: ' {{clinicName}} · {{platformName}} ',
+          authCodeSubjectTemplate: ' Код: {{senderDisplayName}} ',
+          authCodeTextTemplate: ' {{senderDisplayName}}: {{code}} ',
+        },
+      },
+      'actor',
+      { organizationId },
+    );
+
+    await service.updateSetting(
+      'clinic_transactional_mail_template',
+      'admin',
+      {
+        value: {
+          senderDisplayNameTemplate: '{{clinicName}} + {{platformName}}',
+          authCodeSubjectTemplate: 'Код {{senderDisplayName}}',
+          authCodeTextTemplate: '{{senderDisplayName}}: {{code}}',
+        },
+      },
+      'other-actor',
+      { organizationId: otherOrganizationId },
+    );
+
+    await expect(
+      Promise.all([
+        service.getSetting('clinic_transactional_mail_template', 'admin', { organizationId }),
+        service.getSetting('clinic_transactional_mail_template', 'admin', {
+          organizationId: otherOrganizationId,
+        }),
+      ]),
+    ).resolves.toMatchObject([
+      {
+        organizationId,
+        valueJson: {
+          value: {
+            senderDisplayNameTemplate: '{{clinicName}} · {{platformName}}',
+            authCodeSubjectTemplate: 'Код: {{senderDisplayName}}',
+            authCodeTextTemplate: '{{senderDisplayName}}: {{code}}',
+          },
+        },
+      },
+      {
+        organizationId: otherOrganizationId,
+        valueJson: {
+          value: {
+            senderDisplayNameTemplate: '{{clinicName}} + {{platformName}}',
+            authCodeSubjectTemplate: 'Код {{senderDisplayName}}',
+            authCodeTextTemplate: '{{senderDisplayName}}: {{code}}',
+          },
+        },
+      },
+    ]);
+  });
+
   it('never exposes or audits clinic credentials verbatim', () => {
     expect(
       redactSettingValueForAudit('clinic_smtp_outbound', {

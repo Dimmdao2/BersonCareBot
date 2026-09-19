@@ -48,6 +48,7 @@ import {
   normalizeSupportGroupLabel,
   SUPPORT_GROUP_LABEL_KEY,
 } from './patientTerms';
+import { normalizeClinicTransactionalMailTemplate } from './clinicTransactionalMailTemplate';
 
 type SystemSettingsServiceDependencies = {
   runtimeRepository?: RuntimeSettingsRepository;
@@ -244,6 +245,11 @@ export function createSystemSettingsService(
     }
     if (key === APPOINTMENT_LABEL_KEY) {
       const normalized = normalizeAppointmentLabel(normalizedEnvelope.value);
+      if (normalized === null) throw new Error(`invalid_setting_value: ${key}`);
+      return { value: normalized };
+    }
+    if (key === 'clinic_transactional_mail_template') {
+      const normalized = normalizeClinicTransactionalMailTemplate(normalizedEnvelope.value);
       if (normalized === null) throw new Error(`invalid_setting_value: ${key}`);
       return { value: normalized };
     }
