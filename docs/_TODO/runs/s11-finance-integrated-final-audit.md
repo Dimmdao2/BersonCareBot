@@ -242,3 +242,150 @@ Full CI, push, deploy, migration execute, PROD и TEST не запускалис
   passed rollback-only: `pending=1 total=242 reapplied=0 foreign-ledger-rows=4 relabeled=0
   dropped-foreign=0 dropped-foreign-by-hash=0 unapplied=0`; output ends `ROLLBACK`. No migration
   execute, TEST/PROD, deploy, push or full CI was run.
+
+## Независимый re-audit correction MF1–MF3 — 2026-09-19
+
+Роль: `auditor-live`
+Кандидат: `b613a8efb6d6144df161e9fdbe9ee00821a9c322` (`wt/finance-core-fix`)
+Предмет повторной проверки: только новая trigger/privilege surface correction и сохранённые
+денежные/provider acceptance-oracles исходного аудита.
+
+### Вердикт: FAIL
+
+MF2 и механическая часть MF3 исправлены, а trigger компилируется и возвращает `NEW`. Но MF1 не
+закрыт для бесплатной отмены оплаченной записи, и обязательный replay после успешной immediate
+refund-попытки не сходится идемпотентно. Это два достижимых runtime-сценария, а не замечания к стилю.
+
+### RA1 — бесплатная отмена по-прежнему может закоммититься без durable refund job
+
+**Достижимый сценарий.** И пациентская отмена в бесплатном окне, и ручная staff-отмена с
+`decisionType='free'` после commit вызывают `applyCancelPaymentOutcome` с
+`prepaymentRefunded=true` (`patient-booking/service.ts:596-599`,
+`staffManualCancelAfterCanonical.ts:39-42`). То есть существующий immediate-path считает такую
+отмену refund-веткой.
+
+Однако immutable cancellation fact записывается иначе: patient-path принудительно ставит
+`prepaymentRefunded=false` при `eligibility.isFree` (`booking-appointment-lifecycle/service.ts:275-278`),
+а staff-path ставит его только для `decisionType='refund_prepayment'`, но не для `free`
+(`booking-appointment-lifecycle/service.ts:330-332`). Новый trigger при обоих false немедленно
+возвращает `NEW` и не пишет очередь
+(`20260919T130000_cancelled_payment_refund_reconciliation.sql:10-12`). Маршрут staff действительно
+принимает `free`, а пациентская policy сама выдаёт `decisionType='free'` в бесплатном окне.
+
+**Impact.** Для уже оплаченной записи cancellation transaction коммитится, после чего процесс может
+завершиться до immediate provider attempt. В БД не будет
+`appointment_payment_reconciliation_refund`; worker не узнает о возврате, и пациент не получит деньги.
+Это тот же owner-инвариант MF1, только в самой обычной free-cancellation ветке.
+
+### RA2 — успешная immediate refund-попытка превращает обязательный worker replay в постоянную ошибку
+
+**Достижимый сценарий.** Trigger ставит refund job до immediate attempt. Если immediate full refund
+успешен, он записывает `refund_succeeded`. Поздний worker передаёт тот же appointment и те же flags в
+`applyCancelPaymentOutcome` (`outgoingDeliveryWorker.ts:771-795`). Повтор читает уже возвращённую сумму,
+получает `refundableMinor=0` и до provider idempotency key падает с
+`refund_amount_exceeds_payment` (`payments/service.ts:400-407`). Queue row поэтому не становится `sent`,
+а повторяется вплоть до operator incident, хотя refund уже завершён.
+
+Независимый oracle временно добавлял в сохранённый money harness ровно последовательность
+`applyCancelPaymentOutcome(refund) → applyCancelPaymentOutcome(same refund)` и требовал успешный второй
+результат без второго денежного движения. Команда:
+
+```bash
+pnpm --dir apps/webapp exec vitest run src/app-layer/booking/staffAppointmentPayments.s10.unit.test.ts
+```
+
+дала `1 failed | 15 passed`; failure — promise rejected
+`refund_amount_exceeds_payment` вместо успешного replay. Временный тест удалён после воспроизведения;
+production-код не менялся. Существующий keep-set этого класса не ловит: тот же файл без временного
+сценария входит в зелёный сохранённый набор ниже.
+
+**Impact.** Стабильный provider idempotency key не достигается: локальная проверка падает раньше provider
+call. Денежного дубля нет, но durable continuation не завершается и создаёт ложный терминальный денежный
+инцидент после уже успешного возврата. Это прямое нарушение обязательной идемпотентности immediate attempt
+и worker replay.
+
+### Что correction действительно закрывает
+
+- Trigger выполняется `AFTER INSERT` в той же внешней transaction, использует только `NEW`, для
+  явных `refund_prepayment`/`retain_prepayment` пишет tenant, appointment, оба decision flags и reason,
+  а после `b613a8efb` возвращает `NEW`. Event identity
+  `appointment-payment-reconcile:refund:<appointmentId>` и `ON CONFLICT (event_id) DO NOTHING`
+  достаточны для одной cancellation fact; разрыв RA1 находится в формировании flags до trigger.
+- Full provider refund не содержит `receipt`; partial и multi-slot refund сохраняют amount-matched
+  receipt. Сохранённый набор F1–F4/F5 и provider payload зелёный:
+
+```bash
+pnpm --dir apps/webapp exec vitest run src/app-layer/booking/staffAppointmentPayments.s10.unit.test.ts src/infra/payments/yookassaPaymentProvider.unit.test.ts src/infra/payments/paymentProviderIdentity.unit.test.ts src/modules/payments/appointmentPaymentReconciliation.unit.test.ts src/app-layer/booking/appointmentPaymentConfirmedHandler.d14.test.ts 'src/app/api/doctor/booking-engine/appointments/[id]/payment/route.route.test.ts' src/app/api/payments/patientAcquiring.route.test.ts
+```
+
+  → `79 passed`.
+- Сохранённый worker failure/finalization набор зелёный:
+
+```bash
+pnpm --dir apps/integrator exec vitest run src/infra/runtime/worker/outgoingDeliveryWorker.bookingLifecycle.s11.test.ts src/infra/runtime/worker/outgoingDeliveryWorker.finalize.test.ts src/infra/runtime/worker/outgoingDeliveryWorker.queueMarkSentFailure.d987audit.test.ts
+```
+
+  → `10 passed`. Он проверяет retry/finalization, но не последовательный successful immediate refund →
+  durable replay из RA2.
+- Callable `app.enqueue_booking_payment_refund_reconciliation(uuid)`, обе capability и
+  `enqueueCancelledAppointmentPaymentReconciliation` отсутствуют в production/deploy surface. Проверено:
+
+```bash
+rg -n -F "app.enqueue_booking_payment_refund_reconciliation(uuid)" apps deploy/postgres --glob '!**/*.md'
+rg -n -F "booking-payment.reconciliation.refund.enqueue" apps deploy/postgres --glob '!**/*.md'
+rg -n -F "enqueueCancelledAppointmentPaymentReconciliation" apps deploy/postgres --glob '!**/*.md'
+```
+
+  Все три поиска вернули exit `1` без совпадений.
+
+### Повторный разбор миграций и прав
+
+- `20260919T090000_booking_payment_reconciliation.sql`:
+  `app.apply_booking_payment_provider_terminal_observation()` принадлежит
+  `app_seam_payment_webhook_owner`, вызывается только trigger-ом `app_object_owner`; body читает predicate
+  и обновляет только `public.be_payment_intents`. Декларация точно содержит `SELECT,UPDATE` для колонок
+  `organization_id, provider_id, provider_intent_ref, appointment_id, status, updated_at`, причём UPDATE
+  ограничен `status,updated_at`. Поля source event приходят через `NEW`, поэтому SELECT source relation
+  не требуется.
+- `20260919T130000_cancelled_payment_refund_reconciliation.sql`:
+  trigger-function принадлежит `app_seam_payment_webhook_owner`, EXECUTE оставлен только
+  `app_object_owner`; relation surface — точные queue columns с `SELECT,INSERT`, где SELECT нужен
+  `ON CONFLICT (event_id)`. Trigger создаётся владельцем cancellation table. Queue сохраняет существующие
+  organization FK и tenant `FORCE RLS`; trigger переносит `NEW.organization_id`.
+- Обе migration не содержат ручных `GRANT`/`REVOKE`, role/default-privilege или policy DDL. Команда
+
+```bash
+rg -n "\b(GRANT|REVOKE|CREATE[[:space:]]+ROLE|ALTER[[:space:]]+ROLE|ALTER[[:space:]]+DEFAULT[[:space:]]+PRIVILEGES|CREATE[[:space:]]+POLICY)\b" apps/webapp/db/drizzle-migrations/20260919T090000_booking_payment_reconciliation.sql apps/webapp/db/drizzle-migrations/20260919T130000_cancelled_payment_refund_reconciliation.sql
+```
+
+  вернула exit `1` без совпадений.
+- Exact body/declaration oracle из correction evidence вернул `RELEVANT_GAPS=0`.
+- Команда
+
+```bash
+node --test deploy/postgres/privileges/migration-order.test.mjs deploy/postgres/privileges/port-context-catalog.test.mjs deploy/postgres/privileges/named-root-column-mapping.test.mjs deploy/postgres/privileges/row-lock-privileges.test.mjs deploy/postgres/privileges/appointment-prepayment-least-privilege.test.mjs deploy/postgres/privileges/function-census.test.mjs deploy/postgres/privileges/relation-access.test.mjs
+```
+
+  → `115 passed`.
+- `node deploy/postgres/privileges/migration-order.mjs`,
+  `bash apps/webapp/scripts/check-drizzle-migration-order.sh` и
+  `pnpm run check:db-privileges-generated` завершились exit `0`; generated privilege, allowlist и
+  port-context artifacts совпали с declaration побайтно.
+- После подтверждения host `151.241.228.122` канонический DEV-only прогон
+
+```bash
+bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot
+```
+
+  завершился `PASS` и `ROLLBACK`:
+  `pending=1 total=242 reapplied=0 foreign-ledger-rows=4 relabeled=0 dropped-foreign=0
+  dropped-foreign-by-hash=0 unapplied=0`. В текущей именованной DEV migration `090000` уже находится
+  в ledger; candidate-preflight исполнил pending `130000` с exact statement owners и откатил transaction.
+
+### Дополнительная валидация и границы
+
+- `pnpm --dir apps/webapp typecheck` — exit `0`.
+- `pnpm --dir apps/integrator typecheck` — exit `0`.
+- `pnpm --dir apps/webapp exec eslint src/modules/payments/service.ts src/modules/payments/ports.ts src/infra/repos/pgPayments.ts src/modules/patient-booking/service.ts src/app-layer/booking/staffManualCancelAfterCanonical.ts src/app-layer/booking/staffAppointmentPayments.s10.unit.test.ts src/infra/payments/paymentProviderIdentity.unit.test.ts`
+  — exit `0`.
+- Full CI, push, deploy, migration execute и обращения к TEST/PROD не выполнялись.
