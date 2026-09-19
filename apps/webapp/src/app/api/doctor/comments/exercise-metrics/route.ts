@@ -59,9 +59,10 @@ export async function GET(request: Request) {
 
   try {
     const deps = buildAppDeps();
-    const resolved = await resolveDoctorInstanceInWorkspace(deps, gate.ctx, instanceId, {
-      clientChannel: 'commentsAllowed',
-    });
+    // Exercise progress is clinical program data, not a comments-channel capability.
+    // A doctor who can access the patient instance must still see an empty journal or
+    // completion history when program comments are disabled for that patient.
+    const resolved = await resolveDoctorInstanceInWorkspace(deps, gate.ctx, instanceId);
     if (!resolved.ok) return resolved.response;
 
     const itemBelongsToInstance = resolved.instance.stages.some((stage) =>

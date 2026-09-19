@@ -35,6 +35,7 @@ type HistoryResponse = {
 
 type HistoryState =
   | { key: string; state: 'loading'; points: []; comments: []; iana: null }
+  | { key: string; state: 'empty'; points: []; comments: []; iana: null }
   | { key: string; state: 'error'; points: []; comments: []; iana: null }
   | {
       key: string;
@@ -361,6 +362,7 @@ function ExerciseChartTooltip({
 
 function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [chartRenderKey, setChartRenderKey] = useState(0);
   const width = Math.max(520, days.length * 40);
   const entriesByKey = new Map(days.map((day) => [day.chartKey, day]));
   const [visibleRange, setVisibleRange] = useState(() => ({
@@ -406,6 +408,16 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
     };
   }, [days.length, width]);
 
+  useEffect(() => {
+    const dismissTooltipOutsideChart = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || scrollRef.current?.contains(target)) return;
+      setChartRenderKey((current) => current + 1);
+    };
+    document.addEventListener('pointerdown', dismissTooltipOutsideChart);
+    return () => document.removeEventListener('pointerdown', dismissTooltipOutsideChart);
+  }, []);
+
   return (
     <section className="shrink-0 space-y-3 pt-3 pb-4" aria-label="Динамика">
       {hasValues ? (
@@ -444,6 +456,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
             >
               <div style={{ width, minWidth: '100%' }}>
                 <ComposedChart
+                  key={chartRenderKey}
                   width={width}
                   height={264}
                   data={days}
@@ -621,6 +634,12 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
       <div
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehaviorY: 'contain',
+          touchAction: 'pan-y',
+        }}
+        data-base-ui-swipe-ignore
       >
         <div>
           <div
@@ -791,6 +810,10 @@ export function DoctorExerciseStatisticsPanel({
       .then(async (response) => {
         const payload = (await response.json().catch(() => null)) as HistoryResponse | null;
         if (!requestActive) return;
+        if (response.status === 404) {
+          setHistory({ key: requestKey, state: 'empty', points: [], comments: [], iana: null });
+          return;
+        }
         if (
           !response.ok ||
           !payload?.ok ||
@@ -838,6 +861,13 @@ export function DoctorExerciseStatisticsPanel({
       ) : null}
       {history.key === requestKey && history.state === 'error' ? (
         <p className="px-4 py-4 text-sm text-destructive">Не удалось загрузить статистику</p>
+      ) : null}
+      {history.key === requestKey && history.state === 'empty' ? (
+        <p className={cn(doctorMetaTextClass, 'px-4 py-4')}>
+          {view === 'dynamics'
+            ? 'Данные выполнения пока не появились'
+            : 'История выполнения пока пуста'}
+        </p>
       ) : null}
       {history.key === requestKey && history.state === 'ready' ? (
         view === 'dynamics' ? (

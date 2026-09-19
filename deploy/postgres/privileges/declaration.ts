@@ -20377,6 +20377,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "operations": ["INSERT"],
         "columns": [
           "conversation_id",
+          "marked_at",
           "organization_id",
           "staff_user_id",
           "target_message_id"
@@ -27032,8 +27033,7 @@ const REV10_CONTEXT = {
       execute: ['app_object_owner'], purpose: 'atomically mark only unresolved appointment intents cancelled after provider terminal observation',
       typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
-        { relation: 'public.be_payment_provider_events', columns: ['organization_id', 'provider_id', 'intent_ref', 'event_type', 'processed_at'], operations: ['SELECT' as const], evidence: 'terminal provider event trigger input' as const },
-        { relation: 'public.be_payment_intents', columns: ['organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id', 'status', 'updated_at'], operations: ['UPDATE' as const], operationColumns: { UPDATE: ['status', 'updated_at'] }, evidence: 'only pending or processing appointment intent terminal transition' as const },
+        { relation: 'public.be_payment_intents', columns: ['organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id', 'status', 'updated_at'], operations: ['SELECT' as const, 'UPDATE' as const], operationColumns: { UPDATE: ['status', 'updated_at'] }, evidence: 'read the terminal-transition predicate and update only unresolved appointment intents' as const },
       ],
     }),
     'app.enqueue_booking_lifecycle_from_appointment()': rev10Function({

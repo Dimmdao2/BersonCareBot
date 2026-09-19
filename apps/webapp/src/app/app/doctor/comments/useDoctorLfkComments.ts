@@ -92,6 +92,10 @@ export function useDoctorLfkComments({
         );
         const data = (await res.json().catch(() => null)) as ExercisesApiResponse | null;
         if (generation !== loadGenerationRef.current) return;
+        if (res.status === 404) {
+          setResult(null);
+          return;
+        }
         if (!res.ok || !data?.ok) throw new Error('api_error');
         setResult(data.data ?? null);
       } catch {
