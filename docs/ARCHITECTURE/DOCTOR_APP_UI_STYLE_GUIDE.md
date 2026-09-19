@@ -106,8 +106,8 @@
 | Page title (h1)                   | `doctorPageTitleClass`         | `text-[18px] font-medium tracking-tight`   | 18      |
 | Заголовок модалки                 | `doctorModalTitleClass`        | `text-base font-medium tracking-tight`     | 16      |
 | Название сущности в модалке       | `doctorModalEntityTitleClass`  | `text-[17px] font-semibold`, серо-синий    | 17      |
-| Название этапа в модалке          | `doctorModalStageEntityTitleClass` | `text-[19px] font-medium`, серо-синий  | 19      |
-| Название сущности в карточке      | `doctorCardEntityTitleClass`   | `text-[18px] font-medium`, серо-синий      | 18      |
+| Название этапа в модалке          | `doctorModalStageEntityTitleClass` | `text-[21px] font-medium`, серо-синий  | 21      |
+| Название сущности в карточке      | `doctorCardEntityTitleClass`   | `text-[18px] font-normal`, серо-синий      | 18      |
 | Имя пациента в entity-header     | `doctorClientDisplayNameClass` | `text-[18px] font-bold leading-6`           | 18      |
 | Section title (h2/h3)             | `doctorSectionTitleClass`      | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
 | Body                              | `doctorBodyTextClass`          | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
