@@ -216,8 +216,7 @@ function SymptomPatientTrackingSwitch({
 /**
  * CLINICAL-HEADER-05/06: показ закрытых записей переключает одна компактная icon-only кнопка
  * `ScrollText`. Видимого текста «История» нет — подпись живёт только в `aria-label`/`title`;
- * активное состояние берёт общий doctor-словарь фильтра (синие обводка, иконка и лёгкий фон),
- * а не локальный hex.
+ * иконка остаётся нейтральной и более тонкой, чтобы не конкурировать с основным действием добавления.
  */
 function HistoryToggleButton({
   active,
@@ -236,10 +235,10 @@ function HistoryToggleButton({
       aria-pressed={active}
       aria-label={label}
       title={label}
-      className={cn(active && 'border-primary bg-primary/15 text-primary hover:bg-primary/20')}
+      className={cn('text-foreground', active && 'border-border bg-muted/40 hover:bg-muted/60')}
       onClick={onToggle}
     >
-      <ScrollText className="size-5" />
+      <ScrollText className="size-5" strokeWidth={1.5} />
     </Button>
   );
 }
@@ -252,6 +251,7 @@ function SectionHeader({
   onAdd,
   addLabel,
   addIcon,
+  showHistoryAction,
   hasContent,
 }: {
   title: string;
@@ -261,6 +261,7 @@ function SectionHeader({
   onAdd: () => void;
   addLabel: string;
   addIcon: ReactNode;
+  showHistoryAction: boolean;
   /** Без содержимого шапка сама держит нижний внутренний отступ белого блока. */
   hasContent: boolean;
 }) {
@@ -273,13 +274,16 @@ function SectionHeader({
     >
       <h3 className={doctorSectionTitleClass}>{title}</h3>
       <div className="flex items-center gap-1.5">
-        <HistoryToggleButton active={history} label={historyLabel} onToggle={onHistoryChange} />
+        {showHistoryAction ? (
+          <HistoryToggleButton active={history} label={historyLabel} onToggle={onHistoryChange} />
+        ) : null}
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           aria-label={addLabel}
           title={addLabel}
+          className="text-primary hover:text-primary"
           onClick={onAdd}
         >
           {addIcon}
@@ -340,6 +344,7 @@ function ClinicalListBlock({
         onAdd={onAdd}
         addLabel={addLabel}
         addIcon={addIcon}
+        showHistoryAction={historyRows.length > 0}
         hasContent={hasContent}
       />
       {loading ? <DoctorPanelLoading className="py-5" /> : null}
@@ -1393,6 +1398,7 @@ function DiseaseAnamnesisSection({
             variant="ghost"
             size="icon-sm"
             title="Изменить анамнез заболевания"
+            className="text-primary hover:text-primary"
             onClick={openEditor}
           >
             <SquarePen className="size-5" />
@@ -1422,7 +1428,11 @@ function DiseaseAnamnesisSection({
                   aria-label={expanded ? 'Свернуть' : 'Показать полностью'}
                   onClick={() => setExpanded((value) => !value)}
                 >
-                  {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                  {expanded ? (
+                    <ChevronUp className="size-4 text-primary" />
+                  ) : (
+                    <ChevronDown className="size-4 text-primary" />
+                  )}
                 </Button>
               ) : null}
             </div>
@@ -1697,6 +1707,7 @@ function LifeAnamnesisSection({
             size="icon-sm"
             aria-label="Изменить анамнез жизни"
             title="Изменить анамнез жизни"
+            className="text-primary hover:text-primary"
             onClick={() => setLifeEditorOpen(true)}
           >
             <SquarePen className="size-5" />
