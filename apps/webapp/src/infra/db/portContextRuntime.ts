@@ -268,6 +268,9 @@ export function createWebappPortContextRuntimeConfig(
 const IDENTITY_ONLY_PATIENT_ROOTS = new Set<string>([
   'app.read_current_patient_active_organizations()',
   'app.enroll_current_patient_in_public_booking_clinic(uuid,text)',
+  // The account-level email gate runs before organization recovery in the patient layout. It
+  // reads and updates only the current person's own email requirement clock.
+  'app.patient_email_gate_state(boolean)',
   // Public configuration for the current person's browser subscription. It has no clinic
   // relationship to resolve and exposes no private VAPID material.
   'app.get_web_push_vapid_public_key()',
