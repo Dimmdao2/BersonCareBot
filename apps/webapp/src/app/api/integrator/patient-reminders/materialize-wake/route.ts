@@ -4,10 +4,13 @@ import { isKeyValid } from '@/app-layer/idempotency/idempotencyStore';
 import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
 import { enterVerifiedIntegratorOrganizationPrincipal } from '@/app-layer/principal/integratorOrganizationPrincipal';
 import { runPatientReminderMaterializationWake } from '@/app-layer/reminders/runPatientReminderMaterializationWake';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 const bodySchema = z
-  .object({ wakeId: z.string().min(1).max(64), organizationId: z.string().uuid() })
+  .object({
+    wakeId: z.string().min(1).max(64),
+    organizationId: z.string().uuid(),
+    patientPublicOrigin: z.string().url().refine((value) => new URL(value).origin === value),
+  })
   .strict();
 
 export async function POST(request: Request) {
@@ -44,11 +47,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid organization' }, { status: 400 });
   }
   try {
-    const customDomainBinding = buildAppDeps().customDomainBinding;
     const result = await runPatientReminderMaterializationWake(parsed.data.organizationId, new Date(), undefined, {
-      resolvePatientPublicOrigin: customDomainBinding
-        ? (organizationId) => customDomainBinding.resolvePatientPublicOrigin(organizationId)
-        : undefined,
+      resolvePatientPublicOrigin: async () => parsed.data.patientPublicOrigin,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch {
