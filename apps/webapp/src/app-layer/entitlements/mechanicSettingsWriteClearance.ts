@@ -28,6 +28,11 @@ type SystemSettingsServiceLike = {
     expectedUpdatedAt: string | null,
     options?: SystemSettingsWriteOptions,
   ): Promise<SystemSetting | null>;
+  persistSettingsBatch(
+    rows: Array<{ key: string; scope: SystemSettingScope; value: unknown }>,
+    updatedBy: string | null,
+    options?: SystemSettingsWriteOptions,
+  ): Promise<SystemSetting[]>;
 };
 
 const TARIFF_MECHANIC_SETTING_KEYS: Partial<Record<string, readonly OrgMechanic[]>> = {
@@ -84,6 +89,12 @@ export function wrapSystemSettingsServiceWithTariffMechanicWriteClearance<
         expectedUpdatedAt,
         options,
       );
+    },
+    async persistSettingsBatch(rows, updatedBy, options) {
+      for (const row of rows) {
+        assertTariffMechanicSettingWriteClearance(row.key, assertWriteClearance);
+      }
+      return service.persistSettingsBatch(rows, updatedBy, options);
     },
   };
 }

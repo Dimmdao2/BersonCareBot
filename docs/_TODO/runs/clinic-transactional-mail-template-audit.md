@@ -103,3 +103,15 @@ No UI/DOM/copy test and no Next server were run.
 - `pnpm --dir apps/integrator exec vitest run src/integrations/email/mailProfile.unit.test.ts` — 5 passed.
 - `pnpm --dir apps/webapp typecheck` — passed.
 - Scoped ESLint over all candidate and audit-test source paths — passed.
+
+## Lead correction — 2026-09-19
+
+- `persistSettingsBatch` теперь проходит тот же `TARIFF_MECHANIC_SETTING_KEYS` guard для каждой строки
+  до обращения к базовому сервису; сохранённый batch acceptance-oracle стал зелёным.
+- Три примера неутверждённой формулировки удалены из placeholders: поля показывают только нейтральные
+  названия, пустое состояние не предлагает owner-copy.
+- Успех и ошибка сохранения используют существующие `notificationText.settingsSaved` и
+  `notificationText.settingsSaveFailed`; второй словарь не создан.
+- Focused webapp-набор: `52 passed`; integrator consumer: `5 passed`; webapp typecheck, scoped ESLint
+  и `git diff --check` — PASS. По §24.5 новый blind-pass тех же трёх findings не запускается;
+  live UI и реальная доставка остаются post-land проверкой.

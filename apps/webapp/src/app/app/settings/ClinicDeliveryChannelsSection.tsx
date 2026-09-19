@@ -154,7 +154,7 @@ export function ClinicDeliveryChannelsSection({
                 senderDisplayNameTemplate: e.target.value,
               }))
             }
-            placeholder="Имя отправителя: {{clinicName}} · {{platformName}}"
+            placeholder="Имя отправителя"
           />
           <Input
             value={transactionalMailTemplate.authCodeSubjectTemplate}
@@ -164,7 +164,7 @@ export function ClinicDeliveryChannelsSection({
                 authCodeSubjectTemplate: e.target.value,
               }))
             }
-            placeholder="Тема: {{senderDisplayName}}"
+            placeholder="Тема письма"
           />
           <Textarea
             value={transactionalMailTemplate.authCodeTextTemplate}
@@ -174,7 +174,7 @@ export function ClinicDeliveryChannelsSection({
                 authCodeTextTemplate: e.target.value,
               }))
             }
-            placeholder="Текст: {{senderDisplayName}} · {{code}}"
+            placeholder="Текст письма"
             rows={3}
           />
           <Button
@@ -189,10 +189,10 @@ export function ClinicDeliveryChannelsSection({
                     'clinic_transactional_mail_template',
                     transactionalMailTemplate,
                   );
-                  toast.success('Шаблон письма сохранён.');
+                  toast.success(notificationText.settingsSaved);
                 } catch (cause) {
                   toast.error(
-                    safeUserMessage(cause, 'Не удалось сохранить шаблон письма. Повторите.'),
+                    safeUserMessage(cause, notificationText.settingsSaveFailed),
                   );
                 }
               })
