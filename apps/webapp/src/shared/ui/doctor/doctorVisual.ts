@@ -58,15 +58,10 @@ export const doctorModalTitleClass = 'text-base font-medium tracking-tight text-
 
 /** Prominent entity name in a doctor modal header (stage, program, symptom, exercise). */
 export const doctorModalEntityTitleClass =
-  'text-[17px] leading-[22px] font-semibold tracking-tight text-[var(--doctor-entity-title)]';
-
-/** Stage name in its exercise-list modal: larger than the shared entity-title role, but lighter. */
-export const doctorModalStageEntityTitleClass =
-  'text-[21px] leading-7 font-medium tracking-tight text-[var(--doctor-entity-title)]';
+  'text-[18px] leading-6 font-normal tracking-tight text-[var(--doctor-entity-title)]';
 
 /** Prominent entity name inside a doctor page card (for example, the active treatment program). */
-export const doctorCardEntityTitleClass =
-  'text-[18px] leading-6 font-normal tracking-tight text-[var(--doctor-entity-title)]';
+export const doctorCardEntityTitleClass = doctorModalEntityTitleClass;
 
 /** Section title for h2/h3 in doctor pages. */
 export const doctorSectionTitleClass =
