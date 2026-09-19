@@ -285,6 +285,7 @@ function ChartSideAxis({
           className={cn(
             'absolute z-10 -translate-y-1/2 text-[10px] leading-none tabular-nums',
             isLeft ? 'right-1 text-right' : 'left-1 text-left',
+            !isLeft && value === 10 && '-translate-x-[3px]',
           )}
           style={{ top: `${22 + (index / (values.length - 1)) * 168}px`, color }}
         >
@@ -416,7 +417,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
               <p className="text-sm font-semibold text-[var(--doctor-exercise-pain-chart)]">Боль</p>
             </div>
           </div>
-          <div className="mt-1 flex">
+          <div className="mt-1 flex px-1">
             <ChartSideAxis
               values={[...volumeTicks].reverse()}
               side="left"
@@ -425,8 +426,12 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
             <div
               ref={scrollRef}
               className="doctor-weekly-chart-scroll doctor-touch-focus-surface min-w-0 flex-1 touch-pan-x overflow-x-auto overscroll-x-contain select-none"
-              style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
-              data-vaul-no-drag
+              style={{
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehaviorX: 'contain',
+                touchAction: 'pan-x',
+              }}
+              data-base-ui-swipe-ignore
               aria-label="График динамики: прокрутите влево для более ранних дат"
             >
               <div style={{ width, minWidth: '100%' }}>
@@ -538,12 +543,9 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
             />
           </div>
           <div
-            className={cn(
-              doctorMetaTextClass,
-              'mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 px-4',
-            )}
+            className={cn(doctorMetaTextClass, 'mt-2 flex items-start justify-between gap-4 px-4')}
           >
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <div className="grid shrink-0 grid-cols-2 gap-x-3 gap-y-1">
               {(['easy', 'medium', 'hard', 'none'] as const).map((difficulty) => (
                 <span
                   key={difficulty}
@@ -608,11 +610,14 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
 
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label="Журнал выполнений">
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
+      >
         <div>
           <div
             data-journal-columns
-            className="sticky top-0 z-10 grid grid-cols-[4rem_6rem_3.5rem_2.875rem_minmax(4rem,1fr)_1.25rem] gap-x-1 border-b border-border/70 bg-white px-3 py-2 text-[10px] text-muted-foreground"
+            className="sticky top-0 z-10 grid grid-cols-[3.25rem_4.5rem_3rem_2.5rem_minmax(3.5rem,1fr)_1.5rem] gap-x-1 border-b border-border/70 bg-white px-2 py-2 text-[10px] text-muted-foreground"
           >
             <span>Дата</span>
             <span>Повт. × подх.</span>
@@ -646,7 +651,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                 return (
                   <div
                     key={point?.completionId ?? `${day.date}-empty`}
-                    className="grid min-h-12 grid-cols-[4rem_6rem_3.5rem_2.875rem_minmax(4rem,1fr)_1.25rem] items-center gap-x-1 border-b border-border/60 px-3 py-1.5 text-sm text-foreground"
+                    className="grid min-h-12 grid-cols-[3.25rem_4.5rem_3rem_2.5rem_minmax(3.5rem,1fr)_1.5rem] items-center gap-x-1 border-b border-border/60 px-2 py-1.5 text-sm text-foreground"
                   >
                     <div className="flex items-center gap-1.5">
                       <span
@@ -687,7 +692,7 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
                       {point?.difficulty ? (
                         <span
                           className={cn(
-                            'inline-flex h-7 w-16 items-center justify-center rounded-lg px-1 text-xs font-medium whitespace-nowrap',
+                            'inline-flex h-7 w-full max-w-16 items-center justify-center rounded-lg px-1 text-xs font-medium whitespace-nowrap',
                             point.difficulty === 'easy' &&
                               'bg-[color:color-mix(in_srgb,var(--doctor-exercise-difficulty-easy)_45%,white)] text-[var(--doctor-exercise-completion-text)]',
                             point.difficulty === 'medium' &&

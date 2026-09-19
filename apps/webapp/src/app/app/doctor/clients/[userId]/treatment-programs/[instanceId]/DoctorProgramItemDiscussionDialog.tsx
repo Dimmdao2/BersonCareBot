@@ -87,7 +87,7 @@ function ExerciseStatisticsViewToggle({
   onChange: (value: DoctorExerciseStatisticsView) => void;
 }) {
   return (
-    <div className="grid w-full grid-cols-2 gap-1 rounded-lg border border-border/70 bg-muted/35 p-1">
+    <div className="grid w-full grid-cols-2 gap-1 rounded-lg border border-primary/25 bg-primary/10 p-1">
       {(
         [
           ['dynamics', 'Динамика'],
@@ -105,8 +105,8 @@ function ExerciseStatisticsViewToggle({
             className={cn(
               'min-w-0 border text-sm',
               active
-                ? 'border-border/80 bg-card text-primary shadow-sm hover:bg-card hover:text-primary'
-                : 'border-transparent bg-transparent text-muted-foreground shadow-none hover:bg-muted/60',
+                ? 'border-primary/25 bg-card font-medium text-primary shadow-sm hover:bg-card hover:text-primary'
+                : 'border-transparent bg-transparent text-primary shadow-none hover:bg-primary/10 hover:text-primary',
             )}
             onClick={() => onChange(nextValue)}
           >
