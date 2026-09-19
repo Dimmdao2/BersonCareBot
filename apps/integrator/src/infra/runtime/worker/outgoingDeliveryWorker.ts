@@ -216,10 +216,7 @@ async function recordBookingLifecycleReplayDeadIncident(
     row.kind === 'appointment_payment_reconciliation_intent' ||
     row.kind === 'appointment_payment_reconciliation_sweep'
   ) {
-    const errorClass =
-      row.kind === 'appointment_payment_reconciliation_intent'
-        ? 'appointment_payment_reconciliation_intent_exhausted'
-        : 'appointment_payment_reconciliation_sweep_exhausted';
+    const errorClass = reconciliationIncidentClassFromQueueRow(row);
     try {
       await recordOperatorFailureIncident({
         direction: 'appointment_payment_reconciliation',
@@ -266,6 +263,18 @@ async function recordBookingLifecycleReplayDeadIncident(
       'booking_lifecycle_replay_dead_incident_record_failed',
     );
   }
+}
+
+function reconciliationIncidentClassFromQueueRow(row: OutgoingDeliveryQueueRow): string {
+  const safeCodes = [
+    'appointment_payment_reconciliation_provider_list_truncated',
+    'appointment_payment_reconciliation_appointment_unbound',
+    'appointment_payment_reconciliation_binding_mismatch',
+    'appointment_payment_reconciliation_provider_unavailable',
+    'appointment_payment_reconciliation_provider_failed',
+  ];
+  const error = typeof row.lastError === 'string' ? row.lastError : '';
+  return safeCodes.find((code) => error.includes(code)) ?? 'appointment_payment_reconciliation_terminal_retry_exhausted';
 }
 
 function asChatIdFromRecipient(recipient: unknown): number | null {
@@ -766,6 +775,14 @@ export async function processOutgoingDeliveryRow(
     });
     if (!result.ok) {
       throw new Error(`APPOINTMENT_PAYMENT_RECONCILIATION_FAILED:${result.status}:${result.error ?? ''}`);
+    }
+    if (result.incidentKey === 'success_after_local_expiry') {
+      await recordOperatorFailureIncident({
+        direction: 'appointment_payment_reconciliation',
+        integration: 'payment_provider',
+        errorClass: 'success_after_local_expiry',
+        errorDetail: null,
+      });
     }
     await queueMarkSent(db, row.id);
     return;

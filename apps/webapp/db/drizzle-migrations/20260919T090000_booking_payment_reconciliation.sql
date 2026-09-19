@@ -36,20 +36,40 @@ BEGIN
   FOR v_row IN
     SELECT intent.id, intent.organization_id
     FROM public.be_payment_intents AS intent
-    WHERE intent.appointment_id IS NOT NULL AND intent.status IN ('pending', 'processing')
+    LEFT JOIN LATERAL (
+      SELECT max(COALESCE(queue.sent_at, queue.dead_at, queue.created_at)) AS completed_at
+      FROM public.outgoing_delivery_queue AS queue
+      WHERE queue.kind = 'appointment_payment_reconciliation_intent'
+        AND queue.payload_json ->> 'intentId' = intent.id::text
+        AND queue.status IN ('sent', 'dead')
+    ) AS completed ON true
+    WHERE intent.appointment_id IS NOT NULL AND intent.provider_intent_ref IS NOT NULL
+      AND (
+        intent.status IN ('pending', 'processing') OR (
+          intent.status IN ('cancelled', 'failed')
+          AND NOT EXISTS (
+            SELECT 1 FROM public.be_payment_provider_events AS event
+            WHERE event.organization_id = intent.organization_id
+              AND event.provider_id = intent.provider_id
+              AND event.intent_ref = intent.provider_intent_ref
+              AND event.processed_at IS NOT NULL
+              AND event.event_type IN ('payment.succeeded', 'payment.canceled', 'payment.expired')
+          )
+        )
+      )
       AND NOT EXISTS (
         SELECT 1 FROM public.outgoing_delivery_queue AS queue
         WHERE queue.kind = 'appointment_payment_reconciliation_intent'
           AND queue.status IN ('pending', 'processing', 'failed_retryable')
           AND queue.payload_json ->> 'intentId' = intent.id::text
       )
-    ORDER BY intent.created_at ASC, intent.id ASC
+    ORDER BY COALESCE(completed.completed_at, intent.created_at) ASC, intent.id ASC
     LIMIT 500
   LOOP
     INSERT INTO public.outgoing_delivery_queue (
       organization_id, event_id, kind, channel, payload_json, status, attempt_count, max_attempts, next_retry_at, priority
     ) VALUES (
-      v_row.organization_id, 'appointment-payment-reconcile:intent:' || v_row.id::text,
+      v_row.organization_id, 'appointment-payment-reconcile:intent:' || v_row.id::text || ':' || p_wake_id,
       'appointment_payment_reconciliation_intent', 'internal',
       pg_catalog.jsonb_build_object('intentId', v_row.id::text, 'organizationId', v_row.organization_id::text), 'pending', 0, v_limit,
       pg_catalog.clock_timestamp(), -10
@@ -58,16 +78,44 @@ BEGIN
     v_intents := v_intents + v_written;
   END LOOP;
   FOR v_row IN
-    SELECT DISTINCT intent.organization_id, intent.provider_id
-    FROM public.be_payment_intents AS intent
-    WHERE intent.appointment_id IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM public.outgoing_delivery_queue AS queue
+    SELECT candidate.organization_id, candidate.provider_id
+    FROM (
+      SELECT intent.organization_id, intent.provider_id,
+        min(COALESCE(completed.completed_at, intent.created_at)) AS due_at
+      FROM public.be_payment_intents AS intent
+      LEFT JOIN LATERAL (
+        SELECT max(COALESCE(queue.sent_at, queue.dead_at, queue.created_at)) AS completed_at
+        FROM public.outgoing_delivery_queue AS queue
         WHERE queue.kind = 'appointment_payment_reconciliation_sweep'
           AND queue.organization_id = intent.organization_id
-          AND queue.status IN ('pending', 'processing', 'failed_retryable')
           AND queue.payload_json ->> 'providerId' = intent.provider_id
-      )
+          AND queue.status IN ('sent', 'dead')
+      ) AS completed ON true
+      WHERE intent.appointment_id IS NOT NULL AND intent.provider_intent_ref IS NOT NULL
+        AND (
+          intent.status IN ('pending', 'processing') OR (
+            intent.status IN ('cancelled', 'failed')
+            AND NOT EXISTS (
+              SELECT 1 FROM public.be_payment_provider_events AS event
+              WHERE event.organization_id = intent.organization_id
+                AND event.provider_id = intent.provider_id
+                AND event.intent_ref = intent.provider_intent_ref
+                AND event.processed_at IS NOT NULL
+                AND event.event_type IN ('payment.succeeded', 'payment.canceled', 'payment.expired')
+            )
+          )
+        )
+      GROUP BY intent.organization_id, intent.provider_id
+    ) AS candidate
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.outgoing_delivery_queue AS queue
+      WHERE queue.kind = 'appointment_payment_reconciliation_sweep'
+        AND queue.organization_id = candidate.organization_id
+        AND queue.status IN ('pending', 'processing', 'failed_retryable')
+        AND queue.payload_json ->> 'providerId' = candidate.provider_id
+    )
+    ORDER BY candidate.due_at ASC, candidate.organization_id ASC, candidate.provider_id ASC
+    LIMIT 500
   LOOP
     INSERT INTO public.outgoing_delivery_queue (
       organization_id, event_id, kind, channel, payload_json, status, attempt_count, max_attempts, next_retry_at, priority
@@ -145,7 +193,20 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog 
   SELECT pg_catalog.jsonb_build_object('providerId', p_provider_id, 'watermark', checkpoint.watermark, 'oldestUnresolvedCreatedAt', min(intent.created_at))
   FROM (SELECT 1) AS one
   LEFT JOIN public.be_payment_reconciliation_checkpoints AS checkpoint ON checkpoint.organization_id = app.current_org_id() AND checkpoint.provider_id = p_provider_id
-  LEFT JOIN public.be_payment_intents AS intent ON intent.organization_id = app.current_org_id() AND intent.provider_id = p_provider_id AND intent.appointment_id IS NOT NULL AND intent.status IN ('pending', 'processing')
+  LEFT JOIN public.be_payment_intents AS intent ON intent.organization_id = app.current_org_id() AND intent.provider_id = p_provider_id AND intent.appointment_id IS NOT NULL AND intent.provider_intent_ref IS NOT NULL
+    AND (
+      intent.status IN ('pending', 'processing') OR (
+        intent.status IN ('cancelled', 'failed')
+        AND NOT EXISTS (
+          SELECT 1 FROM public.be_payment_provider_events AS event
+          WHERE event.organization_id = intent.organization_id
+            AND event.provider_id = intent.provider_id
+            AND event.intent_ref = intent.provider_intent_ref
+            AND event.processed_at IS NOT NULL
+            AND event.event_type IN ('payment.succeeded', 'payment.canceled', 'payment.expired')
+        )
+      )
+    )
   GROUP BY p_provider_id, checkpoint.watermark;
 $function$;
 --> statement-breakpoint

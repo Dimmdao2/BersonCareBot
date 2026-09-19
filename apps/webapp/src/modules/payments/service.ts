@@ -295,6 +295,24 @@ export function createPaymentsService(deps: {
     }
   }
 
+  function isAppointmentLookingReconciliationFact(
+    fact: PaymentProviderPaymentStatus,
+    intent: Awaited<ReturnType<PaymentsPort['readAppointmentPaymentReconciliationIntentByProviderRef']>>,
+  ): boolean {
+    const object = fact.payload.object;
+    const metadata = object && typeof object === 'object'
+      ? (object as { metadata?: unknown }).metadata
+      : undefined;
+    const meta = metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : null;
+    const purpose = meta?.purpose;
+    const subjectRef = meta?.subjectRef;
+    return intent !== null ||
+      purpose === 'appointment_prepayment' ||
+      purpose === 'appointment_payment' ||
+      typeof meta?.appointmentId === 'string' ||
+      (typeof subjectRef === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(subjectRef));
+  }
+
   async function settleReconciliationFact(input: {
     organizationId: string;
     providerId: string;
@@ -901,18 +919,13 @@ export function createPaymentsService(deps: {
       });
       if (listed.truncated) throw new Error('appointment_payment_reconciliation_provider_list_truncated');
       for (const item of listed.items) {
-        const object = item.payload.object;
-        const metadata =
-          object && typeof object === 'object'
-            ? (object as { metadata?: Record<string, unknown> }).metadata
-            : undefined;
-        const purpose = metadata?.purpose;
-        if (purpose !== 'appointment_prepayment' && purpose !== 'appointment_payment') continue;
         // Provider metadata is never tenant authority. The accepted organization root resolves
         // the local intent by the provider ref; absent or ambiguous binding holds the checkpoint.
         const intent = await deps.port.readAppointmentPaymentReconciliationIntentByProviderRef(
           item.providerPaymentRef,
         );
+        if (!isAppointmentLookingReconciliationFact(item, intent)) continue;
+        if (!intent) throw new Error('appointment_payment_reconciliation_appointment_unbound');
         await settleReconciliationFact({
           organizationId: input.organizationId,
           providerId: input.providerId,

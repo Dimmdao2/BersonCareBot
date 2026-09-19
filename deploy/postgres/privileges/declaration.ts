@@ -28556,8 +28556,9 @@ const REV10_CONTEXT = {
       execute: ['app_worker'], purpose: 'materialize bounded appointment-payment reconciliation queue rows',
       typedArgs: ['text', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
-        { relation: 'public.be_payment_intents', columns: ['id', 'organization_id', 'provider_id', 'appointment_id', 'status', 'created_at'], operations: ['SELECT' as const], evidence: 'reconciliation due intents' as const },
-        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at', 'priority'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'bounded reconciliation work enqueue' as const },
+        { relation: 'public.be_payment_intents', columns: ['id', 'organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id', 'status', 'created_at'], operations: ['SELECT' as const], evidence: 'reconciliation due intents' as const },
+        { relation: 'public.be_payment_provider_events', columns: ['organization_id', 'provider_id', 'intent_ref', 'event_type', 'processed_at'], operations: ['SELECT' as const], evidence: 'terminal provider outcome releases late-intent reconciliation' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at', 'priority', 'sent_at', 'dead_at', 'created_at'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'bounded fair reconciliation work enqueue' as const },
       ],
     }),
     'app.read_booking_payment_reconciliation_intent(uuid)': rev10Function({
@@ -28578,7 +28579,8 @@ const REV10_CONTEXT = {
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_payment_reconciliation_checkpoints', columns: ['organization_id', 'provider_id', 'watermark'], operations: ['SELECT' as const], evidence: 'durable reconciliation checkpoint read' as const },
-        { relation: 'public.be_payment_intents', columns: ['organization_id', 'provider_id', 'appointment_id', 'status', 'created_at'], operations: ['SELECT' as const], evidence: 'oldest unresolved appointment intent' as const },
+        { relation: 'public.be_payment_intents', columns: ['organization_id', 'provider_id', 'provider_intent_ref', 'appointment_id', 'status', 'created_at'], operations: ['SELECT' as const], evidence: 'oldest unresolved appointment intent' as const },
+        { relation: 'public.be_payment_provider_events', columns: ['organization_id', 'provider_id', 'intent_ref', 'event_type', 'processed_at'], operations: ['SELECT' as const], evidence: 'terminal provider outcome releases late-intent sweep anchor' as const },
       ],
     }),
     'app.advance_booking_payment_reconciliation_watermark(text,timestamp with time zone)': rev10Function({

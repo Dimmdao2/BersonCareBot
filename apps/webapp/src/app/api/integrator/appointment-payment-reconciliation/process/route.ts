@@ -10,6 +10,20 @@ const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('sweep'), organizationId: z.string().uuid(), providerId: z.string().min(1).max(100) }).strict(),
 ]);
 
+const reconciliationErrorCodes = new Set([
+  'appointment_payment_reconciliation_provider_list_truncated',
+  'appointment_payment_reconciliation_appointment_unbound',
+  'appointment_payment_reconciliation_binding_mismatch',
+  'appointment_payment_reconciliation_provider_unavailable',
+]);
+
+function safeReconciliationErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  return reconciliationErrorCodes.has(message)
+    ? message
+    : 'appointment_payment_reconciliation_provider_failed';
+}
+
 /** Every claimed queue row enters its own tenant before config read or canonical settlement. */
 export async function POST(request: Request) {
   const timestamp = request.headers.get('x-bersoncare-timestamp');
@@ -37,8 +51,8 @@ export async function POST(request: Request) {
     const result = parsed.data.kind === 'intent'
       ? await payments.reconcileAppointmentPaymentIntent({ organizationId: parsed.data.organizationId, intentId: parsed.data.intentId })
       : await payments.reconcileAppointmentPaymentSweep({ organizationId: parsed.data.organizationId, providerId: parsed.data.providerId });
-    return NextResponse.json({ ok: true, ...result });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
+    return NextResponse.json(result);
+  } catch (error) {
+    return NextResponse.json({ ok: false, error: safeReconciliationErrorCode(error) }, { status: 500 });
   }
 }

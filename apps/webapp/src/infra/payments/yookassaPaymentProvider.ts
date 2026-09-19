@@ -124,13 +124,18 @@ type YookassaObjectResponse = {
   /** К4 — present on a payment created by paying a YooKassa invoice; points back at that invoice's
    *  own id (`in-...`), which is NOT the same id as the payment object itself (`remote.id`). */
   invoice_details?: { id?: string };
+  /** An invoice only names its linked payment after the payer has started one. */
+  payment_details?: { id?: string };
   /** К6 — present when `save_payment_method: true` (or an existing saved method) was used; `saved`
    *  is only `true` once the provider actually persisted it for reuse. */
   payment_method?: { id?: string; saved?: boolean };
 };
 
 /** One normalization owns webhook and reconciliation identity; do not recreate it in a scheduler. */
-function normalizeYookassaPayment(remote: YookassaObjectResponse): PaymentProviderPaymentStatus {
+function normalizeYookassaPayment(
+  remote: YookassaObjectResponse,
+  localInvoiceRef?: string,
+): PaymentProviderPaymentStatus {
   if (!remote.id) throw new Error('yookassa_payment_object_id_missing');
   const status = remote.status ?? 'unknown';
   const idempotencyKey =
@@ -143,7 +148,7 @@ function normalizeYookassaPayment(remote: YookassaObjectResponse): PaymentProvid
       : 0;
   return {
     providerObjectRef: remote.id,
-    providerPaymentRef: remote.invoice_details?.id ?? remote.id,
+    providerPaymentRef: localInvoiceRef ?? remote.invoice_details?.id ?? remote.id,
     idempotencyKey,
     eventType: status === 'succeeded' ? 'payment.succeeded' : `payment.${status}`,
     status,
@@ -158,7 +163,7 @@ function normalizeYookassaPayment(remote: YookassaObjectResponse): PaymentProvid
 }
 
 async function fetchYookassaObject(
-  path: 'payments' | 'refunds',
+  path: 'payments' | 'refunds' | 'invoices',
   objectId: string,
   shopId: string,
   secretKey: string,
@@ -559,6 +564,16 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
 
     async getPaymentStatus({ providerObjectRef, providerConfig }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
+      // Invoice refs are persisted for shareable appointment prepayments. Older rows have no
+      // discriminator metadata, but YooKassa invoice ids are `in-…`; resolve them through the
+      // documented invoice -> payment chain and keep the local invoice ref for canonical binding.
+      if (providerObjectRef.startsWith('in-')) {
+        const invoice = await fetchYookassaObject('invoices', providerObjectRef, shopId, secretKey);
+        const paymentId = invoice.payment_details?.id;
+        if (!paymentId) throw new Error('yookassa_invoice_payment_unavailable');
+        const payment = await fetchYookassaObject('payments', paymentId, shopId, secretKey);
+        return normalizeYookassaPayment(payment, providerObjectRef);
+      }
       const remote = await fetchYookassaObject('payments', providerObjectRef, shopId, secretKey);
       return normalizeYookassaPayment(remote);
     },

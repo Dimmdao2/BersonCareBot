@@ -56,6 +56,7 @@ export function createWebappEventsPort(deps: {
     status: number;
     enabled?: boolean;
     error?: string;
+    incidentKey?: 'success_after_local_expiry';
     canonicalWrite?: ParsedCanonicalWrite;
   }> {
     const baseUrl = await deps.getAppBaseUrl();
@@ -79,6 +80,7 @@ export function createWebappEventsPort(deps: {
         ok?: boolean;
         enabled?: boolean;
         error?: string;
+        incidentKey?: unknown;
         canonicalWrite?: {
           conversationId?: unknown;
           organizationId?: unknown;
@@ -120,6 +122,9 @@ export function createWebappEventsPort(deps: {
         status: res.status,
         ...(ok && typeof parsed.enabled === 'boolean' ? { enabled: parsed.enabled } : {}),
         ...(canonicalWrite ? { canonicalWrite } : {}),
+        ...(ok && parsed.incidentKey === 'success_after_local_expiry'
+          ? { incidentKey: 'success_after_local_expiry' as const }
+          : {}),
         ...(ok
           ? {}
           : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
