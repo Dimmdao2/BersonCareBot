@@ -63,6 +63,13 @@ const patientVapidPublicKeyCapability: PortCapabilityDescriptor = {
   purpose: 'patient.web-push.vapid-public-key.read',
   functionIdentity: 'app.get_web_push_vapid_public_key()',
 };
+const patientEmailGateCapability: PortCapabilityDescriptor = {
+  capabilityId: '00000000-0000-0000-0000-000000000125',
+  targetRole: 'app_patient',
+  contextClass: 'patient',
+  purpose: 'patient.email-gate.state',
+  functionIdentity: 'app.patient_email_gate_state(boolean)',
+};
 
 type FakeQueryInput = string | { text: string; values?: readonly unknown[] };
 
@@ -397,6 +404,32 @@ describe('webapp port-context runtime', () => {
       principal: {
         targetRole: 'app_patient',
         functionIdentity: 'app.get_web_push_vapid_public_key()',
+        actorRef: OPAQUE_USER,
+        subjectRef: OPAQUE_SUBJECT,
+      },
+    });
+    expect(selected.principal).not.toHaveProperty('organizationId');
+  });
+
+  it('allows the account email gate before the patient has selected an organization', () => {
+    const selected = runWithWebappPortOperation(
+      {
+        functionIdentity: patientEmailGateCapability.functionIdentity!,
+        typedArgs: [portTypedArg('boolean', true)],
+      },
+      () =>
+        webappPortContextPrincipal(
+          { kind: 'patient', platformUserId: USER },
+          { patient_email_gate_state: patientEmailGateCapability },
+          { actor: OPAQUE_USER, subject: OPAQUE_SUBJECT },
+        ),
+    );
+
+    expect(selected).toMatchObject({
+      pool: 'patient',
+      principal: {
+        targetRole: 'app_patient',
+        functionIdentity: 'app.patient_email_gate_state(boolean)',
         actorRef: OPAQUE_USER,
         subjectRef: OPAQUE_SUBJECT,
       },
