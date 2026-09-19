@@ -162,6 +162,7 @@ describe('durable booking lifecycle worker failure outcomes', () => {
     // only alert for an already-captured payment whose lifecycle never completed.
     expect(h.result).toEqual({ claimed: 1, processed: 0, errors: 1 });
     expect(h.dead).toEqual([]);
+    expect(h.retryable).toEqual([QUEUE_ID]);
     expect(h.sent).toEqual([]);
     expect(incidentRecorder).toHaveBeenCalledOnce();
   });
