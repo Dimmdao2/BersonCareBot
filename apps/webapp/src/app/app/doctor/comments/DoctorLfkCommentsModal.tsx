@@ -40,13 +40,16 @@ export function DoctorLfkCommentsModal({
   /** Тред прочитан: даёт вызывающему погасить его непрочитанные в своих счётчиках. */
   onUnreadCleared?: (input: { stageItemId: string; unreadCount: number }) => void;
 }) {
-  const { items, activeStageTitle, loading, error, markItemRead } = useDoctorLfkComments({
+  const { items, programTitle, activeStage, loading, error, markItemRead } = useDoctorLfkComments({
     open,
     patientUserId,
     patientDisplayName: patientName,
   });
   const [selectedItem, setSelectedItem] = useState<TodayExerciseCommentAttentionItem | null>(null);
   const [discussionOpen, setDiscussionOpen] = useState(false);
+  const displayedStageTitle = stageTitle ?? activeStage?.title ?? null;
+  const displayedStageNumber =
+    activeStage && (!stageTitle || stageTitle === activeStage.title) ? activeStage.number : null;
 
   // Смена состояния «открыта / закрыта» сбрасывает выбранное упражнение прямо в рендере:
   // иначе повторное открытие того же пациента сразу показало бы прошлый вложенный слой.
@@ -75,7 +78,22 @@ export function DoctorLfkCommentsModal({
       title={
         <DoctorModalStackedTitle
           label="Комментарии к ЛФК"
-          entity={stageTitle ?? activeStageTitle ?? undefined}
+          entity={
+            programTitle || displayedStageTitle ? (
+              <span className="flex min-w-0 flex-col gap-0.5">
+                {programTitle ? <span className="truncate">{programTitle}</span> : null}
+                {displayedStageTitle ? (
+                  <span className="truncate text-[13px] leading-[18px] font-normal text-foreground">
+                    <span className="text-muted-foreground">
+                      {displayedStageNumber ? `Этап ${displayedStageNumber}: ` : 'Этап: '}
+                    </span>
+                    {displayedStageTitle}
+                  </span>
+                ) : null}
+              </span>
+            ) : undefined
+          }
+          entityClassName="w-full"
           patientName={patientName}
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
           patientOnSupport={patientOnSupport}
@@ -108,6 +126,7 @@ export function DoctorLfkCommentsModal({
       )}
       {selectedItem ? (
         <DoctorProgramItemDiscussionDialog
+          initialView="comments"
           instanceId={selectedItem.instanceId}
           itemId={selectedItem.stageItemId}
           itemLabel={selectedItem.stageItemTitle}

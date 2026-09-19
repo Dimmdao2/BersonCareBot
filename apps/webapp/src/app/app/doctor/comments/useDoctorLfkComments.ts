@@ -40,8 +40,9 @@ function toAttentionItem(
 
 export type DoctorLfkCommentsData = {
   items: TodayExerciseCommentAttentionItem[];
-  /** Заголовок активного этапа программы для второй строки шапки модалки. */
-  activeStageTitle: string | null;
+  /** Название программы и активный этап для контекста в шапке модалки. */
+  programTitle: string | null;
+  activeStage: { number: number; title: string } | null;
   loading: boolean;
   error: string | null;
   /** Локально гасит бейдж прочитанного треда, чтобы числа сошлись без рефетча. */
@@ -122,9 +123,7 @@ export function useDoctorLfkComments({
       .flatMap((group) => group.exercises)
       .map((exercise) =>
         toAttentionItem(
-          locallyRead.has(exercise.stageItemId)
-            ? { ...exercise, unreadComments: 0 }
-            : exercise,
+          locallyRead.has(exercise.stageItemId) ? { ...exercise, unreadComments: 0 } : exercise,
           context,
         ),
       )
@@ -132,10 +131,17 @@ export function useDoctorLfkComments({
       .sort((a, b) => b.latestMessage.createdAt.localeCompare(a.latestMessage.createdAt));
   }, [locallyRead, patientDisplayName, patientUserId, result]);
 
-  const activeStageTitle = useMemo(
-    () => result?.groups.find((group) => group.isActive)?.stageTitle ?? null,
-    [result],
-  );
+  const activeStage = useMemo(() => {
+    const group = result?.groups.find((candidate) => candidate.isActive);
+    return group ? { number: group.stageNumber, title: group.stageTitle } : null;
+  }, [result]);
 
-  return { items, activeStageTitle, loading, error, markItemRead };
+  return {
+    items,
+    programTitle: result?.instanceTitle ?? null,
+    activeStage,
+    loading,
+    error,
+    markItemRead,
+  };
 }

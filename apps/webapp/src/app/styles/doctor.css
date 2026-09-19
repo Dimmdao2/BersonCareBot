@@ -10,6 +10,7 @@ body:has(#app-shell-doctor),
   --doctor-kpi-radius: 8px;
   --doctor-button-radius: 7px;
   --doctor-control-radius: 7px;
+  --doctor-chat-composer-radius: 20px;
   --doctor-block-padding: 16px;
   --doctor-page-bottom-gutter: 18px;
   --doctor-block-border: rgba(35, 42, 49, 0.1);
@@ -21,7 +22,7 @@ body:has(#app-shell-doctor),
   --doctor-section-tab-hover: color-mix(in srgb, var(--muted-foreground) 18%, #ffffff);
   --doctor-entity-title: color-mix(in srgb, var(--primary) 58%, var(--bc-ink-2, #55606b));
   --doctor-group-header-background: color-mix(in srgb, var(--primary) 4%, #ffffff);
-  --doctor-stage-overrun: #a65f4b;
+  --doctor-overrun: #a65f4b;
 
   /*
    * Semantic appointment-status palette (PAY-APPT-17). One role per meaning, declared once for the
@@ -43,8 +44,8 @@ body:has(#app-shell-doctor),
   /* Exercise statistics: one semantic palette for the chart and execution journal. */
   --doctor-exercise-difficulty-none: #c8cdd4;
   --doctor-exercise-difficulty-easy: #a9ccfa;
-  --doctor-exercise-difficulty-medium: #5d98ed;
-  --doctor-exercise-difficulty-hard: #2864b8;
+  --doctor-exercise-difficulty-medium: #4f86d4;
+  --doctor-exercise-difficulty-hard: #1f4f8f;
   --doctor-exercise-pain-chart: #f04f4f;
   --doctor-exercise-pain-0: #d9f2e2;
   --doctor-exercise-pain-1: #cdeed9;
