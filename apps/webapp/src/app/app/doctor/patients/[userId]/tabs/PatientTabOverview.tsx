@@ -12,7 +12,7 @@
  */
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { ListPlus, ListTodo, NotebookPen } from 'lucide-react';
+import { ChevronRight, ListPlus, ListTodo, NotebookPen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
@@ -2221,7 +2221,7 @@ export function PatientTabOverview({
                 onClick={() => onTabSwitch?.('program')}
                 className={cn(
                   doctorCardEntityTitleClass,
-                  'h-auto w-full justify-start p-0 text-left hover:bg-transparent hover:text-[var(--doctor-entity-title)]',
+                  'h-auto w-full justify-start p-0 text-left underline decoration-1 underline-offset-2 hover:bg-transparent hover:text-[var(--doctor-entity-title)]',
                 )}
               >
                 {data.programTitle}
@@ -2286,7 +2286,10 @@ export function PatientTabOverview({
                       {formatExerciseCountRu(displayStageExercises.length)}
                     </span>
                   </span>
-                  <DoctorAttentionBadge count={currentStageUnread} dot />
+                  <span className="flex shrink-0 items-center gap-1 self-center">
+                    <DoctorAttentionBadge count={currentStageUnread} dot />
+                    <ChevronRight aria-hidden className="size-4 text-primary" />
+                  </span>
                 </Button>
               ) : null}
               {exerciseCalendar}
@@ -2309,7 +2312,6 @@ export function PatientTabOverview({
               patientName={patientHeaderName}
               patientOnSupport={header?.support.isOnSupport === true}
               patientVariant="context"
-              entityVariant="stage"
             />
           }
           size="lg"

@@ -105,8 +105,7 @@
 | --------------------------------- | ------------------------------ | ------------------------------------------ | ------- |
 | Page title (h1)                   | `doctorPageTitleClass`         | `text-[18px] font-medium tracking-tight`   | 18      |
 | Заголовок модалки                 | `doctorModalTitleClass`        | `text-base font-medium tracking-tight`     | 16      |
-| Название сущности в модалке       | `doctorModalEntityTitleClass`  | `text-[17px] font-semibold`, серо-синий    | 17      |
-| Название этапа в модалке          | `doctorModalStageEntityTitleClass` | `text-[21px] font-medium`, серо-синий  | 21      |
+| Название сущности в модалке       | `doctorModalEntityTitleClass`  | `text-[18px] font-normal`, серо-синий      | 18      |
 | Название сущности в карточке      | `doctorCardEntityTitleClass`   | `text-[18px] font-normal`, серо-синий      | 18      |
 | Имя пациента в entity-header     | `doctorClientDisplayNameClass` | `text-[18px] font-bold leading-6`           | 18      |
 | Section title (h2/h3)             | `doctorSectionTitleClass`      | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
@@ -265,7 +264,7 @@ tablet `768–1023px` используется узкий sidebar rail, раск
 | ------------------------------- | ------------- | ------------------------------------------------------------- |
 | Заголовок страницы (h1)         | `h1`          | `text-[18px] font-medium tracking-tight text-foreground`      |
 | Заголовок модалки               | `h1` или `h2` | `text-base font-medium tracking-tight text-foreground`        |
-| Название сущности в модалке     | `h2` или `h3` | `doctorModalEntityTitleClass` — 17px, серо-синий             |
+| Название сущности в модалке     | `h2` или `h3` | `doctorModalEntityTitleClass` — 18px, серо-синий             |
 | Заголовок секции / панели       | `h2` или `h3` | mobile `text-base`, desktop `text-sm`, `font-semibold`        |
 | Первичная строка сущности       | `p`           | `text-base font-normal text-foreground`                       |
 | Обычный текст                   | `p`           | mobile `text-base`, desktop `text-sm`, `text-foreground`      |
