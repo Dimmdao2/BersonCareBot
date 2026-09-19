@@ -226,6 +226,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     typedArgs: ['uuid', 'text', 'text', 'uuid', 'text', 'timestamp with time zone', 'integer', 'text'],
     databases: ALL_DECLARED_DATABASES,
     relationSurfaces: [
+      { relation: 'public.be_organizations', columns: ['id'], operations: ['SELECT'], evidence: 'foreign-key-check-on-outgoing-delivery-queue-insert' },
       { relation: 'public.reminder_rules', columns: ['integrator_rule_id', 'organization_id', 'platform_user_id', 'is_enabled', 'notification_topic_code'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       { relation: 'public.platform_users', columns: ['id', 'is_blocked', 'is_archived', 'merged_into_id', 'reminder_muted_until'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
