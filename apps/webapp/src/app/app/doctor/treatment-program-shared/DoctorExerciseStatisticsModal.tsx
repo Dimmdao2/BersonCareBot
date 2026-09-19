@@ -23,10 +23,8 @@ import type {
   LfkPostSessionDifficulty,
 } from '@/modules/treatment-program/types';
 import { cn } from '@/lib/utils';
-import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
-import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { doctorMetaTextClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { doctorMetaTextClass } from '@/shared/ui/doctor/doctorVisual';
 
 type HistoryResponse = {
   ok?: boolean;
@@ -276,10 +274,7 @@ function ChartSideAxis({
 }) {
   const isLeft = side === 'left';
   return (
-    <div
-      className={cn('relative h-64 shrink-0', isLeft ? 'w-[34px]' : 'w-[28px]')}
-      aria-hidden="true"
-    >
+    <div className="relative h-64 w-4 shrink-0" aria-hidden="true">
       <span
         className={cn('absolute top-[22px] bottom-[66px] w-px', isLeft ? 'right-0' : 'left-0')}
         style={{ backgroundColor: color }}
@@ -288,8 +283,8 @@ function ChartSideAxis({
         <span
           key={value}
           className={cn(
-            'absolute z-10 -translate-y-1/2 text-[11px] leading-none tabular-nums',
-            isLeft ? 'right-2 text-right' : 'left-2 text-left',
+            'absolute z-10 -translate-y-1/2 text-[10px] leading-none tabular-nums',
+            isLeft ? 'right-1 text-right' : 'left-1 text-left',
           )}
           style={{ top: `${22 + (index / (values.length - 1)) * 168}px`, color }}
         >
@@ -365,7 +360,7 @@ function ExerciseChartTooltip({
 
 function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const width = Math.max(298, days.length * 40);
+  const width = Math.max(520, days.length * 40);
   const entriesByKey = new Map(days.map((day) => [day.chartKey, day]));
   const [visibleRange, setVisibleRange] = useState(() => ({
     start: Math.max(0, days.length - 8),
@@ -409,9 +404,7 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
   }, [days.length, width]);
 
   return (
-    <section className="shrink-0 space-y-3 pb-4" aria-label="Динамика">
-      <h2 className={cn(doctorSectionTitleClass, 'px-4 pt-3')}>Динамика</h2>
-
+    <section className="shrink-0 space-y-3 pt-3 pb-4" aria-label="Динамика">
       {hasValues ? (
         <div>
           <div className="flex items-start justify-between px-4">
@@ -421,10 +414,9 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
             </div>
             <div className="text-right">
               <p className="text-sm font-semibold text-[var(--doctor-exercise-pain-chart)]">Боль</p>
-              <p className={doctorMetaTextClass}>(0–10)</p>
             </div>
           </div>
-          <div className="mt-1 flex px-2">
+          <div className="mt-1 flex">
             <ChartSideAxis
               values={[...volumeTicks].reverse()}
               side="left"
@@ -432,11 +424,12 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
             />
             <div
               ref={scrollRef}
-              className="doctor-weekly-chart-scroll min-w-0 flex-1 touch-pan-x overflow-x-auto overscroll-x-contain"
-              style={{ WebkitOverflowScrolling: 'touch' }}
+              className="doctor-weekly-chart-scroll doctor-touch-focus-surface min-w-0 flex-1 touch-pan-x overflow-x-auto overscroll-x-contain select-none"
+              style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
+              data-vaul-no-drag
               aria-label="График динамики: прокрутите влево для более ранних дат"
             >
-              <div style={{ width }}>
+              <div style={{ width, minWidth: '100%' }}>
                 <ComposedChart
                   width={width}
                   height={256}
@@ -544,20 +537,39 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
               color="var(--doctor-exercise-pain-chart)"
             />
           </div>
-          <div className={cn(doctorMetaTextClass, 'mt-3 flex flex-wrap gap-x-3 gap-y-1 px-4')}>
-            {(['none', 'easy', 'medium', 'hard'] as const).map((difficulty) => (
-              <span key={difficulty} className="inline-flex items-center gap-1.5">
+          <div
+            className={cn(
+              doctorMetaTextClass,
+              'mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 px-4',
+            )}
+          >
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              {(['easy', 'medium', 'hard', 'none'] as const).map((difficulty) => (
                 <span
-                  className="size-3 rounded-sm"
-                  style={{ backgroundColor: difficultyColor[difficulty] }}
-                />
-                {difficulty === 'none' ? 'Сложность не указана' : difficultyLabel[difficulty]}
+                  key={difficulty}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <span
+                    className="size-3 rounded-[3px]"
+                    style={{ backgroundColor: difficultyColor[difficulty] }}
+                  />
+                  {difficulty === 'none' ? 'Не указано' : difficultyLabel[difficulty]}
+                </span>
+              ))}
+            </div>
+            <div className="grid content-start gap-y-1">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <span className="h-0.5 w-5 bg-[var(--doctor-exercise-pain-chart)]" />
+                Боль
               </span>
-            ))}
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-0.5 w-5 bg-[var(--doctor-exercise-pain-chart)]" />
-              Боль (0–10)
-            </span>
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <span className="inline-flex items-center gap-0.5" aria-hidden>
+                  <span className="size-1.5 rounded-full bg-[var(--doctor-exercise-completion-dot)]" />
+                  <span className="size-1.5 rounded-full bg-[var(--doctor-exercise-completion-dot)]" />
+                </span>
+                Выполнено
+              </span>
+            </div>
           </div>
         </div>
       ) : (
@@ -588,20 +600,15 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
 
   if (days.length === 0) {
     return (
-      <section className="border-t border-border/60 pt-3">
-        <h2 className={cn(doctorSectionTitleClass, 'px-4')}>Журнал выполнений</h2>
-        <p className={cn(doctorMetaTextClass, 'mt-2 px-4')}>История выполнения пока пуста</p>
+      <section className="px-4 py-4">
+        <p className={doctorMetaTextClass}>История выполнения пока пуста</p>
       </section>
     );
   }
 
   return (
-    <section
-      className="flex min-h-0 flex-1 flex-col border-t border-border/60 pt-3"
-      aria-label="Журнал выполнений"
-    >
-      <h2 className={cn(doctorSectionTitleClass, 'shrink-0 px-4')}>Журнал выполнений</h2>
-      <div ref={scrollRef} className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+    <section className="flex min-h-0 flex-1 flex-col" aria-label="Журнал выполнений">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
         <div>
           <div
             data-journal-columns
@@ -737,26 +744,20 @@ function ExerciseJournal({ days }: { days: JournalDay[] }) {
   );
 }
 
-export function DoctorExerciseStatisticsModal({
-  open,
-  onClose,
+export type DoctorExerciseStatisticsView = 'dynamics' | 'journal';
+
+export function DoctorExerciseStatisticsPanel({
+  active,
   patientUserId,
-  patientName,
-  patientOnSupport = false,
-  patientVariant = 'link',
-  exerciseTitle,
   instanceId,
   itemId,
+  view,
 }: {
-  open: boolean;
-  onClose: () => void;
+  active: boolean;
   patientUserId: string;
-  patientName?: string | null;
-  patientOnSupport?: boolean;
-  patientVariant?: 'link' | 'context';
-  exerciseTitle: string;
   instanceId: string;
   itemId: string;
+  view: DoctorExerciseStatisticsView;
 }) {
   const requestKey = `${patientUserId}:${instanceId}:${itemId}`;
   const [history, setHistory] = useState<HistoryState>({
@@ -768,16 +769,15 @@ export function DoctorExerciseStatisticsModal({
   });
 
   useEffect(() => {
-    if (!open) return;
-    let active = true;
-    setHistory({ key: requestKey, state: 'loading', points: [], comments: [], iana: null });
+    if (!active) return;
+    let requestActive = true;
     const params = new URLSearchParams({ instanceId, stageItemId: itemId, scope: 'all' });
     void fetch(`/api/doctor/comments/exercise-metrics?${params.toString()}`, {
       credentials: 'include',
     })
       .then(async (response) => {
         const payload = (await response.json().catch(() => null)) as HistoryResponse | null;
-        if (!active) return;
+        if (!requestActive) return;
         if (
           !response.ok ||
           !payload?.ok ||
@@ -797,13 +797,13 @@ export function DoctorExerciseStatisticsModal({
         });
       })
       .catch(() => {
-        if (active)
+        if (requestActive)
           setHistory({ key: requestKey, state: 'error', points: [], comments: [], iana: null });
       });
     return () => {
-      active = false;
+      requestActive = false;
     };
-  }, [instanceId, itemId, open, requestKey]);
+  }, [active, instanceId, itemId, requestKey]);
 
   const journalDays = useMemo(
     () =>
@@ -819,36 +819,22 @@ export function DoctorExerciseStatisticsModal({
   );
 
   return (
-    <DoctorModal
-      variant="panel"
-      open={open}
-      onClose={onClose}
-      title={
-        <DoctorModalStackedTitle
-          label="Статистика"
-          entity={exerciseTitle}
-          patientName={patientName}
-          patientHref={patientCardHref(patientUserId)}
-          patientOnSupport={patientOnSupport}
-          patientVariant={patientVariant}
-        />
-      }
-      size="content"
-      bodyVariant="list"
-      bodyClassName="flex flex-col overflow-hidden"
-    >
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {history.key !== requestKey || history.state === 'loading' ? (
         <DoctorPanelLoading className="min-h-48" />
       ) : null}
       {history.key === requestKey && history.state === 'error' ? (
-        <p className="text-sm text-destructive">Не удалось загрузить статистику</p>
+        <p className="px-4 py-4 text-sm text-destructive">Не удалось загрузить статистику</p>
       ) : null}
       {history.key === requestKey && history.state === 'ready' ? (
-        <>
-          <ExerciseDynamicsChart days={chartDays} />
+        view === 'dynamics' ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ExerciseDynamicsChart days={chartDays} />
+          </div>
+        ) : (
           <ExerciseJournal days={journalDays} />
-        </>
+        )
       ) : null}
-    </DoctorModal>
+    </div>
   );
 }

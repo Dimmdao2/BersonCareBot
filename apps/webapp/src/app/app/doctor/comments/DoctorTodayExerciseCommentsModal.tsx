@@ -137,6 +137,7 @@ export function DoctorTodayExerciseCommentsModal({
       )}
       {selectedItem ? (
         <DoctorProgramItemDiscussionDialog
+          initialView="comments"
           instanceId={selectedItem.instanceId}
           itemId={selectedItem.stageItemId}
           itemLabel={selectedItem.stageItemTitle}
