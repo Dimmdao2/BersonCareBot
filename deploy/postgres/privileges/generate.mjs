@@ -1821,6 +1821,10 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     (fn.relationSurfaces ?? []).flatMap((surface) =>
       Object.entries(surface.requiredByTrigger ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([operation, source]) =>
         `  (${lit(signature)}, ${lit(surface.relation)}, ${lit(operation)}, ${lit(source.trigger)}, ${lit(source.onRelation)})`)));
+  const foreignKeyRows = databaseFunctions.flatMap(([signature, fn]) =>
+    (fn.relationSurfaces ?? []).flatMap((surface) =>
+      Object.entries(surface.requiredByForeignKey ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([operation, source]) =>
+        `  (${lit(signature)}, ${lit(surface.relation)}, ${lit(operation)}, ${lit(source.constraint)}, ${lit(source.onRelation)})`)));
   if (rows.length === 0) return '';
   return [
     '-- Function-body relation-operation verifier: the declaration must cover PostgreSQL statement semantics.',
@@ -1849,6 +1853,12 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     ...(triggerRows.length > 0 ? [
       'INSERT INTO bcb_function_surface_trigger_sources(signature,relation_name,operation,trigger_name,trigger_relation) VALUES',
       triggerRows.join(',\n'),
+      ';',
+    ] : []),
+    'CREATE TEMP TABLE bcb_function_surface_foreign_key_sources(signature text NOT NULL, relation_name text NOT NULL, operation text NOT NULL, constraint_name text NOT NULL, source_relation text NOT NULL, verified boolean NOT NULL DEFAULT false) ON COMMIT DROP;',
+    ...(foreignKeyRows.length > 0 ? [
+      'INSERT INTO bcb_function_surface_foreign_key_sources(signature,relation_name,operation,constraint_name,source_relation) VALUES',
+      foreignKeyRows.join(',\n'),
       ';',
     ] : []),
     'DO $bcb$',
@@ -1890,7 +1900,38 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     'END',
     '$bcb$;',
     'DO $bcb$',
-    'DECLARE function_row record; relation_row record; surface record; source text; relation_pattern text; column_pattern text; mutation text; gap_list text; actual_select boolean; actual_insert boolean; actual_update boolean; actual_delete boolean; trigger_explained text[];',
+    'DECLARE marker record; body_source text; source_pattern text; referenced_columns text[];',
+    'BEGIN',
+    '  FOR marker IN SELECT * FROM bcb_function_surface_foreign_key_sources ORDER BY signature,relation_name,operation LOOP',
+    '    SELECT pg_catalog.lower(p.prosrc) INTO body_source FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure(marker.signature);',
+    "    IF body_source IS NULL THEN INSERT INTO bcb_function_surface_gaps VALUES ('foreign-key-induced surface target missing: '||marker.signature) ON CONFLICT DO NOTHING; CONTINUE; END IF;",
+    "    IF marker.operation <> 'SELECT' OR NOT EXISTS (SELECT 1 FROM bcb_function_relation_surfaces declared WHERE declared.signature=marker.signature AND declared.relation_name=marker.relation_name AND marker.operation=ANY(declared.operations)) THEN",
+    "      INSERT INTO bcb_function_surface_gaps VALUES ('foreign-key-induced SELECT is not declared on the surface: '||marker.signature||' -> '||marker.relation_name) ON CONFLICT DO NOTHING; CONTINUE;",
+    '    END IF;',
+    '    SELECT pg_catalog.array_agg(a.attname ORDER BY key.ordinality) INTO referenced_columns',
+    '      FROM pg_catalog.pg_constraint c',
+    '      JOIN LATERAL pg_catalog.unnest(c.confkey) WITH ORDINALITY AS key(attnum, ordinality) ON true',
+    '      JOIN pg_catalog.pg_attribute a ON a.attrelid=c.confrelid AND a.attnum=key.attnum',
+    "     WHERE c.contype='f' AND c.conname=marker.constraint_name",
+    '       AND c.conrelid=pg_catalog.to_regclass(marker.source_relation)',
+    '       AND c.confrelid=pg_catalog.to_regclass(marker.relation_name);',
+    '    IF referenced_columns IS NULL OR NOT EXISTS (',
+    '      SELECT 1 FROM bcb_function_relation_surfaces declared',
+    '       WHERE declared.signature=marker.signature AND declared.relation_name=marker.relation_name',
+    '         AND referenced_columns <@ declared.columns',
+    '    ) THEN',
+    "      INSERT INTO bcb_function_surface_gaps VALUES ('foreign-key-induced surface names an absent or mismatched constraint: '||marker.signature||' -> '||marker.relation_name||' ('||marker.constraint_name||')') ON CONFLICT DO NOTHING; CONTINUE;",
+    '    END IF;',
+    "    source_pattern := pg_catalog.replace(marker.source_relation, '.', '\\.');",
+    "    IF NOT (body_source ~ ('\\minsert[[:space:]]+into[[:space:]]+'||source_pattern||'\\M') OR body_source ~ ('\\mupdate[[:space:]]+(only[[:space:]]+)?'||source_pattern||'\\M')) THEN",
+    "      INSERT INTO bcb_function_surface_gaps VALUES ('foreign-key-induced surface names a constraint the body never fires: '||marker.signature||' -> '||marker.relation_name||' ('||marker.constraint_name||' ON '||marker.source_relation||')') ON CONFLICT DO NOTHING; CONTINUE;",
+    '    END IF;',
+    '    UPDATE bcb_function_surface_foreign_key_sources SET verified=true WHERE signature=marker.signature AND relation_name=marker.relation_name AND operation=marker.operation;',
+    '  END LOOP;',
+    'END',
+    '$bcb$;',
+    'DO $bcb$',
+    'DECLARE function_row record; relation_row record; surface record; source text; relation_pattern text; column_pattern text; mutation text; gap_list text; actual_select boolean; actual_insert boolean; actual_update boolean; actual_delete boolean; trigger_explained text[]; foreign_key_explained text[];',
     'BEGIN',
     "  IF 'insert into x(id) values (1) on conflict do nothing' ~ '\\mon[[:space:]]+conflict[[:space:]]+(\\(|on[[:space:]]+constraint\\M)[^;]*\\mdo[[:space:]]+nothing\\M' THEN RAISE EXCEPTION 'targetless ON CONFLICT DO NOTHING was classified as requiring SELECT'; END IF;",
     "  IF NOT ('insert into x(id) values (1) on conflict (id) do nothing' ~ '\\mon[[:space:]]+conflict[[:space:]]+(\\(|on[[:space:]]+constraint\\M)[^;]*\\mdo[[:space:]]+nothing\\M') THEN RAISE EXCEPTION 'indexed ON CONFLICT DO NOTHING was not classified as requiring SELECT'; END IF;",
@@ -1914,6 +1955,8 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     // нет, обязано быть видно в тексте тела — иначе это мусор в декларации и гейт краснеет.
     "    SELECT pg_catalog.array_agg(marker.operation) INTO trigger_explained FROM bcb_function_surface_trigger_sources marker WHERE marker.signature=surface.signature AND marker.relation_name=surface.relation_name AND marker.verified;",
     "    trigger_explained := COALESCE(trigger_explained, ARRAY[]::text[]);",
+    "    SELECT pg_catalog.array_agg(marker.operation) INTO foreign_key_explained FROM bcb_function_surface_foreign_key_sources marker WHERE marker.signature=surface.signature AND marker.relation_name=surface.relation_name AND marker.verified;",
+    "    foreign_key_explained := COALESCE(foreign_key_explained, ARRAY[]::text[]);",
     "    actual_insert := source ~ ('\\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\\M');",
     // Блокировка строки — третий исполняемый источник права UPDATE, наравне с `UPDATE …` и
     // `ON CONFLICT DO UPDATE`: PostgreSQL берёт за `FOR UPDATE`/`FOR SHARE` право класса UPDATE.
@@ -1935,14 +1978,14 @@ function generateFunctionBodySurfaceVerifySql(databaseFunctions) {
     "    IF (mutation ~ '\\mreturning[[:space:]]+[*]' OR mutation ~ ('\\m(where|returning)\\M[^;]*\\m('||column_pattern||')\\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('UPDATE predicate/RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     "    mutation := (pg_catalog.regexp_match(source, '(\\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\\M[^;]*)'))[1];",
     "    IF (mutation ~ '\\mreturning[[:space:]]+[*]' OR mutation ~ ('\\m(where|returning)\\M[^;]*\\m('||column_pattern||')\\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('DELETE predicate/RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
-    "    IF 'SELECT'=ANY(surface.operations) AND NOT actual_select AND NOT ('SELECT'=ANY(trigger_explained)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared SELECT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
+    "    IF 'SELECT'=ANY(surface.operations) AND NOT actual_select AND NOT ('SELECT'=ANY(trigger_explained)) AND NOT ('SELECT'=ANY(foreign_key_explained)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared SELECT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     "    IF 'INSERT'=ANY(surface.operations) AND NOT actual_insert AND NOT ('INSERT'=ANY(trigger_explained)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared INSERT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     "    IF 'UPDATE'=ANY(surface.operations) AND NOT actual_update AND NOT ('UPDATE'=ANY(trigger_explained)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared UPDATE has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     "    IF 'DELETE'=ANY(surface.operations) AND NOT actual_delete AND NOT ('DELETE'=ANY(trigger_explained)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared DELETE has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;",
     '  END LOOP;',
     "  SELECT pg_catalog.string_agg(message, E'\\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;",
     "  IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;",
-    `  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=${databaseFunctions.length} rows=${rows.length} special_contracts=${specialContractRows.length} trigger_sources=${triggerRows.length}';`,
+    `  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=${databaseFunctions.length} rows=${rows.length} special_contracts=${specialContractRows.length} trigger_sources=${triggerRows.length} foreign_key_sources=${foreignKeyRows.length}';`,
     'END',
     '$bcb$;',
     '',
