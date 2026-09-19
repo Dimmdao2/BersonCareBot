@@ -10,7 +10,7 @@ body:has(#app-shell-doctor),
   --doctor-kpi-radius: 8px;
   --doctor-button-radius: 7px;
   --doctor-control-radius: 7px;
-  --doctor-block-padding: 18px;
+  --doctor-block-padding: 16px;
   --doctor-page-bottom-gutter: 18px;
   --doctor-block-border: rgba(35, 42, 49, 0.1);
   --doctor-field-sm: 12rem;

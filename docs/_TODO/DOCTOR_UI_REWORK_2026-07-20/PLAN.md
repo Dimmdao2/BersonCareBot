@@ -305,7 +305,7 @@ Live-проверка candidate на отдельном разрешённом c
   `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0 sets exact doctor canvas `#F6F4EF`;
   sticky page header with title remains white.
 - Радиусы задаются общими doctor primitives: page-level block `12px`, KPI `8px`, doctor button/input/select trigger
-  `24px`. Основные блоки используют внутренний отступ `18px`; внутренний `input` имеет белый фон. Локальные копии
+  `24px`. Основные блоки используют внутренний отступ `16px`; внутренний `input` имеет белый фон. Локальные копии
   этих классов по страницам не создаются.
 - KPI во всех затронутых doctor surfaces используют один порядок: label сверху, value снизу.
 - Основной шрифт строк doctor-списков становится крупнее и легче без изменения meta/badge/calendar typography.
