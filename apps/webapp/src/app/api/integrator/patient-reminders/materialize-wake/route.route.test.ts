@@ -23,9 +23,10 @@ import { POST } from './route';
 
 const organizationId = 'd0000000-0000-4000-8000-00000000000d';
 const schedulerWakeId = 'sch:ffffffff-ffff-4fff-8fff-ffffffffffff';
+const patientPublicOrigin = 'https://patient.example';
 
 function request(overrides: { key?: string; body?: unknown } = {}) {
-  const body = overrides.body ?? { wakeId: schedulerWakeId, organizationId };
+  const body = overrides.body ?? { wakeId: schedulerWakeId, organizationId, patientPublicOrigin };
   return new Request('https://test.example/api/integrator/patient-reminders/materialize-wake', {
     method: 'POST',
     headers: {
@@ -77,7 +78,7 @@ describe('patient reminder materialization signed wake route', () => {
     const response = await POST(
       request({
         key: `patient-reminder-materialize:${organizationId}:${oversizedWakeId}`,
-        body: { wakeId: oversizedWakeId, organizationId },
+        body: { wakeId: oversizedWakeId, organizationId, patientPublicOrigin },
       }),
     );
     expect(response.status).toBe(400);
@@ -88,7 +89,7 @@ describe('patient reminder materialization signed wake route', () => {
     const response = await POST(
       request({
         key: `patient-reminder-materialize:${organizationId}:`,
-        body: { wakeId: '', organizationId },
+        body: { wakeId: '', organizationId, patientPublicOrigin },
       }),
     );
     expect(response.status).toBe(400);
