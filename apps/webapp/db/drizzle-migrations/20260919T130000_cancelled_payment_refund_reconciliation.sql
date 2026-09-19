@@ -26,6 +26,7 @@ BEGIN
     ),
     'pending', 0, 8, pg_catalog.clock_timestamp(), -10
   ) ON CONFLICT (event_id) DO NOTHING;
+  RETURN NEW;
 END
 $function$;
 --> statement-breakpoint
