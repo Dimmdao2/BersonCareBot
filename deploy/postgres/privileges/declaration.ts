@@ -226,7 +226,8 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     typedArgs: ['uuid', 'text', 'text', 'uuid', 'text', 'timestamp with time zone', 'integer', 'text'],
     databases: ALL_DECLARED_DATABASES,
     relationSurfaces: [
-      { relation: 'public.be_organizations', columns: ['id'], operations: ['SELECT'], evidence: 'foreign-key-check-on-outgoing-delivery-queue-insert' },
+      { relation: 'public.be_organizations', columns: ['id'], operations: ['SELECT'], evidence: 'foreign-key-check-on-outgoing-delivery-queue-insert',
+        requiredByForeignKey: { SELECT: { constraint: 'outgoing_delivery_queue_organization_id_fkey', onRelation: 'public.outgoing_delivery_queue' } } },
       { relation: 'public.reminder_rules', columns: ['integrator_rule_id', 'organization_id', 'platform_user_id', 'is_enabled', 'notification_topic_code'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       { relation: 'public.platform_users', columns: ['id', 'is_blocked', 'is_archived', 'merged_into_id', 'reminder_muted_until'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
@@ -27017,7 +27018,7 @@ const REV10_CONTEXT = {
       execute: ['app_object_owner'], purpose: 'atomically enqueue one appointment cash ledger fact',
       typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
-        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one immutable cash ledger id writes one queue row' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'targeted ON CONFLICT(event_id) arbitration and one immutable cash ledger id writes one queue row' as const },
       ],
     }),
     'app.enqueue_booking_payment_history_lifecycle()': rev10Function({
@@ -27025,7 +27026,7 @@ const REV10_CONTEXT = {
       execute: ['app_object_owner'], purpose: 'atomically enqueue one successful refund or retained-prepayment history fact',
       typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
-        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['INSERT' as const], evidence: 'one immutable payment history id writes one queue row' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'targeted ON CONFLICT(event_id) arbitration and one immutable payment history id writes one queue row' as const },
       ],
     }),
     'app.read_booking_patient_lifecycle_fact(text,uuid)': rev10Function({
