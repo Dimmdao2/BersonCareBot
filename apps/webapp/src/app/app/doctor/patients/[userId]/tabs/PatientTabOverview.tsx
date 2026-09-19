@@ -47,6 +47,7 @@ import {
 } from '@/modules/treatment-program/stage-semantics';
 import {
   doctorBodyTextClass,
+  doctorCardEntityTitleClass,
   doctorMetaTextClass,
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -912,7 +913,7 @@ function StageExerciseGroupRow({
     <li
       className={cn(
         doctorDnaFlatListRowClass,
-        'mt-2 min-h-[72px] flex-wrap items-end gap-x-3 gap-y-1 bg-[var(--doctor-group-header-background)] py-3 first:mt-0',
+        'mt-1.5 min-h-10 flex-wrap items-end gap-x-3 gap-y-1 bg-[var(--doctor-group-header-background)] py-2 first:mt-0',
       )}
     >
       <p className="min-w-[60%] flex-1 line-clamp-2 whitespace-normal text-base leading-snug font-medium text-foreground">
@@ -1624,10 +1625,18 @@ export function PatientTabOverview({
       : null;
   const stageTimingLabel =
     stageElapsedDays != null && displayStage?.startedAt
-      ? `с ${fmtDateShort(displayStage.startedAt)} (${formatDaysRu(stageElapsedDays)})`
+      ? `с ${fmtDateShort(displayStage.startedAt)} (${formatDaysRu(stageElapsedDays)}${
+          displayStage.expectedDurationDays != null
+            ? ` из ${displayStage.expectedDurationDays}`
+            : ''
+        })`
       : !displayStage?.startedAt && displayStage?.expectedDurationDays != null
         ? `по плану ${formatDaysRu(displayStage.expectedDurationDays)}`
         : null;
+  const stageDurationIsOverrun =
+    stageElapsedDays != null &&
+    displayStage?.expectedDurationDays != null &&
+    stageElapsedDays > displayStage.expectedDurationDays;
   const programControlIsOverdue =
     programControlDate && clientNowIso
       ? isBeforeCurrentCalendarDay(programControlDate, clientNowIso)
@@ -2210,7 +2219,10 @@ export function PatientTabOverview({
                 type="button"
                 variant="ghost"
                 onClick={() => onTabSwitch?.('program')}
-                className="h-auto w-full justify-start p-0 text-left text-base font-medium text-[var(--doctor-entity-title)] hover:bg-transparent hover:text-[var(--doctor-entity-title)]"
+                className={cn(
+                  doctorCardEntityTitleClass,
+                  'h-auto w-full justify-start p-0 text-left hover:bg-transparent hover:text-[var(--doctor-entity-title)]',
+                )}
               >
                 {data.programTitle}
               </Button>
@@ -2222,7 +2234,14 @@ export function PatientTabOverview({
                 </span>
                 <div className="flex items-center gap-3">
                   {stageTimingLabel ? (
-                    <span className={doctorMetaTextClass}>{stageTimingLabel}</span>
+                    <span
+                      className={cn(
+                        doctorMetaTextClass,
+                        stageDurationIsOverrun && 'text-[var(--doctor-stage-overrun)]',
+                      )}
+                    >
+                      {stageTimingLabel}
+                    </span>
                   ) : null}
                   {programControlDate ? (
                     <span
@@ -2290,6 +2309,7 @@ export function PatientTabOverview({
               patientName={patientHeaderName}
               patientOnSupport={header?.support.isOnSupport === true}
               patientVariant="context"
+              entityVariant="stage"
             />
           }
           size="lg"

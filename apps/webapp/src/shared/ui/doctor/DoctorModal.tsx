@@ -36,6 +36,7 @@ import {
 } from '@/shared/ui/doctor/DoctorModalLayerContext';
 import {
   doctorModalEntityTitleClass,
+  doctorModalStageEntityTitleClass,
   doctorModalTitleClass,
   doctorModalTitleSubjectClass,
   doctorSectionTitleClass,
@@ -267,6 +268,7 @@ export function DoctorModalStackedTitle({
   patientHref,
   patientOnSupport = false,
   patientVariant = 'link',
+  entityVariant = 'default',
   entityClassName,
 }: {
   label: ReactNode;
@@ -276,6 +278,8 @@ export function DoctorModalStackedTitle({
   patientOnSupport?: boolean;
   /** Patient-card context does not need a link back to the page already underneath the modal. */
   patientVariant?: 'link' | 'context';
+  /** A stage title is intentionally larger and lighter than other modal entity names. */
+  entityVariant?: 'default' | 'stage';
   entityClassName?: string;
 }) {
   const patientClassName = cn(
@@ -316,7 +320,16 @@ export function DoctorModalStackedTitle({
         ) : null}
       </span>
       {entity ? (
-        <span className={cn(doctorModalEntityTitleClass, entityClassName)}>{entity}</span>
+        <span
+          className={cn(
+            entityVariant === 'stage'
+              ? doctorModalStageEntityTitleClass
+              : doctorModalEntityTitleClass,
+            entityClassName,
+          )}
+        >
+          {entity}
+        </span>
       ) : null}
     </span>
   );

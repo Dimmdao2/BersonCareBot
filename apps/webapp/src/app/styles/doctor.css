@@ -20,11 +20,8 @@ body:has(#app-shell-doctor),
   --doctor-flat-list-divider: #f0efeb;
   --doctor-section-tab-hover: color-mix(in srgb, var(--muted-foreground) 18%, #ffffff);
   --doctor-entity-title: color-mix(in srgb, var(--primary) 58%, var(--bc-ink-2, #55606b));
-  --doctor-group-header-background: color-mix(
-    in srgb,
-    var(--primary) 7%,
-    var(--bc-canvas, #f2f2f0)
-  );
+  --doctor-group-header-background: color-mix(in srgb, var(--primary) 4%, #ffffff);
+  --doctor-stage-overrun: #a65f4b;
 
   /*
    * Semantic appointment-status palette (PAY-APPT-17). One role per meaning, declared once for the
