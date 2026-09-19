@@ -42,6 +42,9 @@ export async function runStaffManualCancelAfterCanonical(input: {
         reason: input.reason,
       });
     } catch {
+      await input.deps.payments.enqueueCancelledAppointmentPaymentReconciliation({
+        appointmentId: input.appointmentId,
+      });
       flags.paymentOutcomeFailed = true;
     }
   }

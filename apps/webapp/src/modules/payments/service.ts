@@ -385,7 +385,7 @@ export function createPaymentsService(deps: {
         throw new Error('invalid_refund_amount');
       }
       const resolved = await resolveAppointmentPayment(input.appointmentId, input.organizationId);
-      if (!resolved || !['captured', 'refunded'].includes(resolved.payment.status)) {
+      if (!resolved || !['captured', 'partially_refunded', 'refunded'].includes(resolved.payment.status)) {
         throw new Error('payment_not_refundable');
       }
       const { payment } = resolved;
@@ -419,6 +419,13 @@ export function createPaymentsService(deps: {
             amountMinor: input.amountMinor,
             currency: payment.currency,
             idempotencyKey: providerIdempotencyKey,
+            receipt: buildBookingPaymentReceipt({
+              settings,
+              providerId: provider.id,
+              customerEmail: await deps.resolvePayerEmail?.(intent?.platformUserId ?? ''),
+              description: 'Возврат оплаты записи',
+              amountMinor: input.amountMinor,
+            }),
             providerConfig: provider,
           });
 
@@ -440,9 +447,11 @@ export function createPaymentsService(deps: {
               payment.id,
               input.organizationId,
             );
-            if (refundedAmount >= payment.amountMinor) {
-              await deps.port.updatePaymentStatus(payment.id, 'refunded', input.organizationId);
-            }
+            await deps.port.updatePaymentStatus(
+              payment.id,
+              refundedAmount >= payment.amountMinor ? 'refunded' : 'partially_refunded',
+              input.organizationId,
+            );
             await deps.port.appendHistoryEvent({
               organizationId: input.organizationId,
               appointmentId: input.appointmentId,
@@ -869,6 +878,11 @@ export function createPaymentsService(deps: {
       });
     },
 
+    /** Keep post-commit cancellation refunds on the existing reconciliation queue, never in a request flag. */
+    async enqueueCancelledAppointmentPaymentReconciliation(input: { appointmentId: string }) {
+      await deps.port.enqueueCancelledAppointmentPaymentReconciliation(input);
+    },
+
     /** One low-priority queue row, one authenticated provider point lookup, one canonical settlement root. */
     async reconcileAppointmentPaymentIntent(input: { organizationId: string; intentId: string }) {
       const intent = await deps.port.readAppointmentPaymentReconciliationIntent(input.intentId);
@@ -1026,28 +1040,39 @@ export function createPaymentsService(deps: {
       );
 
       if (input.prepaymentRetained) {
+        const retainedMinor = Math.min(
+          appointmentAmountMinor,
+          Math.max(0, appointment.prepaymentRequiredMinor ?? appointmentAmountMinor),
+        );
         const history = await deps.port.listHistoryForAppointment(
           input.appointmentId,
           input.organizationId,
         );
-        if (
-          history.some(
-            (event) => event.eventType === 'prepayment_retained' && event.paymentId === payment.id,
-          )
-        ) {
-          return { ok: true as const, skipped: false as const, action: 'retained' as const };
+        if (!history.some(
+          (event) => event.eventType === 'prepayment_retained' && event.paymentId === payment.id,
+        )) {
+          // The history's business unique key also arbitrates concurrent cancellations in the DB.
+          await deps.port.appendHistoryEvent({
+            organizationId: input.organizationId,
+            appointmentId: input.appointmentId,
+            paymentId: payment.id,
+            eventType: 'prepayment_retained',
+            amountMinor: retainedMinor,
+            currency: payment.currency,
+            providerId: payment.providerId,
+            comment: input.reason ?? null,
+          });
         }
-        // The history's business unique key also arbitrates concurrent cancellations in the DB.
-        await deps.port.appendHistoryEvent({
-          organizationId: input.organizationId,
-          appointmentId: input.appointmentId,
-          paymentId: payment.id,
-          eventType: 'prepayment_retained',
-          amountMinor: appointmentAmountMinor,
-          currency: payment.currency,
-          providerId: payment.providerId,
-          comment: input.reason ?? null,
-        });
+        const refundMinor = appointmentAmountMinor - retainedMinor;
+        if (refundMinor > 0) {
+          await refundAppointmentPaymentOnce({
+            organizationId: input.organizationId,
+            appointmentId: input.appointmentId,
+            amountMinor: refundMinor,
+            reason: input.reason,
+            idempotencyKey: `refund:${payment.id}:${input.appointmentId}`,
+          });
+        }
         return { ok: true as const, skipped: false as const, action: 'retained' as const };
       }
 

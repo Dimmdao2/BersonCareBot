@@ -165,7 +165,9 @@ export async function listStaffAppointmentPaymentViews(
     const snapshot = snapshotByAppointment.get(target.appointmentId) ?? null;
     const manualPaidMinor = paidByAppointment.get(target.appointmentId) ?? 0;
     const effectivePaidMinor =
-      (payment?.status === 'captured' ? payment.amountMinor : 0) + manualPaidMinor;
+      (payment && ['captured', 'partially_refunded'].includes(payment.status)
+        ? payment.amountMinor
+        : 0) + manualPaidMinor;
     views.set(target.appointmentId, {
       payment,
       totalMinor: snapshot?.priceMinor ?? booking?.priceMinorSnapshot ?? null,
@@ -289,7 +291,7 @@ export function createStaffAppointmentPaymentsService(deps: StaffAppointmentPaym
       .filter((event) => event.eventType === 'refund_succeeded')
       .reduce((sum, event) => sum + (event.amountMinor ?? 0), 0);
     const capturedMinor =
-      summary?.payment?.status === 'captured'
+      summary?.payment && ['captured', 'partially_refunded'].includes(summary.payment.status)
         ? Math.max(0, summary.payment.amountMinor - onlineRefundedMinor)
         : 0;
     const manualPaidMinor = manual.reduce(

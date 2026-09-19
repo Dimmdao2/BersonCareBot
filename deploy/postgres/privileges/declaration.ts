@@ -26157,6 +26157,12 @@ const REV10_CONTEXT = {
     booking_payment_reconciliation_watermark_advance: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service', purpose: 'booking-payment.reconciliation.watermark.advance',
       functionIdentity: 'app.advance_booking_payment_reconciliation_watermark(text,timestamp with time zone)' },
+    booking_payment_refund_reconciliation_enqueue: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff', purpose: 'booking-payment.reconciliation.refund.enqueue',
+      functionIdentity: 'app.enqueue_booking_payment_refund_reconciliation(uuid)' },
+    patient_booking_payment_refund_reconciliation_enqueue: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking-payment.reconciliation.refund.enqueue',
+      functionIdentity: 'app.enqueue_booking_payment_refund_reconciliation(uuid)' },
     // PAY-APPT-11: часовой... точнее ежеминутный тик истечения предоплаты. Работа межарендная —
     // заранее неизвестно, у какой клиники истёк срок, — а машинный тик входит без арендатора,
     // поэтому реляционного пути к `be_appointments` у него нет. Свой корень у ТОГО ЖЕ шва, что
@@ -28588,6 +28594,16 @@ const REV10_CONTEXT = {
       execute: ['app_tenant_service'], purpose: 'advance a fully completed accepted-organization appointment payment reconciliation checkpoint',
       typedArgs: ['text', 'timestamp with time zone'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.be_payment_reconciliation_checkpoints', columns: ['organization_id', 'provider_id', 'watermark', 'updated_at'], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const], evidence: 'monotonic durable checkpoint upsert' as const }],
+    }),
+    'app.enqueue_booking_payment_refund_reconciliation(uuid)': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
+      execute: ['app_patient', 'app_staff'], purpose: 'persist post-cancellation payment refund continuation on the reconciliation queue',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: ['id', 'organization_id', 'status'], operations: ['SELECT' as const], evidence: 'canonical cancellation committed before enqueue' as const },
+        { relation: 'public.be_appointment_cancellations', columns: ['id', 'organization_id', 'appointment_id', 'reason', 'prepayment_retained', 'prepayment_refunded', 'created_at'], operations: ['SELECT' as const], evidence: 'canonical cancellation decision is queue authority' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at', 'priority'], operations: ['INSERT' as const], evidence: 'idempotent existing reconciliation queue continuation' as const },
+      ],
     }),
     'app.settle_booking_payment_webhook_event(text,text,text,text,text)': rev10Function({
       owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
