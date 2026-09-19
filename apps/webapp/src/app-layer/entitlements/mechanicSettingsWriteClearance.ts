@@ -42,6 +42,7 @@ const TARIFF_MECHANIC_SETTING_KEYS: Partial<Record<string, readonly OrgMechanic[
   google_connected_email: ['external_calendar'],
   [PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY]: ['promo'],
   clinic_smtp_outbound: ['clinic_smtp'],
+  clinic_transactional_mail_template: ['branding'],
   clinic_smsc_api_key: ['clinic_sms'],
   clinic_telegram_bot_token: ['branding', 'clinic_telegram_bot'],
   clinic_max_bot_api_key: ['branding', 'clinic_max_bot'],

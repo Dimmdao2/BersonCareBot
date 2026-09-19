@@ -36,6 +36,22 @@ describe('tariff mechanic settings write clearance — 3.2 physical door', () =>
     expect(updateSetting).not.toHaveBeenCalled();
   });
 
+  it('refuses a branded mail-template write without branding clearance', async () => {
+    const { wrapped, updateSetting } = buildWrappedService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        wrapped.updateSetting(
+          'clinic_transactional_mail_template',
+          'admin',
+          { value: {} },
+          'user-1',
+          { organizationId: 'org-1' },
+        ),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
   it('proceeds for booking_min_notice_hours once booking was cleared', async () => {
     const { wrapped, updateSetting } = buildWrappedService();
     await runWithoutMechanicWriteClearance(async () => {

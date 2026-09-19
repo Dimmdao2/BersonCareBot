@@ -8,6 +8,7 @@ import { safeUserMessage } from '@/shared/errors/userFacingError';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { SecretSettingInput } from './SecretSettingInput';
 import {
   isPlatformIntegrationAvailable,
@@ -27,6 +28,11 @@ type ClinicDeliveryChannelsSectionProps = {
       user: string;
       from: string;
       readiness: ClinicDeliveryReadiness;
+    };
+    transactionalMailTemplate: {
+      senderDisplayNameTemplate: string;
+      authCodeSubjectTemplate: string;
+      authCodeTextTemplate: string;
     };
     smsConfigured: boolean;
     vkConfigured: boolean;
@@ -91,6 +97,9 @@ export function ClinicDeliveryChannelsSection({
 }: ClinicDeliveryChannelsSectionProps) {
   const [smtp, setSmtp] = useState({ ...initial.smtp, password: '' });
   const [smtpConfigured, setSmtpConfigured] = useState(initial.smtp.configured);
+  const [transactionalMailTemplate, setTransactionalMailTemplate] = useState(
+    initial.transactionalMailTemplate,
+  );
   const [readiness, setReadiness] = useState({
     email: initial.smtp.readiness,
   });
@@ -135,6 +144,63 @@ export function ClinicDeliveryChannelsSection({
           Пока проверка собственного канала не прошла, сообщения продолжает доставлять канал
           платформы от имени организации.
         </p>
+        <section className="flex flex-col gap-2">
+          <p className="text-sm font-semibold">Шаблон письма с кодом</p>
+          <Input
+            value={transactionalMailTemplate.senderDisplayNameTemplate}
+            onChange={(e) =>
+              setTransactionalMailTemplate((current) => ({
+                ...current,
+                senderDisplayNameTemplate: e.target.value,
+              }))
+            }
+            placeholder="Имя отправителя: {{clinicName}} · {{platformName}}"
+          />
+          <Input
+            value={transactionalMailTemplate.authCodeSubjectTemplate}
+            onChange={(e) =>
+              setTransactionalMailTemplate((current) => ({
+                ...current,
+                authCodeSubjectTemplate: e.target.value,
+              }))
+            }
+            placeholder="Тема: {{senderDisplayName}}"
+          />
+          <Textarea
+            value={transactionalMailTemplate.authCodeTextTemplate}
+            onChange={(e) =>
+              setTransactionalMailTemplate((current) => ({
+                ...current,
+                authCodeTextTemplate: e.target.value,
+              }))
+            }
+            placeholder="Текст: {{senderDisplayName}} · {{code}}"
+            rows={3}
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="w-fit"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                try {
+                  await saveSetting(
+                    'clinic_transactional_mail_template',
+                    transactionalMailTemplate,
+                  );
+                  toast.success('Шаблон письма сохранён.');
+                } catch (cause) {
+                  toast.error(
+                    safeUserMessage(cause, 'Не удалось сохранить шаблон письма. Повторите.'),
+                  );
+                }
+              })
+            }
+          >
+            Сохранить шаблон
+          </Button>
+        </section>
         {isPlatformIntegrationAvailable(platformAvailability, 'email') ? (
           <section className="flex flex-col gap-2">
             <p className="text-sm font-semibold">SMTP</p>
@@ -205,7 +271,9 @@ export function ClinicDeliveryChannelsSection({
                           email: { status: 'pending' },
                         }));
                       } catch (cause) {
-                        toast.error(safeUserMessage(cause, notificationText.settingsSmtpSaveFailedRetry));
+                        toast.error(
+                          safeUserMessage(cause, notificationText.settingsSmtpSaveFailedRetry),
+                        );
                       }
                     })
                   }

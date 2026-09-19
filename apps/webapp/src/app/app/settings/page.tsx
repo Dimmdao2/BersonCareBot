@@ -56,6 +56,7 @@ import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import { isPlatformIntegrationAvailable } from '@/modules/system-settings/platformIntegrationAvailability';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
+import { clinicTransactionalMailTemplateInnerFromValueJson } from '@/modules/system-settings/clinicTransactionalMailTemplate';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
 import { parseAppointmentReminderSettings } from '@/modules/booking-notifications/appointmentReminderSchedule';
 import { parseClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
@@ -433,6 +434,9 @@ export default async function SettingsPage({
       clinicAdminSetting('clinic_smtp_outbound')?.valueJson,
     );
     const clinicSmtpSetting = clinicAdminSetting('clinic_smtp_outbound');
+    const clinicTransactionalMailTemplate = clinicTransactionalMailTemplateInnerFromValueJson(
+      clinicAdminSetting('clinic_transactional_mail_template')?.valueJson,
+    );
     const clinicTelegramSetting = clinicAdminSetting('clinic_telegram_bot_token');
     const clinicMaxSetting = clinicAdminSetting('clinic_max_bot_api_key');
     const clinicDelivery = {
@@ -444,6 +448,11 @@ export default async function SettingsPage({
         user: clinicSmtp.success ? clinicSmtp.data.user : '',
         from: clinicSmtp.success ? clinicSmtp.data.from : '',
         readiness: parseClinicDeliveryReadiness(clinicSmtpSetting?.valueJson),
+      },
+      transactionalMailTemplate: clinicTransactionalMailTemplate ?? {
+        senderDisplayNameTemplate: '',
+        authCodeSubjectTemplate: '',
+        authCodeTextTemplate: '',
       },
       smsConfigured: clinicAdminSetting('clinic_smsc_api_key') !== null,
       vkConfigured: clinicAdminSetting('clinic_vk_community_access_token') !== null,

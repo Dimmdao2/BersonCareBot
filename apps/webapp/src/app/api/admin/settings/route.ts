@@ -60,6 +60,7 @@ import {
   withClinicBotPublicConfig,
 } from '@/modules/system-settings/clinicBotConfig';
 import { parseSmtpOutboundPatchValue } from '@/modules/system-settings/smtpOutboundPatch';
+import { parseClinicTransactionalMailTemplatePatchValue } from '@/modules/system-settings/clinicTransactionalMailTemplate';
 import { SERVER_RUNTIME_INTEGER_DEFINITIONS } from '@/modules/system-settings/runtimeConfig';
 import {
   hasStoredWebPushVapidPrivate,
@@ -196,6 +197,7 @@ const ADMIN_SCOPE_KEYS = [
   'therapygo_smtp_outbound',
   'therapysto_smtp_outbound',
   'clinic_smtp_outbound',
+  'clinic_transactional_mail_template',
   'clinic_smsc_api_key',
   'clinic_telegram_bot_token',
   'clinic_max_bot_api_key',
@@ -373,6 +375,10 @@ const CLINIC_DELIVERY_CHANNEL_ENTITLEMENTS = new Map<
   }
 >([
   ['clinic_smtp_outbound', { mechanics: ['clinic_smtp'], action: 'настроить собственный SMTP' }],
+  [
+    'clinic_transactional_mail_template',
+    { mechanics: ['branding'], action: 'изменить шаблон брендированного письма' },
+  ],
   ['clinic_smsc_api_key', { mechanics: ['clinic_sms'], action: 'настроить собственный SMS-канал' }],
   [
     'clinic_telegram_bot_token',
@@ -772,35 +778,37 @@ export async function PATCH(request: Request) {
         return entitlementMutationRefusalResponse(mechanic, clinicDeliveryEntitlement.action);
       }
     }
-    const integration = CLINIC_DELIVERY_SETTING_INTEGRATIONS.get(parsed.data.key)!;
-    const integrationState = await readClinicDeliveryIntegrationState(
-      deps.systemSettings,
-      integration,
-      gate.ctx.organizationId,
-    );
-    if (integrationState === 'unavailable') {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'integration_availability_unavailable',
-          message: notificationText.adminIntegrationCheckFailed,
-        },
-        { status: 503 },
+    const integration = CLINIC_DELIVERY_SETTING_INTEGRATIONS.get(parsed.data.key);
+    if (integration) {
+      const integrationState = await readClinicDeliveryIntegrationState(
+        deps.systemSettings,
+        integration,
+        gate.ctx.organizationId,
       );
-    }
-    if (integrationState === 'disabled') {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'integration_disabled',
-          integration,
-          message:
-            integration === 'email'
-              ? notificationText.settingsSmtpDisabledByPlatform
-              : notificationText.settingsIntegrationDisabledByPlatform,
-        },
-        { status: 403 },
-      );
+      if (integrationState === 'unavailable') {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'integration_availability_unavailable',
+            message: notificationText.adminIntegrationCheckFailed,
+          },
+          { status: 503 },
+        );
+      }
+      if (integrationState === 'disabled') {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'integration_disabled',
+            integration,
+            message:
+              integration === 'email'
+                ? notificationText.settingsSmtpDisabledByPlatform
+                : notificationText.settingsIntegrationDisabledByPlatform,
+          },
+          { status: 403 },
+        );
+      }
     }
   }
   if (
@@ -1313,6 +1321,14 @@ export async function PATCH(request: Request) {
 
   if (parsed.data.key === 'clinic_smtp_outbound') {
     normalizedValue = withPendingClinicDeliveryReadiness(normalizedValue);
+  }
+
+  if (parsed.data.key === 'clinic_transactional_mail_template') {
+    const checked = parseClinicTransactionalMailTemplatePatchValue(normalizedValue);
+    if (!checked.ok) {
+      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    normalizedValue = { value: checked.value };
   }
 
   /** Prefetch for audit: avoid second `getSetting` for `web_push_vapid` (same row as validation). */

@@ -609,6 +609,69 @@ describe('clinic-owner atomic settings readback', () => {
     );
   });
 
+  it('persists the normalized branded auth-mail template in the authenticated clinic only', async () => {
+    const response = await patch({
+      key: 'clinic_transactional_mail_template',
+      value: {
+        senderDisplayNameTemplate: ' {{clinicName}} · {{platformName}} ',
+        authCodeSubjectTemplate: ' Код: {{senderDisplayName}} ',
+        authCodeTextTemplate: ' {{senderDisplayName}}: {{code}} ',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      'clinic_transactional_mail_template',
+      'admin',
+      {
+        value: {
+          senderDisplayNameTemplate: '{{clinicName}} · {{platformName}}',
+          authCodeSubjectTemplate: 'Код: {{senderDisplayName}}',
+          authCodeTextTemplate: '{{senderDisplayName}}: {{code}}',
+        },
+      },
+      clinicSession.user.userId,
+      { organizationId: CLINIC_ORGANIZATION_ID },
+    );
+    expect(fakes.getClinicPlatformIntegrationAvailability).not.toHaveBeenCalled();
+  });
+
+  it('rejects an incomplete branded auth-mail template before a clinic write', async () => {
+    const response = await patch({
+      key: 'clinic_transactional_mail_template',
+      value: {
+        senderDisplayNameTemplate: '{{clinicName}}',
+        authCodeSubjectTemplate: '{{senderDisplayName}}',
+        authCodeTextTemplate: '{{senderDisplayName}} {{code}}',
+      },
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'invalid_value' });
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('requires the branding mechanic before it accepts an auth-mail template', async () => {
+    fakes.requireEntitlementForMutation.mockResolvedValueOnce({ ok: false });
+
+    const response = await patch({
+      key: 'clinic_transactional_mail_template',
+      value: {
+        senderDisplayNameTemplate: '{{clinicName}} · {{platformName}}',
+        authCodeSubjectTemplate: 'Код: {{senderDisplayName}}',
+        authCodeTextTemplate: '{{senderDisplayName}}: {{code}}',
+      },
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'entitlement_required',
+      mechanic: 'branding',
+    });
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
+  });
+
   it('never persists a clinic Telegram username supplied by the browser', async () => {
     fakes.fetchTelegramBotIdentity.mockResolvedValue({
       ok: false,

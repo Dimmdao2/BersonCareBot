@@ -25,9 +25,58 @@ function setting(key: SystemSetting['key'], value: unknown): SystemSetting {
 describe('clinic delivery settings', () => {
   it('keeps each clinic credential organization-scoped', () => {
     expect(isPerOrgSettingKey('clinic_smtp_outbound')).toBe(true);
+    expect(isPerOrgSettingKey('clinic_transactional_mail_template')).toBe(true);
     expect(isPerOrgSettingKey('clinic_smsc_api_key')).toBe(true);
     expect(isPerOrgSettingKey('clinic_telegram_bot_token')).toBe(true);
     expect(isPerOrgSettingKey('clinic_max_bot_api_key')).toBe(true);
+  });
+
+  it('stores only a complete owner-authored branded auth-mail template in its clinic row', async () => {
+    const organizationId = '11111111-1111-4111-8111-111111111111';
+    const service = createSystemSettingsService(createInMemorySystemSettingsPort());
+
+    await expect(
+      service.updateSetting(
+        'clinic_transactional_mail_template',
+        'admin',
+        {
+          value: {
+            senderDisplayNameTemplate: '{{clinicName}}',
+            authCodeSubjectTemplate: '{{senderDisplayName}}',
+            authCodeTextTemplate: '{{senderDisplayName}} {{code}}',
+          },
+        },
+        'actor',
+        { organizationId },
+      ),
+    ).rejects.toThrow('invalid_setting_value: clinic_transactional_mail_template');
+
+    await service.updateSetting(
+      'clinic_transactional_mail_template',
+      'admin',
+      {
+        value: {
+          senderDisplayNameTemplate: ' {{clinicName}} · {{platformName}} ',
+          authCodeSubjectTemplate: ' Код: {{senderDisplayName}} ',
+          authCodeTextTemplate: ' {{senderDisplayName}}: {{code}} ',
+        },
+      },
+      'actor',
+      { organizationId },
+    );
+
+    await expect(
+      service.getSetting('clinic_transactional_mail_template', 'admin', { organizationId }),
+    ).resolves.toMatchObject({
+      organizationId,
+      valueJson: {
+        value: {
+          senderDisplayNameTemplate: '{{clinicName}} · {{platformName}}',
+          authCodeSubjectTemplate: 'Код: {{senderDisplayName}}',
+          authCodeTextTemplate: '{{senderDisplayName}}: {{code}}',
+        },
+      },
+    });
   });
 
   it('never exposes or audits clinic credentials verbatim', () => {
