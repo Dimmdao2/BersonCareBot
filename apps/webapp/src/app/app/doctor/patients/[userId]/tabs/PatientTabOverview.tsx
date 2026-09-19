@@ -2221,10 +2221,12 @@ export function PatientTabOverview({
                 onClick={() => onTabSwitch?.('program')}
                 className={cn(
                   doctorCardEntityTitleClass,
-                  'h-auto w-full justify-start p-0 text-left underline decoration-1 underline-offset-2 hover:bg-transparent hover:text-[var(--doctor-entity-title)]',
+                  'mb-2 h-auto w-full justify-start p-0 text-left hover:bg-transparent hover:text-[var(--doctor-entity-title)]',
                 )}
               >
-                {data.programTitle}
+                <span className="border-b border-dashed border-primary/40 pb-px">
+                  {data.programTitle}
+                </span>
               </Button>
             ) : null}
             {!isLoading && data?.programStatus === 'ok' && displayStage ? (
@@ -2274,7 +2276,7 @@ export function PatientTabOverview({
                   variant="ghost"
                   onClick={() => setStageExercisesModalOpen(true)}
                   className={cn(
-                    'relative h-auto min-h-9 w-full items-start justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
+                    'relative -mt-1 h-auto min-h-9 w-full items-start justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
                     currentStageUnread > 0
                       ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive'
                       : 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary',

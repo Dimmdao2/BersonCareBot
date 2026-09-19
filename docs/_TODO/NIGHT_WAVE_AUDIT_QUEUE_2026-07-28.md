@@ -8,6 +8,12 @@
 
 # Очередь независимого аудита ночной волны 28.07
 
+## S11 PAY-REL-04 — automatic appointment payment reconciliation — 19.09
+
+| слой | коммит | вердикт |
+|---|---|---|
+| Автоматическая сверка платежей записи | product `1d518c38a`, independent audit/tests `ca35b7a1b` (`wt/payment-reconciliation`), отчёт `docs/_TODO/runs/s11-payment-reconciliation-audit.md`; fault classes: **поймано 4 / непоймано 3** | **FAIL — ОДИН CORRECTION ПО СОХРАНЁННОМУ ORACLE, НЕ LAND.** F1–F6: webapp typecheck падает на двойном `ok`; lifetime-stable queue `event_id` делает point lookup одноразовым; YooKassa invoice ошибочно читается как payment вместо invoice → `payment_details.id` → payment; appointment-looking item без `purpose` пропускается с продвижением checkpoint; отдельные low-cardinality incident-категории стираются до двух общих; `success_after_local_expiry` не сохраняется и locally-expired intent выпадает из oldest-unresolved окна. Два новых behavioral acceptance теста красные на exact candidate; scheduler cadence и webhook-compatible settlement identity прошли fault injection. Исправитель повторяет сохранённый набор, новый blind audit запрещён §24.5. |
+
 ## Doctor UI mobile bundle + exercise NFC — 19.09
 
 | слой | коммит | вердикт |
