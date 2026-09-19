@@ -151,4 +151,19 @@ describe('durable booking lifecycle worker failure outcomes', () => {
       }),
     );
   });
+
+  it('keeps terminal replay reclaimable when its operator incident cannot be persisted', async () => {
+    incidentRecorder.mockRejectedValueOnce(new Error('incident_store_unavailable'));
+
+    const h = await runFailedReplay(8);
+
+    // PAY-REL-02: `dead` is an operator-visible terminal state, not a substitute for the
+    // incident. If incident persistence fails, acknowledging the row as dead silently loses the
+    // only alert for an already-captured payment whose lifecycle never completed.
+    expect(h.result).toEqual({ claimed: 1, processed: 0, errors: 1 });
+    expect(h.dead).toEqual([]);
+    expect(h.retryable).toEqual([QUEUE_ID]);
+    expect(h.sent).toEqual([]);
+    expect(incidentRecorder).toHaveBeenCalledOnce();
+  });
 });

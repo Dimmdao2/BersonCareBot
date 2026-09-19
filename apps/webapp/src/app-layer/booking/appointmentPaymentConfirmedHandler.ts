@@ -161,6 +161,9 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
           ...(carriesPatientMessage
             ? { patientMessageText }
             : { suppressPatientNotification: true }),
+          // One provider payment is one patient-visible feed fact even when it covers several
+          // appointments. Later slot events still carry their independent calendar/reminder work.
+          ...(index === 0 ? {} : { patientPushVariant: null }),
           doctorNotify: carriesDoctorMessage,
           ...(carriesDoctorMessage ? { doctorMessageText } : {}),
           ...resolveBookingCalendarSyncFields('booking.payment_captured'),

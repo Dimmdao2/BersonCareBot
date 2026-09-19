@@ -43,8 +43,8 @@ body:has(#app-shell-doctor),
 
   /* Exercise statistics: one semantic palette for the chart and execution journal. */
   --doctor-exercise-difficulty-none: #c8cdd4;
-  --doctor-exercise-difficulty-easy: #a9ccfa;
-  --doctor-exercise-difficulty-medium: #4f86d4;
+  --doctor-exercise-difficulty-easy: #bddafe;
+  --doctor-exercise-difficulty-medium: #3f75c2;
   --doctor-exercise-difficulty-hard: #1f4f8f;
   --doctor-exercise-pain-chart: #f04f4f;
   --doctor-exercise-pain-0: #d9f2e2;

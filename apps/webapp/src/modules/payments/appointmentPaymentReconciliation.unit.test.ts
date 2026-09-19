@@ -178,4 +178,73 @@ describe('PAY-REL-04 point reconciliation settlement identity', () => {
       payloadJson: providerFact.payload,
     });
   });
+
+  it('settles a late provider success and exposes the required operator-incident signal', async () => {
+    const providerFact = {
+      providerObjectRef: 'payment-late-1',
+      providerPaymentRef: 'invoice-late-1',
+      idempotencyKey: 'appointment-payment-late-1',
+      eventType: 'payment.succeeded',
+      status: 'succeeded',
+      amountMinor: 10_000,
+      currency: 'RUB',
+      payload: {
+        event: 'payment.succeeded',
+        object: {
+          id: 'payment-late-1',
+          status: 'succeeded',
+          invoice_details: { id: 'invoice-late-1' },
+          metadata: {
+            idempotencyKey: 'appointment-payment-late-1',
+            payerRef: 'platform_user:user-1',
+            purpose: 'appointment_prepayment',
+            subjectRef: APPOINTMENT_ID,
+          },
+        },
+      },
+    };
+    providerAdapter.getPaymentStatus.mockResolvedValue(providerFact);
+    const settleProviderWebhookEvent = vi.fn(async () => ({
+      outcome: 'captured' as const,
+      duplicate: false,
+      paymentId: 'payment-local-late-1',
+      platformUserId: 'user-1',
+      productRef: null,
+      confirmedAppointmentIds: [APPOINTMENT_ID],
+    }));
+    const service = createPaymentsService({
+      port: {
+        readAppointmentPaymentReconciliationIntent: vi.fn(async () => ({
+          id: '9f30bbaa-b2a3-4f31-93f5-e0733feaa105',
+          providerId: 'yookassa',
+          providerIntentRef: 'invoice-late-1',
+          idempotencyKey: 'appointment-payment-late-1',
+          amountMinor: 10_000,
+          currency: 'RUB',
+          purpose: 'appointment_prepayment',
+          appointmentId: APPOINTMENT_ID,
+          platformUserId: 'user-1',
+          status: 'cancelled',
+        })),
+        settleProviderWebhookEvent,
+      } as unknown as PaymentsPort,
+      config: { getBookingPaymentSettings: async () => settings },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: null,
+    });
+
+    const result = await service.reconcileAppointmentPaymentIntent({
+      organizationId: ORGANIZATION_ID,
+      intentId: '9f30bbaa-b2a3-4f31-93f5-e0733feaa105',
+    });
+
+    // PAY-REL-04: provider success is authoritative even after local expiry. Missing either
+    // side effect silently strands received money or hides the late-success incident from the
+    // resident worker that owns operator visibility.
+    expect(settleProviderWebhookEvent).toHaveBeenCalledOnce();
+    expect(result).toEqual({ ok: true, incidentKey: 'success_after_local_expiry' });
+  });
 });

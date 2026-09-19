@@ -178,6 +178,11 @@ describe('S8: одна оплата подтверждает все записи
     expect(captured[1]!.payload.doctorMessageText).toBeUndefined();
     expect(captured[1]!.payload.suppressPatientNotification).toBe(true);
     expect(captured[1]!.payload.doctorNotify).toBe(false);
+    // PAT-NOTIF-03: the two events are required for per-slot calendar/reminder effects, but the
+    // payment is one patient-visible domain fact. At the BookingSync boundary `null` is the
+    // consumer contract that disables the persistent feed/push step without suppressing those
+    // technical effects; otherwise each distinct booking id appends another feed row.
+    expect(captured.filter(({ payload }) => payload.patientPushVariant !== null)).toHaveLength(1);
   });
 
   it('не завершает durable replay, если проекция хотя бы одного оплаченного слота отсутствует', async () => {

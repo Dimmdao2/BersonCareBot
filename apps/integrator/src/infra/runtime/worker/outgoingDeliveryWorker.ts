@@ -197,7 +197,21 @@ async function finalizeClaimedRowFailure(
   const message = err instanceof Error ? err.message : String(err);
   const safeError = truncateDeliveryErrorMessage(message);
   if (row.attemptCount >= row.maxAttempts) {
-    await recordBookingLifecycleReplayDeadIncident(row, safeError);
+    try {
+      await recordBookingLifecycleReplayDeadIncident(row, safeError);
+    } catch (incidentError) {
+      logger.warn(
+        { err: incidentError, rowId: row.id, kind: row.kind },
+        'outgoing_delivery_terminal_incident_record_failed',
+      );
+      await queueReschedule(
+        db,
+        row.id,
+        retryDelaySecondsAfterFailure(row.attemptCount, row.kind),
+        safeError,
+      );
+      return;
+    }
     await queueMarkDead(db, row.id, safeError);
     return;
   }
@@ -250,20 +264,13 @@ async function recordBookingLifecycleReplayDeadIncident(
   const errorDetail = isBookingLifecycle
     ? 'booking_lifecycle_terminal_replay_failure'
     : 'payment_captured_terminal_replay_failure';
-  try {
-    await recordOperatorFailureIncident({
-      direction,
-      integration,
-      errorClass,
-      // Stable and deliberately low-cardinality: no identifiers, raw payload, PII, or error text.
-      errorDetail,
-    });
-  } catch (err) {
-    logger.warn(
-      { err, rowId: row.id, direction, errorClass },
-      'booking_lifecycle_replay_dead_incident_record_failed',
-    );
-  }
+  await recordOperatorFailureIncident({
+    direction,
+    integration,
+    errorClass,
+    // Stable and deliberately low-cardinality: no identifiers, raw payload, PII, or error text.
+    errorDetail,
+  });
 }
 
 function reconciliationIncidentClass(error: string): string {
