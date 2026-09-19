@@ -203,6 +203,20 @@ describe('S10 independent money acceptance', () => {
     ).toBe(3_000);
   });
 
+  // The integrated audit brief follows YooKassa's fiscal-refund contract: a partial refund needs
+  // corrected receipt items, while a full refund of a payment that already has a provider receipt
+  // reuses that original receipt and must not submit another one.
+  it('does not send a second fiscal receipt with a full YooKassa refund', async () => {
+    const { payments } = harness(10_000);
+    await payments.refundAppointmentPayment({
+      organizationId: org,
+      appointmentId: 'a',
+      amountMinor: 10_000,
+    });
+
+    expect(provider.refund.mock.calls[0]?.[0]).not.toHaveProperty('receipt');
+  });
+
   it('K1: collected cash cannot exceed the remaining appointment debt', async () => {
     const { staff } = harness();
     await staff.createPayment({ ...input, action: 'cash', amountMinor: 6_000 });
