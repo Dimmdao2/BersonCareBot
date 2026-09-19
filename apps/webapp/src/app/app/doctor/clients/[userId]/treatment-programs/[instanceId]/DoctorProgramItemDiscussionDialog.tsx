@@ -151,6 +151,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
   } = props;
   const commentsFirst = initialView === 'comments';
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
+  const [discussionAvailable, setDiscussionAvailable] = useState(true);
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,11 +189,21 @@ export function DoctorProgramItemDiscussionDialog(props: {
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (generation !== loadGenerationRef.current) return null;
+      if (res.status === 404) {
+        setDiscussionAvailable(false);
+        setMessages([]);
+        setNextCursor(null);
+        setPeerLastReadAt(null);
+        setAssignment(null);
+        setError(null);
+        return [];
+      }
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
         throw new Error(
           readSafeApiErrorText(data, notificationText.patientProgramItemDiscussionLoadFailed),
         );
       }
+      setDiscussionAvailable(true);
       const loaded = data.messages;
       setMessages((current) => reconcileMessages(current, loaded, appendOlder));
       setNextCursor(
@@ -248,9 +259,11 @@ export function DoctorProgramItemDiscussionDialog(props: {
   const bootstrap = useCallback(async () => {
     const generation = ++loadGenerationRef.current;
     setLoading(true);
+    setDiscussionAvailable(true);
     setLoadingOlder(false);
     setError(null);
     setMessages([]);
+    setDiscussionAvailable(true);
     setNextCursor(null);
     setAssignment(null);
     setPatientUserId(initialPatientUserId ?? null);
@@ -327,24 +340,28 @@ export function DoctorProgramItemDiscussionDialog(props: {
       error={error}
       nextCursor={nextCursor}
       peerLastReadAt={peerLastReadAt}
-      composerStageItemId={itemId}
-      onSendReply={async (_stageItemId, text) => {
-        const sendResult = await sendDoctorProgramDiscussionReply({
-          instanceId,
-          stageItemId: itemId,
-          text,
-        });
-        if (!sendResult.ok) return sendResult;
-        const generation = loadGenerationRef.current;
-        try {
-          await loadPage(null, false, generation);
-        } catch {
-          if (generation === loadGenerationRef.current) {
-            toast.error(notificationText.doctorReplySentListStale);
-          }
-        }
-        return { ok: true as const };
-      }}
+      composerStageItemId={discussionAvailable ? itemId : undefined}
+      onSendReply={
+        discussionAvailable
+          ? async (_stageItemId, text) => {
+              const sendResult = await sendDoctorProgramDiscussionReply({
+                instanceId,
+                stageItemId: itemId,
+                text,
+              });
+              if (!sendResult.ok) return sendResult;
+              const generation = loadGenerationRef.current;
+              try {
+                await loadPage(null, false, generation);
+              } catch {
+                if (generation === loadGenerationRef.current) {
+                  toast.error(notificationText.doctorReplySentListStale);
+                }
+              }
+              return { ok: true as const };
+            }
+          : undefined
+      }
       onDeleteMediaMessage={async (messageId) => {
         const deleteResult = await deleteDoctorProgramDiscussionMediaMessage({
           instanceId,
