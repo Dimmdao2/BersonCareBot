@@ -275,12 +275,10 @@ export function createPaymentsService(deps: {
     },
   ): void {
     const object = fact.payload.object;
-    const metadata =
-      object && typeof object === 'object'
-        ? (object as { metadata?: unknown }).metadata
-        : undefined;
-    const meta =
-      metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>) : null;
+    const metadata = object && typeof object === 'object'
+      ? (object as { metadata?: unknown }).metadata
+      : undefined;
+    const meta = metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : null;
     const expectedPayer = intent.platformUserId ? `platform_user:${intent.platformUserId}` : null;
     if (
       fact.providerPaymentRef !== intent.providerIntentRef ||
@@ -299,29 +297,20 @@ export function createPaymentsService(deps: {
 
   function isAppointmentLookingReconciliationFact(
     fact: PaymentProviderPaymentStatus,
-    intent: Awaited<
-      ReturnType<PaymentsPort['readAppointmentPaymentReconciliationIntentByProviderRef']>
-    >,
+    intent: Awaited<ReturnType<PaymentsPort['readAppointmentPaymentReconciliationIntentByProviderRef']>>,
   ): boolean {
     const object = fact.payload.object;
-    const metadata =
-      object && typeof object === 'object'
-        ? (object as { metadata?: unknown }).metadata
-        : undefined;
-    const meta =
-      metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>) : null;
+    const metadata = object && typeof object === 'object'
+      ? (object as { metadata?: unknown }).metadata
+      : undefined;
+    const meta = metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : null;
     const purpose = meta?.purpose;
     const subjectRef = meta?.subjectRef;
-    return (
-      intent !== null ||
+    return intent !== null ||
       purpose === 'appointment_prepayment' ||
       purpose === 'appointment_payment' ||
       typeof meta?.appointmentId === 'string' ||
-      (typeof subjectRef === 'string' &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
-          subjectRef,
-        ))
-    );
+      (typeof subjectRef === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(subjectRef));
   }
 
   async function settleReconciliationFact(input: {
@@ -397,10 +386,7 @@ export function createPaymentsService(deps: {
         throw new Error('invalid_refund_amount');
       }
       const resolved = await resolveAppointmentPayment(input.appointmentId, input.organizationId);
-      if (
-        !resolved ||
-        !['captured', 'partially_refunded', 'refunded'].includes(resolved.payment.status)
-      ) {
+      if (!resolved || !['captured', 'partially_refunded', 'refunded'].includes(resolved.payment.status)) {
         throw new Error('payment_not_refundable');
       }
       const { payment } = resolved;
@@ -437,7 +423,7 @@ export function createPaymentsService(deps: {
             `staff-refund:${payment.id}:${input.appointmentId}:${amountMinor}`;
           const refundResult = await adapter.refund({
             providerIntentRef: intent?.providerIntentRef ?? payment.paymentIntentId,
-            amountMinor,
+            amountMinor: amountMinor,
             currency: payment.currency,
             idempotencyKey: providerIdempotencyKey,
             ...(amountMinor < payment.amountMinor
@@ -447,7 +433,7 @@ export function createPaymentsService(deps: {
                     providerId: provider.id,
                     customerEmail: await deps.resolvePayerEmail?.(intent?.platformUserId ?? ''),
                     description: 'Возврат оплаты записи',
-                    amountMinor,
+                    amountMinor: amountMinor,
                   }),
                 }
               : {}),
@@ -459,7 +445,7 @@ export function createPaymentsService(deps: {
               organizationId: input.organizationId,
               paymentId: payment.id,
               appointmentId: input.appointmentId,
-              amountMinor,
+              amountMinor: amountMinor,
               currency: payment.currency,
               status: 'succeeded',
               reason: input.reason,
@@ -483,7 +469,7 @@ export function createPaymentsService(deps: {
               paymentId: payment.id,
               refundId: refund.id,
               eventType: 'refund_succeeded',
-              amountMinor,
+              amountMinor: amountMinor,
               currency: payment.currency,
               providerId: payment.providerId,
               status: 'succeeded',
@@ -910,8 +896,7 @@ export function createPaymentsService(deps: {
       const settings = await loadSettings(input.organizationId);
       const provider = resolveActiveProvider(settings, intent.providerId);
       const adapter = getPaymentProviderAdapter(intent.providerId);
-      if (!adapter.getPaymentStatus)
-        throw new Error('appointment_payment_reconciliation_provider_unavailable');
+      if (!adapter.getPaymentStatus) throw new Error('appointment_payment_reconciliation_provider_unavailable');
       const fact = await adapter.getPaymentStatus({
         providerObjectRef: intent.providerIntentRef,
         providerConfig: provider,
@@ -941,9 +926,7 @@ export function createPaymentsService(deps: {
       const sweep = await deps.port.readAppointmentPaymentReconciliationSweep(input.providerId);
       const now = new Date();
       const overlapMs = 60 * 60 * 1000;
-      const watermarkMs = sweep.watermark
-        ? Date.parse(sweep.watermark)
-        : now.getTime() - 24 * 60 * 60 * 1000;
+      const watermarkMs = sweep.watermark ? Date.parse(sweep.watermark) : now.getTime() - 24 * 60 * 60 * 1000;
       const unresolvedMs = sweep.oldestUnresolvedCreatedAt
         ? Date.parse(sweep.oldestUnresolvedCreatedAt)
         : Number.POSITIVE_INFINITY;
@@ -954,8 +937,7 @@ export function createPaymentsService(deps: {
         periodToIso: periodTo,
         providerConfig: provider,
       });
-      if (listed.truncated)
-        throw new Error('appointment_payment_reconciliation_provider_list_truncated');
+      if (listed.truncated) throw new Error('appointment_payment_reconciliation_provider_list_truncated');
       for (const item of listed.items) {
         // Provider metadata is never tenant authority. The accepted organization root resolves
         // the local intent by the provider ref; absent or ambiguous binding holds the checkpoint.
@@ -1072,11 +1054,9 @@ export function createPaymentsService(deps: {
           input.appointmentId,
           input.organizationId,
         );
-        if (
-          !history.some(
-            (event) => event.eventType === 'prepayment_retained' && event.paymentId === payment.id,
-          )
-        ) {
+        if (!history.some(
+          (event) => event.eventType === 'prepayment_retained' && event.paymentId === payment.id,
+        )) {
           // The history's business unique key also arbitrates concurrent cancellations in the DB.
           await deps.port.appendHistoryEvent({
             organizationId: input.organizationId,
