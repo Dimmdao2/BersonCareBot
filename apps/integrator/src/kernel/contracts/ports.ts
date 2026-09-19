@@ -349,6 +349,13 @@ export type WebappEventsPort = {
     wakeId: string;
     organizationId: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;
+  wakeAppointmentPaymentReconciliation?(input: {
+    wakeId: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
+  processAppointmentPaymentReconciliation?(input: {
+    body: string;
+    idempotencyKey: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
   /** Привязка мессенджера по одноразовому токену из deep-link (POST /api/integrator/channel-link/complete). */
   completeChannelLink?(params: {
     linkToken: string;

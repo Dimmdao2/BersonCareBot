@@ -21,7 +21,9 @@ export type OutgoingDeliveryKind =
   | 'appointment_reminder'
   | 'auth_email_otp'
   | 'outbound_message'
-  | 'booking_lifecycle';
+  | 'booking_lifecycle'
+  | 'appointment_payment_reconciliation_intent'
+  | 'appointment_payment_reconciliation_sweep';
 
 /** Kinds whose rows are already complete transport intents and need no product-specific worker logic. */
 export const GENERIC_TRANSPORT_QUEUE_KINDS = new Set<string>([

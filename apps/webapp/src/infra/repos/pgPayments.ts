@@ -17,6 +17,8 @@ import {
 import { beAppointments } from '../../../db/schema/bookingEngine';
 import type {
   AppointmentPaymentBrief,
+  AppointmentPaymentReconciliationIntent,
+  AppointmentPaymentReconciliationSweep,
   PaymentsPort,
   ExpiredBookingPrepayments,
   ProviderWebhookSettlement,
@@ -229,6 +231,41 @@ function parseExpiredBookingPrepayments(value: unknown): ExpiredBookingPrepaymen
     ? raw.appointmentIds.filter((id): id is string => typeof id === 'string')
     : [];
   return { expired, appointmentIds };
+}
+
+function parseReconciliationIntent(value: unknown): AppointmentPaymentReconciliationIntent | null {
+  const raw = (typeof value === 'string' ? JSON.parse(value) : value) as Record<string, unknown> | null;
+  if (raw === null || typeof raw !== 'object') return null;
+  const required = ['id', 'providerId', 'providerIntentRef', 'idempotencyKey', 'currency', 'purpose', 'appointmentId'];
+  if (required.some((key) => typeof raw[key] !== 'string' || !(raw[key] as string).trim())) return null;
+  if (typeof raw.amountMinor !== 'number' || !Number.isSafeInteger(raw.amountMinor)) return null;
+  if (typeof raw.status !== 'string') return null;
+  return {
+    id: raw.id as string,
+    providerId: raw.providerId as string,
+    providerIntentRef: raw.providerIntentRef as string,
+    idempotencyKey: raw.idempotencyKey as string,
+    amountMinor: raw.amountMinor,
+    currency: raw.currency as string,
+    purpose: raw.purpose as string,
+    appointmentId: raw.appointmentId as string,
+    platformUserId: typeof raw.platformUserId === 'string' ? raw.platformUserId : null,
+    status: raw.status,
+  };
+}
+
+function parseReconciliationSweep(value: unknown): AppointmentPaymentReconciliationSweep {
+  const raw = (typeof value === 'string' ? JSON.parse(value) : value) as Record<string, unknown> | null;
+  if (!raw || typeof raw.providerId !== 'string' || !raw.providerId.trim()) {
+    throw new Error('booking_payment_reconciliation_sweep_unrecognised');
+  }
+  const optionalIso = (entry: unknown): string | null =>
+    typeof entry === 'string' && entry.trim() ? entry : null;
+  return {
+    providerId: raw.providerId,
+    watermark: optionalIso(raw.watermark),
+    oldestUnresolvedCreatedAt: optionalIso(raw.oldestUnresolvedCreatedAt),
+  };
 }
 
 function runPaymentMutation<T>(
@@ -459,6 +496,66 @@ export function createPgPaymentsPort(): PaymentsPort {
          ) AS settlement`,
       );
       return parseProviderWebhookSettlement(result.rows[0]?.settlement);
+    },
+
+    async materializeAppointmentPaymentReconciliation(input) {
+      const result = await runWebappNamedRoot<{ materialized: unknown }>(
+        getWebappSqlDb(),
+        'app.materialize_booking_payment_reconciliation(text,integer)',
+        [input.wakeId, input.maxAttempts],
+        sql`SELECT app.materialize_booking_payment_reconciliation(
+          ${input.wakeId}::text, ${input.maxAttempts}::integer
+        ) AS materialized`,
+      );
+      const raw = result.rows[0]?.materialized;
+      const object = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, unknown> | null;
+      if (!object || typeof object.intents !== 'number' || typeof object.sweeps !== 'number') {
+        throw new Error('booking_payment_reconciliation_materialization_unrecognised');
+      }
+      return { intents: object.intents, sweeps: object.sweeps };
+    },
+
+    async readAppointmentPaymentReconciliationIntent(intentId) {
+      const result = await runWebappNamedRoot<{ intent: unknown }>(
+        getWebappSqlDb(),
+        'app.read_booking_payment_reconciliation_intent(uuid)',
+        [intentId],
+        sql`SELECT app.read_booking_payment_reconciliation_intent(${intentId}::uuid) AS intent`,
+      );
+      return parseReconciliationIntent(result.rows[0]?.intent);
+    },
+
+    async readAppointmentPaymentReconciliationIntentByProviderRef(providerIntentRef) {
+      const result = await runWebappNamedRoot<{ intent: unknown }>(
+        getWebappSqlDb(),
+        'app.read_booking_payment_reconciliation_intent_by_provider_ref(text)',
+        [providerIntentRef],
+        sql`SELECT app.read_booking_payment_reconciliation_intent_by_provider_ref(
+          ${providerIntentRef}::text
+        ) AS intent`,
+      );
+      return parseReconciliationIntent(result.rows[0]?.intent);
+    },
+
+    async readAppointmentPaymentReconciliationSweep(providerId) {
+      const result = await runWebappNamedRoot<{ sweep: unknown }>(
+        getWebappSqlDb(),
+        'app.read_booking_payment_reconciliation_sweep(text)',
+        [providerId],
+        sql`SELECT app.read_booking_payment_reconciliation_sweep(${providerId}::text) AS sweep`,
+      );
+      return parseReconciliationSweep(result.rows[0]?.sweep);
+    },
+
+    async advanceAppointmentPaymentReconciliationWatermark(input) {
+      await runWebappNamedRoot(
+        getWebappSqlDb(),
+        'app.advance_booking_payment_reconciliation_watermark(text,timestamp with time zone)',
+        [input.providerId, input.watermark],
+        sql`SELECT app.advance_booking_payment_reconciliation_watermark(
+          ${input.providerId}::text, ${input.watermark}::timestamptz
+        )`,
+      );
     },
 
     /**

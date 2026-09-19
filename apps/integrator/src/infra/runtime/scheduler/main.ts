@@ -37,6 +37,8 @@ import {
 const SCHEDULER_LOCK_KEY = 42001001;
 const DIGEST_WAKE_PERIOD_MS = 60 * 60 * 1000;
 const HEALTH_GUARD_WAKE_PERIOD_MS = 15 * 60 * 1000;
+/** Fixed resident cadence; each wake only materializes durable low-priority queue rows. */
+const APPOINTMENT_PAYMENT_RECONCILIATION_WAKE_PERIOD_MS = 10 * 60 * 1000;
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -102,6 +104,7 @@ async function startResident(): Promise<void> {
 
   const digestWakeState = { completedBucket: null as number | null };
   const healthGuardWakeState = { completedBucket: null as number | null };
+  const appointmentPaymentReconciliationWakeState = { completedBucket: null as number | null };
 
   logger.info('Scheduler lock acquired, starting resident scheduler+worker loop');
 
@@ -178,6 +181,22 @@ async function startResident(): Promise<void> {
         loadConfig: getOperatorHealthProbeConfig,
         loadLastRunAt: getOperatorOutboundProbeLastRunAt,
         runProbes: runOperatorHealthProbes,
+      }),
+    runAppointmentPaymentReconciliationWake: () =>
+      runFixedCadenceWake({
+        nowMs: Date.now(),
+        periodMs: APPOINTMENT_PAYMENT_RECONCILIATION_WAKE_PERIOD_MS,
+        state: appointmentPaymentReconciliationWakeState,
+        wake: async (wakeId) => {
+          const result = await schedulerDeps.webappEventsPort.wakeAppointmentPaymentReconciliation?.({
+            wakeId,
+          });
+          if (!result?.ok) {
+            throw new Error(
+              `appointment_payment_reconciliation_wake_failed:${result?.status ?? 0}:${result?.error ?? 'unavailable'}`,
+            );
+          }
+        },
       }),
     onOrganizationTickError: (err) => {
       captureSchedulerLoopError(err);

@@ -43,6 +43,7 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'be_payment_history_events'),
   ('public', 'be_payment_intents'),
   ('public', 'be_payment_provider_events'),
+  ('public', 'be_payment_reconciliation_checkpoints'),
   ('public', 'be_payments'),
   ('public', 'be_prepayment_policies'),
   ('public', 'be_refunds'),

@@ -47,6 +47,26 @@ export type CreatePaymentIntentInput = {
   metadataJson?: Record<string, unknown>;
 };
 
+/** Minimal local authority a reconciliation worker may receive; no patient data or provider secret. */
+export type AppointmentPaymentReconciliationIntent = {
+  id: string;
+  providerId: string;
+  providerIntentRef: string;
+  idempotencyKey: string;
+  amountMinor: number;
+  currency: string;
+  purpose: string;
+  appointmentId: string;
+  platformUserId: string | null;
+  status: string;
+};
+
+export type AppointmentPaymentReconciliationSweep = {
+  providerId: string;
+  watermark: string | null;
+  oldestUnresolvedCreatedAt: string | null;
+};
+
 export type PaymentsPort = {
   getPrepaymentPolicyForService(
     organizationId: string,
@@ -159,6 +179,25 @@ export type PaymentsPort = {
     intentRef: string | null;
     payloadJson: Record<string, unknown>;
   }): Promise<ProviderWebhookSettlement>;
+
+  /** Resident wake only materializes low-priority queue rows; it never calls a provider. */
+  materializeAppointmentPaymentReconciliation(input: {
+    wakeId: string;
+    maxAttempts: number;
+  }): Promise<{ intents: number; sweeps: number }>;
+  readAppointmentPaymentReconciliationIntent(
+    intentId: string,
+  ): Promise<AppointmentPaymentReconciliationIntent | null>;
+  readAppointmentPaymentReconciliationIntentByProviderRef(
+    providerIntentRef: string,
+  ): Promise<AppointmentPaymentReconciliationIntent | null>;
+  readAppointmentPaymentReconciliationSweep(
+    providerId: string,
+  ): Promise<AppointmentPaymentReconciliationSweep>;
+  advanceAppointmentPaymentReconciliationWatermark(input: {
+    providerId: string;
+    watermark: string;
+  }): Promise<void>;
 
   /**
    * PAY-APPT-11: один межарендный проход истечения неоплаченной предоплаты. Организацию корень

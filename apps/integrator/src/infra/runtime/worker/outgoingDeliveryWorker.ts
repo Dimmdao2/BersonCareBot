@@ -212,6 +212,26 @@ async function finalizeClaimedRowFailure(
 async function recordBookingLifecycleReplayDeadIncident(
   row: OutgoingDeliveryQueueRow,
 ): Promise<void> {
+  if (
+    row.kind === 'appointment_payment_reconciliation_intent' ||
+    row.kind === 'appointment_payment_reconciliation_sweep'
+  ) {
+    const errorClass =
+      row.kind === 'appointment_payment_reconciliation_intent'
+        ? 'appointment_payment_reconciliation_intent_exhausted'
+        : 'appointment_payment_reconciliation_sweep_exhausted';
+    try {
+      await recordOperatorFailureIncident({
+        direction: 'appointment_payment_reconciliation',
+        integration: 'payment_provider',
+        errorClass,
+        errorDetail: 'appointment_payment_reconciliation_terminal_retry_failure',
+      });
+    } catch (err) {
+      logger.warn({ err, rowId: row.id, errorClass }, 'appointment_payment_reconciliation_incident_failed');
+    }
+    return;
+  }
   if (row.kind !== 'booking_lifecycle') return;
   const bookingLifecycle = row.payloadJson.bookingLifecycle;
   const paymentCaptured = row.payloadJson.paymentCaptured;
@@ -717,6 +737,39 @@ export async function processOutgoingDeliveryRow(
 ): Promise<void> {
   const { db, writePort, dispatchOutgoing, resolveWorkspaceModuleEnabled, doctorBroadcastMenu } =
     deps;
+  if (
+    row.kind === 'appointment_payment_reconciliation_intent' ||
+    row.kind === 'appointment_payment_reconciliation_sweep'
+  ) {
+    const payload = row.payloadJson;
+    const organizationId = typeof payload.organizationId === 'string' ? payload.organizationId : null;
+    const id =
+      row.kind === 'appointment_payment_reconciliation_intent'
+        ? typeof payload.intentId === 'string'
+          ? payload.intentId
+          : null
+        : typeof payload.providerId === 'string'
+          ? payload.providerId
+          : null;
+    if (!organizationId || !id || !deps.bookingLifecycle?.webappEventsPort?.processAppointmentPaymentReconciliation) {
+      throw new Error('APPOINTMENT_PAYMENT_RECONCILIATION_PAYLOAD_INVALID');
+    }
+    const kind = row.kind === 'appointment_payment_reconciliation_intent' ? 'intent' : 'sweep';
+    const body = JSON.stringify(
+      kind === 'intent'
+        ? { kind, organizationId, intentId: id }
+        : { kind, organizationId, providerId: id },
+    );
+    const result = await deps.bookingLifecycle.webappEventsPort.processAppointmentPaymentReconciliation({
+      body,
+      idempotencyKey: `appointment-payment-reconciliation:${kind}:${organizationId}:${id}`,
+    });
+    if (!result.ok) {
+      throw new Error(`APPOINTMENT_PAYMENT_RECONCILIATION_FAILED:${result.status}:${result.error ?? ''}`);
+    }
+    await queueMarkSent(db, row.id);
+    return;
+  }
   if (row.kind === 'booking_lifecycle') {
     const durableLifecycle = row.payloadJson.bookingLifecycle;
     if (durableLifecycle && typeof durableLifecycle === 'object' && !Array.isArray(durableLifecycle)) {

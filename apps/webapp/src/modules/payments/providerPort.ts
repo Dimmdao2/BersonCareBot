@@ -118,6 +118,23 @@ export type PaymentProviderListedPayment = {
   refundedAmountMinor: number;
 };
 
+/** Authenticated provider authority for one payment object, shared by webhook and reconciliation. */
+export type PaymentProviderPaymentStatus = {
+  providerObjectRef: string;
+  providerPaymentRef: string;
+  idempotencyKey: string;
+  eventType: string;
+  status: string;
+  amountMinor: number;
+  currency: string;
+  payload: Record<string, unknown>;
+};
+
+export type PaymentProviderListPaymentStatusesResult = {
+  items: PaymentProviderPaymentStatus[];
+  truncated: boolean;
+};
+
 export type PaymentProviderListPaymentsResult = {
   items: PaymentProviderListedPayment[];
   /** The provider's list ran past this adapter's page cap — result may be incomplete. */
@@ -197,6 +214,18 @@ export type PaymentProviderPort = {
     periodToIso: string;
     providerConfig?: PaymentProviderConfig;
   }): Promise<PaymentProviderListPaymentsResult>;
+
+  /** Authenticated point lookup used for a nonterminal local appointment intent. */
+  getPaymentStatus?(params: {
+    providerObjectRef: string;
+    providerConfig?: PaymentProviderConfig;
+  }): Promise<PaymentProviderPaymentStatus>;
+  /** Enriched list is intentionally separate from the SaaS journal comparison contract. */
+  listPaymentStatuses?(params: {
+    periodFromIso: string;
+    periodToIso: string;
+    providerConfig?: PaymentProviderConfig;
+  }): Promise<PaymentProviderListPaymentStatusesResult>;
 };
 
 export function resolvePaymentProviderWebhookSecret(

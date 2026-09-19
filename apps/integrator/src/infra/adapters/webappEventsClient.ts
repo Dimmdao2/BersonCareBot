@@ -192,6 +192,25 @@ export function createWebappEventsPort(deps: {
       });
     },
 
+    async wakeAppointmentPaymentReconciliation(input: { wakeId: string }) {
+      return postSignedJson({
+        path: '/api/integrator/appointment-payment-reconciliation/wake',
+        body: JSON.stringify(input),
+        idempotencyKey: `appointment-payment-reconciliation-wake:${input.wakeId}`,
+      });
+    },
+
+    async processAppointmentPaymentReconciliation(input: {
+      body: string;
+      idempotencyKey: string;
+    }) {
+      return postSignedJson({
+        path: '/api/integrator/appointment-payment-reconciliation/process',
+        body: input.body,
+        idempotencyKey: input.idempotencyKey,
+      });
+    },
+
     async setSupportStatus(input: { body: string; idempotencyKey: string }): Promise<{
       ok: boolean;
       status: number;

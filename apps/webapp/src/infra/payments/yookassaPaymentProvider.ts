@@ -5,6 +5,7 @@ import {
   PaymentProviderTransportError,
   type PaymentProviderTransportCode,
   type PaymentProviderListedPayment,
+  type PaymentProviderPaymentStatus,
   type PaymentProviderPort,
   type PaymentReceipt,
 } from '@/modules/payments/providerPort';
@@ -128,6 +129,34 @@ type YookassaObjectResponse = {
   payment_method?: { id?: string; saved?: boolean };
 };
 
+/** One normalization owns webhook and reconciliation identity; do not recreate it in a scheduler. */
+function normalizeYookassaPayment(remote: YookassaObjectResponse): PaymentProviderPaymentStatus {
+  if (!remote.id) throw new Error('yookassa_payment_object_id_missing');
+  const status = remote.status ?? 'unknown';
+  const idempotencyKey =
+    typeof remote.metadata?.idempotencyKey === 'string' && remote.metadata.idempotencyKey.trim()
+      ? remote.metadata.idempotencyKey
+      : remote.id;
+  const amountMinor =
+    remote.amount?.value != null
+      ? Math.round(Number.parseFloat(String(remote.amount.value)) * 100)
+      : 0;
+  return {
+    providerObjectRef: remote.id,
+    providerPaymentRef: remote.invoice_details?.id ?? remote.id,
+    idempotencyKey,
+    eventType: status === 'succeeded' ? 'payment.succeeded' : `payment.${status}`,
+    status,
+    amountMinor,
+    currency: remote.amount?.currency ?? '',
+    payload: {
+      event: status === 'succeeded' ? 'payment.succeeded' : `payment.${status}`,
+      object: remote,
+      currency: remote.amount?.currency,
+    },
+  };
+}
+
 async function fetchYookassaObject(
   path: 'payments' | 'refunds',
   objectId: string,
@@ -248,6 +277,29 @@ async function fetchYookassaPaymentsPage(
       return (await res.json()) as YookassaListResponse;
     },
   );
+}
+
+async function listYookassaPaymentStatuses(input: {
+  shopId: string;
+  secretKey: string;
+  periodFromIso: string;
+  periodToIso: string;
+}): Promise<{ items: PaymentProviderPaymentStatus[]; truncated: boolean }> {
+  const items: PaymentProviderPaymentStatus[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < YOOKASSA_LIST_MAX_PAGES; page += 1) {
+    const response = await fetchYookassaPaymentsPage(input.shopId, input.secretKey, {
+      periodFromIso: input.periodFromIso,
+      periodToIso: input.periodToIso,
+      cursor,
+    });
+    for (const item of response.items ?? []) {
+      if (item.id) items.push(normalizeYookassaPayment(item));
+    }
+    if (!response.next_cursor) return { items, truncated: false };
+    cursor = response.next_cursor;
+  }
+  return { items, truncated: true };
 }
 
 export function createYookassaPaymentProvider(): PaymentProviderPort {
@@ -455,30 +507,29 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       );
       if (!remote.id) throw new Error('invalid_webhook_signature');
 
-      const idempotencyKey =
-        typeof remote.metadata?.idempotencyKey === 'string'
-          ? remote.metadata.idempotencyKey
-          : remote.id;
-      const eventType =
-        remote.status === 'succeeded'
-          ? `${untrusted.domain}.succeeded`
-          : `${untrusted.domain}.${remote.status ?? 'unknown'}`;
-      const amountMinor =
-        remote.amount?.value != null
-          ? Math.round(Number.parseFloat(String(remote.amount.value)) * 100)
-          : undefined;
+      const normalized = normalizeYookassaPayment(remote);
 
       return {
-        idempotencyKey,
-        eventType,
-        payload: { event: eventType, object: remote, currency: remote.amount?.currency },
+        idempotencyKey: normalized.idempotencyKey,
+        eventType:
+          untrusted.domain === 'refund'
+            ? `refund.${remote.status ?? 'unknown'}`
+            : normalized.eventType,
+        payload: {
+          event:
+            untrusted.domain === 'refund'
+              ? `refund.${remote.status ?? 'unknown'}`
+              : normalized.eventType,
+          object: remote,
+          currency: remote.amount?.currency,
+        },
         // К4: a payment created by paying an invoice carries the INVOICE's id here, never its own
         // — that invoice id is what `attachSaasBillingInvoiceProviderIntent` stored as our
         // `providerInvoiceRef` at invoice-creation time, before any payment existed to have an id
         // of its own. Direct payments (createIntent, no invoice involved) have no `invoice_details`
         // and fall back to the payment's own id, unchanged from before.
         intentRef: remote.invoice_details?.id ?? remote.id,
-        amountMinor,
+        amountMinor: normalized.amountMinor,
         savedPaymentMethodId:
           remote.payment_method?.saved === true && remote.payment_method.id
             ? remote.payment_method.id
@@ -488,40 +539,33 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
 
     async listPayments({ periodFromIso, periodToIso, providerConfig }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
-      const items: PaymentProviderListedPayment[] = [];
-      let cursor: string | undefined;
-      let truncated = false;
-      for (let page = 0; page < YOOKASSA_LIST_MAX_PAGES; page += 1) {
-        const response = await fetchYookassaPaymentsPage(shopId, secretKey, {
-          periodFromIso,
-          periodToIso,
-          cursor,
-        });
-        for (const item of response.items ?? []) {
-          // Same derivation as `verifyWebhook` above, for the same reason: an invoice-paid payment
-          // carries the invoice's id here, and that is the id our journal stored.
-          const providerPaymentRef = item.invoice_details?.id ?? item.id;
-          if (!providerPaymentRef) continue;
-          items.push({
-            providerPaymentRef,
-            status: item.status ?? 'unknown',
-            amountMinor:
-              item.amount?.value != null
-                ? Math.round(Number.parseFloat(String(item.amount.value)) * 100)
-                : 0,
-            currency: item.amount?.currency ?? '',
-            metadata: item.metadata,
-            refundedAmountMinor:
-              item.refunded_amount?.value != null
-                ? Math.round(Number.parseFloat(String(item.refunded_amount.value)) * 100)
-                : 0,
-          });
-        }
-        if (!response.next_cursor) break;
-        cursor = response.next_cursor;
-        if (page === YOOKASSA_LIST_MAX_PAGES - 1) truncated = true;
-      }
-      return { items, truncated };
+      const listed = await listYookassaPaymentStatuses({ shopId, secretKey, periodFromIso, periodToIso });
+      const items: PaymentProviderListedPayment[] = listed.items.map((item) => {
+        const object = item.payload.object as { metadata?: Record<string, unknown>; refunded_amount?: { value?: string } };
+        return {
+          providerPaymentRef: item.providerPaymentRef,
+          status: item.status,
+          amountMinor: item.amountMinor,
+          currency: item.currency,
+          metadata: object.metadata,
+          refundedAmountMinor:
+            object.refunded_amount?.value != null
+              ? Math.round(Number.parseFloat(String(object.refunded_amount.value)) * 100)
+              : 0,
+        };
+      });
+      return { items, truncated: listed.truncated };
+    },
+
+    async getPaymentStatus({ providerObjectRef, providerConfig }) {
+      const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
+      const remote = await fetchYookassaObject('payments', providerObjectRef, shopId, secretKey);
+      return normalizeYookassaPayment(remote);
+    },
+
+    async listPaymentStatuses({ periodFromIso, periodToIso, providerConfig }) {
+      const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
+      return listYookassaPaymentStatuses({ shopId, secretKey, periodFromIso, periodToIso });
     },
   };
 }
