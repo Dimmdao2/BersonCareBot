@@ -175,3 +175,70 @@ Full CI, push, deploy, migration execute, PROD и TEST не запускалис
 - YooKassa test fixture дополнена реально обязательным `status: succeeded`.
 - Удалён `staffManualCancelAfterCanonical.unit.test.ts`: он проверял вызов внутреннего mock enqueue
   после `catch`, дублировал реализацию и выдавал post-commit окно за доказательство атомарности.
+
+## Correction evidence — 2026-09-19
+
+Исходный verdict `FAIL` выше сохранён как audit record. Ниже — evidence точечной коррекции трёх MUST FIX.
+
+### MF1 — cancellation fact и refund continuation
+
+- `20260919T130000_cancelled_payment_refund_reconciliation.sql` теперь объявляет
+  `app.enqueue_booking_payment_refund_reconciliation()` как `SECURITY DEFINER` **trigger** под
+  `app_seam_payment_webhook_owner`, а `booking_payment_refund_reconciliation_after_cancellation`
+  запускает его `AFTER INSERT` на `public.be_appointment_cancellations` под
+  `app_object_owner`. Поэтому insert cancellation и insert существующей
+  `outgoing_delivery_queue` находятся в одной внешней transaction `applyCancellation()`.
+- Trigger использует только immutable `NEW`: если `NEW.prepayment_retained` либо
+  `NEW.prepayment_refunded`, он пишет existing kind
+  `appointment_payment_reconciliation_refund`, tenant, appointment, оба money-decision flags и
+  reason. `ON CONFLICT (event_id) DO NOTHING` для
+  `appointment-payment-reconcile:refund:<appointmentId>` сохраняет один idempotent worker job.
+  При обеих flags `false` job не ставится.
+- Request-local callable root, обе staff/patient capabilities, repo-port surface и оба catch-enqueue
+  вызова удалены. Immediate provider attempt остаётся на прежнем serial/idempotent
+  `applyCancelPaymentOutcome`; его failure оставляет уже committed durable row worker-у.
+
+### MF2 — fiscal receipt
+
+- Перед provider вызовом receipt строится и передаётся только когда
+  `refund amount < payment.amountMinor`; значит partial и multi-slot refund сохраняют обязательный
+  receipt, а full provider-payment refund не содержит свойства `receipt` вовсе.
+- Независимый acceptance сначала был воспроизведён на старшем поведении временной инверсией условия:
+  `pnpm --dir apps/webapp exec vitest run src/app-layer/booking/staffAppointmentPayments.s10.unit.test.ts`
+  → `1 failed | 14 passed`, failure `does not send a second fiscal receipt with a full YooKassa refund`.
+  После correction та же команда → `15 passed`.
+
+### MF3 — owner/caller, relation surface, FK/RLS
+
+- `20260919T090000_booking_payment_reconciliation.sql`:
+  `app.apply_booking_payment_provider_terminal_observation()` остаётся trigger-definer
+  `app_seam_payment_webhook_owner`, invoked only by its `app_object_owner` trigger. Its exact body
+  surface is `public.be_payment_intents` columns
+  `organization_id, provider_id, provider_intent_ref, appointment_id, status, updated_at` with
+  `SELECT, UPDATE` (`UPDATE` only `status, updated_at`); `NEW` provider-event fields do not add a
+  source-relation read.
+- `20260919T130000_cancelled_payment_refund_reconciliation.sql`: the new trigger definer is invoked
+  only by `app_object_owner`; its exact declared surface is
+  `public.outgoing_delivery_queue` columns `organization_id, event_id, kind, channel, payload_json,
+  status, attempt_count, max_attempts, next_retry_at, priority` with `SELECT, INSERT`. `SELECT` is
+  required by the `ON CONFLICT (event_id)` arbitration. It performs no appointment/cancellation
+  read or row lock because its worker payload is derived from `NEW`.
+- Queue `organization_id` keeps its existing organization FK and tenant RLS/`FORCE RLS`; the queue
+  insert carries `NEW.organization_id`, already constrained by the cancellation fact. No migration
+  contains runtime/table grants, revoke, role/default-privilege or policy DDL. Function ownership,
+  execution and relation ACLs come only from `declaration.ts` and regenerated artifacts.
+- Exact surface oracle:
+  `node --experimental-strip-types --input-type=module -e "import fs from 'node:fs'; import { declaration } from './deploy/postgres/privileges/declaration.ts'; import { activeSchemaArtifacts, compareFunctionSurfaces, parseExecutableFunctions, parseTriggers } from './deploy/postgres/privileges/function-body-surface.mjs'; const sql=activeSchemaArtifacts().map((file)=>fs.readFileSync(file,'utf8')).join('\\n'); const wanted=['app.apply_booking_payment_provider_terminal_observation()','app.enqueue_booking_payment_refund_reconciliation()']; const gaps=compareFunctionSurfaces(parseExecutableFunctions(sql),declaration.portContext.functions,parseTriggers(sql)).filter((gap)=>wanted.some((signature)=>gap.startsWith(signature))); console.log('RELEVANT_GAPS='+gaps.length); if (gaps.length) process.exit(1);"`
+  → `RELEVANT_GAPS=0`.
+
+### Correction validation
+
+- Relevant webapp suite: `79 passed`; relevant integrator worker suite: `10 passed`.
+- `pnpm --dir apps/webapp typecheck`, `pnpm --dir apps/integrator typecheck`, scoped ESLint,
+  `node deploy/postgres/privileges/migration-order.mjs`,
+  `bash apps/webapp/scripts/check-drizzle-migration-order.sh`, targeted function/privilege suite
+  (`115 passed`), and `pnpm run check:db-privileges-generated` all passed.
+- `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot`
+  passed rollback-only: `pending=1 total=242 reapplied=0 foreign-ledger-rows=4 relabeled=0
+  dropped-foreign=0 dropped-foreign-by-hash=0 unapplied=0`; output ends `ROLLBACK`. No migration
+  execute, TEST/PROD, deploy, push or full CI was run.

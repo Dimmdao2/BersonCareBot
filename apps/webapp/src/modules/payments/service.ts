@@ -419,13 +419,17 @@ export function createPaymentsService(deps: {
             amountMinor: input.amountMinor,
             currency: payment.currency,
             idempotencyKey: providerIdempotencyKey,
-            receipt: buildBookingPaymentReceipt({
-              settings,
-              providerId: provider.id,
-              customerEmail: await deps.resolvePayerEmail?.(intent?.platformUserId ?? ''),
-              description: 'Возврат оплаты записи',
-              amountMinor: input.amountMinor,
-            }),
+            ...(input.amountMinor < payment.amountMinor
+              ? {
+                  receipt: buildBookingPaymentReceipt({
+                    settings,
+                    providerId: provider.id,
+                    customerEmail: await deps.resolvePayerEmail?.(intent?.platformUserId ?? ''),
+                    description: 'Возврат оплаты записи',
+                    amountMinor: input.amountMinor,
+                  }),
+                }
+              : {}),
             providerConfig: provider,
           });
 
@@ -876,11 +880,6 @@ export function createPaymentsService(deps: {
         wakeId: input.wakeId,
         maxAttempts: 6,
       });
-    },
-
-    /** Keep post-commit cancellation refunds on the existing reconciliation queue, never in a request flag. */
-    async enqueueCancelledAppointmentPaymentReconciliation(input: { appointmentId: string }) {
-      await deps.port.enqueueCancelledAppointmentPaymentReconciliation(input);
     },
 
     /** One low-priority queue row, one authenticated provider point lookup, one canonical settlement root. */

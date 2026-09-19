@@ -185,10 +185,6 @@ export type PaymentsPort = {
     wakeId: string;
     maxAttempts: number;
   }): Promise<{ intents: number; sweeps: number }>;
-  /** A committed cancellation whose provider refund failed must survive the request as queue work. */
-  enqueueCancelledAppointmentPaymentReconciliation(input: {
-    appointmentId: string;
-  }): Promise<void>;
   readAppointmentPaymentReconciliationIntent(
     intentId: string,
   ): Promise<AppointmentPaymentReconciliationIntent | null>;

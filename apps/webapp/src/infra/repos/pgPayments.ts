@@ -515,15 +515,6 @@ export function createPgPaymentsPort(): PaymentsPort {
       return { intents: object.intents, sweeps: object.sweeps };
     },
 
-    async enqueueCancelledAppointmentPaymentReconciliation(input) {
-      await runWebappNamedRoot(
-        getWebappSqlDb(),
-        'app.enqueue_booking_payment_refund_reconciliation(uuid)',
-        [input.appointmentId],
-        sql`SELECT app.enqueue_booking_payment_refund_reconciliation(${input.appointmentId}::uuid)`,
-      );
-    },
-
     async readAppointmentPaymentReconciliationIntent(intentId) {
       const result = await runWebappNamedRoot<{ intent: unknown }>(
         getWebappSqlDb(),

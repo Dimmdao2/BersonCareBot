@@ -600,9 +600,6 @@ export function createPatientBookingService(input: {
               reason: cancelInput.reason,
             });
           } catch (err) {
-            await input.payments.enqueueCancelledAppointmentPaymentReconciliation({
-              appointmentId: row.canonicalAppointmentId,
-            });
             paymentOutcomeFailed = true;
             console.error(
               '[patient-booking] cancel payment outcome failed (canonical already cancelled)',
