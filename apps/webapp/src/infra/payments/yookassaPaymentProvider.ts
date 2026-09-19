@@ -126,6 +126,12 @@ type YookassaObjectResponse = {
   invoice_details?: { id?: string };
   /** An invoice only names its linked payment after the payer has started one. */
   payment_details?: { id?: string };
+  /** Invoice GET responses expose their payable total through the cart, not `amount`. */
+  cart?: Array<{
+    price?: { value?: string; currency?: string };
+    discount_price?: { value?: string; currency?: string };
+    quantity?: number | string;
+  }>;
   /** К6 — present when `save_payment_method: true` (or an existing saved method) was used; `saved`
    *  is only `true` once the provider actually persisted it for reuse. */
   payment_method?: { id?: string; saved?: boolean };
@@ -570,7 +576,38 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       if (providerObjectRef.startsWith('in-')) {
         const invoice = await fetchYookassaObject('invoices', providerObjectRef, shopId, secretKey);
         const paymentId = invoice.payment_details?.id;
-        if (!paymentId) throw new Error('yookassa_invoice_payment_unavailable');
+        if (!paymentId) {
+          // YooKassa documents `canceled` as a final invoice status even when no payment object was
+          // ever created (expiry/manual cancellation). Persist that authenticated terminal fact so
+          // the local intent stops anchoring reconciliation forever. A pending invoice remains
+          // retryable because it can still acquire a payment_details.id later.
+          if (invoice.status !== 'canceled' || !invoice.id) {
+            throw new Error('yookassa_invoice_payment_unavailable');
+          }
+          const amountMinor = (invoice.cart ?? []).reduce((sum, item) => {
+            const amount = item.discount_price ?? item.price;
+            const quantity = Number(item.quantity ?? 0);
+            const unitMinor = Math.round(Number.parseFloat(String(amount?.value ?? '0')) * 100);
+            return sum + (Number.isFinite(quantity) && Number.isFinite(unitMinor) ? unitMinor * quantity : 0);
+          }, 0);
+          const currency = (invoice.cart ?? [])
+            .map((item) => (item.discount_price ?? item.price)?.currency)
+            .find((value): value is string => typeof value === 'string') ?? '';
+          const idempotencyKey =
+            typeof invoice.metadata?.idempotencyKey === 'string' && invoice.metadata.idempotencyKey.trim()
+              ? invoice.metadata.idempotencyKey
+              : invoice.id;
+          return {
+            providerObjectRef: invoice.id,
+            providerPaymentRef: providerObjectRef,
+            idempotencyKey,
+            eventType: 'payment.canceled',
+            status: 'canceled',
+            amountMinor,
+            currency,
+            payload: { event: 'payment.canceled', object: invoice, currency },
+          };
+        }
         const payment = await fetchYookassaObject('payments', paymentId, shopId, secretKey);
         return normalizeYookassaPayment(payment, providerObjectRef);
       }

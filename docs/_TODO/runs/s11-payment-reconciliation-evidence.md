@@ -16,8 +16,11 @@ were reused unchanged; no blind audit, kill-set, UI, queue, journal, process, se
 - **F3 — YooKassa invoice.** `in-…` refs use authenticated `GET /v3/invoices/{invoice_id}` then authenticated
   `GET /v3/payments/{payment_details.id}`. The resulting normalized fact retains the local invoice ref for local
   binding and retains the payment metadata idempotency key used by webhook verification. Direct payment refs still
-  use `GET /v3/payments/{id}`. The retained fixture already supplies the official invoice `payment_details.id`, so
-  no fixture weakening or semantic rewrite was needed.
+  use `GET /v3/payments/{id}`. A provider-authenticated final `canceled` invoice without
+  `payment_details` (the documented expiry/manual-cancel case where no payment object was created) is normalized as
+  the terminal cancellation fact from the invoice's own metadata/cart; a `pending` invoice remains retryable. The
+  retained fixture already supplies the official invoice `payment_details.id`, so no fixture weakening or semantic
+  rewrite was needed.
 - **F4 — unbound appointment-looking item.** Sweep resolution now reads the local intent first. A canonical
   appointment purpose, appointment marker/UUID subject, or local appointment binding makes the item
   appointment-looking; an absent local intent raises the stable
@@ -25,10 +28,13 @@ were reused unchanged; no blind audit, kill-set, UI, queue, journal, process, se
   validation before canonical settlement. Irrelevant SaaS/package items without any of these signs remain outside
   appointment settlement. The watermark is not advanced after such a failure.
 - **F5 — incidents.** The process route maps only the allowlist `provider_list_truncated`, appointment-unbound,
-  binding-mismatch and unavailable-capability categories; every other provider failure becomes the fixed
+  binding-mismatch and unavailable-capability categories (including the existing provider-settings resolver's
+  `payment_provider_unavailable` signal); every other provider failure becomes the fixed
   `appointment_payment_reconciliation_provider_failed` category. At queue exhaustion the worker derives only one
-  of these fixed keys (or the fixed terminal-retry key) from the persisted safe category, never from a dynamic
-  error string. No payload, credentials, checkout URL or patient data crosses into the incident.
+  of these fixed keys (or the fixed terminal-retry key) from the current failed attempt, never the previous
+  `last_error` or a dynamic error string. A reconciliation row is marked dead only after its terminal operator
+  incident is durable; incident-write failure leaves the row reclaimable. No payload, credentials, checkout URL or
+  patient data crosses into the incident.
 - **F6 — late success.** A successful settlement for locally `cancelled`/`failed` intent returns the existing
   stable `success_after_local_expiry` signal. The worker opens/touches its operator incident before marking the
   row sent; failure to persist it keeps the row retryable, while the canonical settlement root remains idempotent.
@@ -39,12 +45,13 @@ were reused unchanged; no blind audit, kill-set, UI, queue, journal, process, se
 ## Validation
 
 - `pnpm --dir apps/webapp exec vitest run src/infra/payments/yookassaPaymentProvider.unit.test.ts src/modules/payments/appointmentPaymentReconciliation.unit.test.ts` — PASS, 12/12. This is both saved RED acceptance cases (F3, F4), now green.
+- `pnpm --dir apps/integrator exec vitest run src/infra/runtime/worker/outgoingDeliveryWorker.bookingLifecycle.s11.test.ts src/infra/runtime/worker/outgoingDeliveryWorker.finalize.test.ts` — PASS, 6/6 after the terminal-incident correction.
 - `pnpm --dir apps/integrator exec vitest run src/infra/runtime/scheduler/schedulerLockedTick.unit.test.ts -t "wakes appointment payment reconciliation"` — PASS, 1 selected / 9 skipped.
 - `pnpm --dir apps/webapp exec vitest run src/modules/payments/appointmentPaymentReconciliation.unit.test.ts -t "webhook-compatible identity"` — PASS, 1 selected / 1 skipped.
 - `pnpm --dir apps/webapp exec vitest run src/modules/payments/providerWebhookSettlement.test.ts src/modules/payments/service.test.ts src/infra/repos/pgPayments.providerWebhook.principal.unit.test.ts src/app-layer/booking/appointmentPaymentConfirmedHandler.d14.test.ts` — PASS, 36/36.
 - `pnpm --dir apps/integrator exec vitest run src/infra/runtime/scheduler/fixedCadenceWake.unit.test.ts src/infra/runtime/scheduler/schedulerLockedTick.unit.test.ts src/infra/runtime/worker/outgoingDeliveryWorker.bookingLifecycle.s11.test.ts src/infra/runtime/worker/outgoingDeliveryWorker.scope.test.ts src/infra/db/repos/outgoingDeliveryQueue.namedRoot.unit.test.ts` — PASS, 35/35.
-- `pnpm --dir apps/webapp typecheck` and `pnpm --dir apps/integrator typecheck` — PASS.
-- `pnpm --dir apps/webapp lint` and `pnpm --dir apps/integrator lint` — PASS.
+- `pnpm --dir apps/webapp typecheck` and `pnpm --dir apps/integrator typecheck` — PASS after the final correction.
+- `pnpm --dir apps/webapp lint` and `pnpm --dir apps/integrator lint` — PASS after the final correction.
 - `pnpm run check:db-privileges-generated` and `node deploy/postgres/privileges/migration-order.mjs` — PASS.
 - `node --test deploy/postgres/privileges/migration-order.test.mjs deploy/postgres/privileges/port-context-catalog.test.mjs deploy/postgres/privileges/named-root-column-mapping.test.mjs deploy/postgres/privileges/row-lock-privileges.test.mjs deploy/postgres/privileges/appointment-prepayment-least-privilege.test.mjs deploy/postgres/privileges/function-census.test.mjs deploy/postgres/privileges/relation-access.test.mjs` — PASS, 115/115.
 - `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot` — PASS; owner-ordered rollback-only DEV validation reports `pending=1 total=241 reapplied=0`, then rolls back.

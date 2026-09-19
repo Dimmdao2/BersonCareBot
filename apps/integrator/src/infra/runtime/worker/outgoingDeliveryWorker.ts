@@ -197,7 +197,7 @@ async function finalizeClaimedRowFailure(
   const message = err instanceof Error ? err.message : String(err);
   const safeError = truncateDeliveryErrorMessage(message);
   if (row.attemptCount >= row.maxAttempts) {
-    await recordBookingLifecycleReplayDeadIncident(row);
+    await recordBookingLifecycleReplayDeadIncident(row, safeError);
     await queueMarkDead(db, row.id, safeError);
     return;
   }
@@ -211,22 +211,22 @@ async function finalizeClaimedRowFailure(
 
 async function recordBookingLifecycleReplayDeadIncident(
   row: OutgoingDeliveryQueueRow,
+  currentError: string,
 ): Promise<void> {
   if (
     row.kind === 'appointment_payment_reconciliation_intent' ||
     row.kind === 'appointment_payment_reconciliation_sweep'
   ) {
-    const errorClass = reconciliationIncidentClassFromQueueRow(row);
-    try {
-      await recordOperatorFailureIncident({
-        direction: 'appointment_payment_reconciliation',
-        integration: 'payment_provider',
-        errorClass,
-        errorDetail: 'appointment_payment_reconciliation_terminal_retry_failure',
-      });
-    } catch (err) {
-      logger.warn({ err, rowId: row.id, errorClass }, 'appointment_payment_reconciliation_incident_failed');
-    }
+    const errorClass = reconciliationIncidentClass(currentError);
+    // A terminal reconciliation row without its operator incident would silently lose the only
+    // durable explanation of why money stopped reconciling. Let persistence failure keep this row
+    // reclaimable; the canonical settlement path is idempotent when the worker retries.
+    await recordOperatorFailureIncident({
+      direction: 'appointment_payment_reconciliation',
+      integration: 'payment_provider',
+      errorClass,
+      errorDetail: 'appointment_payment_reconciliation_terminal_retry_failure',
+    });
     return;
   }
   if (row.kind !== 'booking_lifecycle') return;
@@ -265,7 +265,7 @@ async function recordBookingLifecycleReplayDeadIncident(
   }
 }
 
-function reconciliationIncidentClassFromQueueRow(row: OutgoingDeliveryQueueRow): string {
+function reconciliationIncidentClass(error: string): string {
   const safeCodes = [
     'appointment_payment_reconciliation_provider_list_truncated',
     'appointment_payment_reconciliation_appointment_unbound',
@@ -273,7 +273,6 @@ function reconciliationIncidentClassFromQueueRow(row: OutgoingDeliveryQueueRow):
     'appointment_payment_reconciliation_provider_unavailable',
     'appointment_payment_reconciliation_provider_failed',
   ];
-  const error = typeof row.lastError === 'string' ? row.lastError : '';
   return safeCodes.find((code) => error.includes(code)) ?? 'appointment_payment_reconciliation_terminal_retry_exhausted';
 }
 

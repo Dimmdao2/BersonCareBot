@@ -19,6 +19,9 @@ const reconciliationErrorCodes = new Set([
 
 function safeReconciliationErrorCode(error: unknown): string {
   const message = error instanceof Error ? error.message : '';
+  if (message === 'payment_provider_unavailable') {
+    return 'appointment_payment_reconciliation_provider_unavailable';
+  }
   return reconciliationErrorCodes.has(message)
     ? message
     : 'appointment_payment_reconciliation_provider_failed';
