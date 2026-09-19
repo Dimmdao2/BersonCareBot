@@ -24870,6 +24870,15 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.be_organizations': 'стена здесь дизъюнкция: своя клиника ЛИБО активное зачисление пациента (app.current_patient_has_active_org_enrollment); разбор внутрь предиката-помощника не заходит',
   },
 
+  'app.read_anonymous_patient_surface_projection(uuid)': {
+    'public.be_organizations': 'проекция намеренно анонимно-безопасна и уже публично доступна по id активной клиники; арендный reminder-вызов не расширяет её поля',
+    'public.clinic_public_directory_entries': 'проекция возвращает только опубликованную публичную карточку клиники',
+    'public.org_brand_revisions': 'проекция возвращает только опубликованный бренд и только анонимно-безопасные поля',
+    'public.media_files': 'проекция проверяет только готовность публичных изображений бренда, а не отдаёт приватную запись медиа',
+    'public.org_custom_domain_bindings': 'проекция возвращает только активный публичный hostname клиники',
+    'public.system_settings': 'проекция возвращает только публичные id готовых messenger-ботов без секретов и токенов',
+  },
+
   'app.redeem_patient_invite_email(text)': {
     'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
     'public.be_organizations': 'клиника берётся ИЗ строки приглашения и проверяется на активность',
@@ -26486,6 +26495,11 @@ const REV10_CONTEXT = {
     custom_domain_anonymous_surface_projection: { port: 'webapp',
       runtimeName: 'custom_domain_anonymous_surface_projection', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'branding.anonymous-surface.read',
+      functionIdentity: 'app.read_anonymous_patient_surface_projection(uuid)' },
+    custom_domain_tenant_surface_projection: { port: 'webapp',
+      runtimeName: 'custom_domain_tenant_surface_projection', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'branding.anonymous-surface.read',
       functionIdentity: 'app.read_anonymous_patient_surface_projection(uuid)' },
     custom_domain_staff_intent_save: { port: 'webapp', runtimeName: 'custom_domain_staff_intent_save',
@@ -28356,7 +28370,7 @@ const REV10_CONTEXT = {
     }),
     'app.read_anonymous_patient_surface_projection(uuid)': rev10Function({
       owner: 'app_seam_custom_domain_owner', security: 'DEFINER', returns: 'record',
-      returnsSet: true, execute: ['app_pre_session'],
+      returnsSet: true, execute: ['app_pre_session', 'app_tenant_service'],
       purpose: 'anonymous-safe brand/slug/redirect projection for an already-resolved organization id',
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE', language: 'plpgsql',
       proconfig: ['search_path=pg_catalog'],
