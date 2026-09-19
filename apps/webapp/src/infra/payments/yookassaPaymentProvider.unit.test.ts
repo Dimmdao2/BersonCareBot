@@ -300,3 +300,132 @@ describe('yookassa appointment invoice point reconciliation', () => {
     });
   });
 });
+
+/**
+ * Independent oracle: YooKassa requires a payment id in `payment_id`; an invoice id must first be
+ * resolved through the invoice's `payment_details.id`:
+ * https://yookassa.ru/developers/payment-acceptance/scenario-extensions/invoices/refunds
+ *
+ * Expensive silent failure: an appointment cancellation is already committed when its automatic
+ * refund runs. Sending the stored invoice id as `payment_id` leaves that cancelled appointment's
+ * money with the clinic unless somebody notices and retries it by hand.
+ */
+describe('yookassa appointment invoice refund', () => {
+  it('refunds the payment linked to an invoice rather than using the invoice id as payment_id', async () => {
+    let refundBody: Record<string, unknown> | null = null;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === 'https://api.yookassa.ru/v3/invoices/in-appointment-1') {
+        return jsonResponse(200, {
+          id: 'in-appointment-1',
+          status: 'succeeded',
+          payment_details: { id: 'payment-appointment-1', status: 'succeeded' },
+        });
+      }
+      if (url === 'https://api.yookassa.ru/v3/refunds' && init?.method === 'POST') {
+        refundBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return jsonResponse(200, { id: 'refund-1', status: 'succeeded' });
+      }
+      return jsonResponse(404, { type: 'error', code: 'not_found' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await createYookassaPaymentProvider().refund({
+      providerIntentRef: 'in-appointment-1',
+      amountMinor: 3_000,
+      currency: 'RUB',
+      idempotencyKey: 'appointment-refund-1',
+      providerConfig,
+    });
+
+    expect(refundBody).toMatchObject({ payment_id: 'payment-appointment-1' });
+  });
+});
+
+/**
+ * Independent oracle: YooKassa's response-handling protocol says HTTP 200 + `pending` is unknown
+ * and HTTP 200 + `canceled` is unsuccessful; only `succeeded` proves the refund happened:
+ * https://yookassa.ru/developers/using-api/response-handling/recommendations
+ *
+ * Expensive silent failure: accepting either response makes the local immutable refund journal say
+ * money was returned although the provider has not returned it.
+ */
+describe('yookassa refund terminal status', () => {
+  it.each(['pending', 'canceled'] as const)('does not report a %s refund as successful', async (status) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(200, { id: `refund-${status}`, status })),
+    );
+
+    await expect(
+      createYookassaPaymentProvider().refund({
+        providerIntentRef: 'payment-1',
+        amountMinor: 3_000,
+        currency: 'RUB',
+        idempotencyKey: `appointment-refund-${status}`,
+        providerConfig,
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+/**
+ * Independent oracle: YooKassa publishes its notification source networks and instructs the
+ * merchant to authenticate a notification by requesting the current object from the API:
+ * https://yookassa.ru/developers/using-api/webhooks
+ *
+ * Expensive silent failure: trusting an arbitrary POST, or its amount/status, can create an
+ * immutable captured-payment fact without money reaching the clinic.
+ */
+describe('yookassa webhook authenticity', () => {
+  const notification = JSON.stringify({
+    event: 'payment.succeeded',
+    object: {
+      id: 'payment-webhook-1',
+      status: 'succeeded',
+      amount: { value: '100.00', currency: 'RUB' },
+      metadata: { idempotencyKey: 'appointment-payment-1' },
+    },
+  });
+
+  it('rejects a forged notification before trusting its body', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      createYookassaPaymentProvider().verifyWebhook({
+        headers: new Headers({ 'x-real-ip': '203.0.113.10' }),
+        bodyText: notification,
+        webhookSecret: '',
+        providerConfig,
+      }),
+    ).rejects.toThrow('invalid_webhook_signature');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses refetched provider status and amount instead of the notification body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse(200, {
+          id: 'payment-webhook-1',
+          status: 'canceled',
+          amount: { value: '25.00', currency: 'RUB' },
+          metadata: { idempotencyKey: 'appointment-payment-1' },
+        }),
+      ),
+    );
+
+    await expect(
+      createYookassaPaymentProvider().verifyWebhook({
+        headers: new Headers({ 'x-real-ip': '185.71.76.1' }),
+        bodyText: notification,
+        webhookSecret: '',
+        providerConfig,
+      }),
+    ).resolves.toMatchObject({
+      eventType: 'payment.canceled',
+      amountMinor: 2_500,
+    });
+  });
+});

@@ -373,6 +373,7 @@ export function createPaymentsService(deps: {
     amountMinor: number;
     reason?: string;
     idempotencyKey?: string;
+    amountIsTarget?: true;
   }): Promise<AppointmentRefundResult> {
     const requestIdentity =
       input.idempotencyKey?.trim() || `${input.appointmentId}:${input.amountMinor}`;
@@ -385,7 +386,7 @@ export function createPaymentsService(deps: {
         throw new Error('invalid_refund_amount');
       }
       const resolved = await resolveAppointmentPayment(input.appointmentId, input.organizationId);
-      if (!resolved || !['captured', 'refunded'].includes(resolved.payment.status)) {
+      if (!resolved || !['captured', 'partially_refunded', 'refunded'].includes(resolved.payment.status)) {
         throw new Error('payment_not_refundable');
       }
       const { payment } = resolved;
@@ -403,7 +404,13 @@ export function createPaymentsService(deps: {
             input.organizationId,
           );
           const refundableMinor = Math.max(0, appointmentAmountMinor - alreadyRefunded);
-          if (input.amountMinor > refundableMinor) {
+          const amountMinor = input.amountIsTarget
+            ? Math.max(0, input.amountMinor - alreadyRefunded)
+            : input.amountMinor;
+          if (amountMinor === 0) {
+            return { ok: true as const, refundedMinor: 0 };
+          }
+          if (amountMinor > refundableMinor) {
             throw new Error('refund_amount_exceeds_payment');
           }
 
@@ -413,12 +420,23 @@ export function createPaymentsService(deps: {
           const intent = await deps.port.findIntentById(payment.paymentIntentId);
           const providerIdempotencyKey =
             input.idempotencyKey?.trim() ||
-            `staff-refund:${payment.id}:${input.appointmentId}:${input.amountMinor}`;
+            `staff-refund:${payment.id}:${input.appointmentId}:${amountMinor}`;
           const refundResult = await adapter.refund({
             providerIntentRef: intent?.providerIntentRef ?? payment.paymentIntentId,
-            amountMinor: input.amountMinor,
+            amountMinor: amountMinor,
             currency: payment.currency,
             idempotencyKey: providerIdempotencyKey,
+            ...(amountMinor < payment.amountMinor
+              ? {
+                  receipt: buildBookingPaymentReceipt({
+                    settings,
+                    providerId: provider.id,
+                    customerEmail: await deps.resolvePayerEmail?.(intent?.platformUserId ?? ''),
+                    description: 'Возврат оплаты записи',
+                    amountMinor: amountMinor,
+                  }),
+                }
+              : {}),
             providerConfig: provider,
           });
 
@@ -427,35 +445,37 @@ export function createPaymentsService(deps: {
               organizationId: input.organizationId,
               paymentId: payment.id,
               appointmentId: input.appointmentId,
-              amountMinor: input.amountMinor,
+              amountMinor: amountMinor,
               currency: payment.currency,
               status: 'succeeded',
               reason: input.reason,
               providerRefundRef: refundResult.providerRefundRef,
             });
             if (refund.created === false) {
-              return { ok: true as const, refundedMinor: input.amountMinor };
+              return { ok: true as const, refundedMinor: amountMinor };
             }
             const refundedAmount = await deps.port.getSucceededRefundedAmount(
               payment.id,
               input.organizationId,
             );
-            if (refundedAmount >= payment.amountMinor) {
-              await deps.port.updatePaymentStatus(payment.id, 'refunded', input.organizationId);
-            }
+            await deps.port.updatePaymentStatus(
+              payment.id,
+              refundedAmount >= payment.amountMinor ? 'refunded' : 'partially_refunded',
+              input.organizationId,
+            );
             await deps.port.appendHistoryEvent({
               organizationId: input.organizationId,
               appointmentId: input.appointmentId,
               paymentId: payment.id,
               refundId: refund.id,
               eventType: 'refund_succeeded',
-              amountMinor: input.amountMinor,
+              amountMinor: amountMinor,
               currency: payment.currency,
               providerId: payment.providerId,
               status: 'succeeded',
               comment: input.reason ?? null,
             });
-            return { ok: true as const, refundedMinor: input.amountMinor };
+            return { ok: true as const, refundedMinor: amountMinor };
           });
         },
       );
@@ -1026,28 +1046,40 @@ export function createPaymentsService(deps: {
       );
 
       if (input.prepaymentRetained) {
+        const retainedMinor = Math.min(
+          appointmentAmountMinor,
+          Math.max(0, appointment.prepaymentRequiredMinor ?? appointmentAmountMinor),
+        );
         const history = await deps.port.listHistoryForAppointment(
           input.appointmentId,
           input.organizationId,
         );
-        if (
-          history.some(
-            (event) => event.eventType === 'prepayment_retained' && event.paymentId === payment.id,
-          )
-        ) {
-          return { ok: true as const, skipped: false as const, action: 'retained' as const };
+        if (!history.some(
+          (event) => event.eventType === 'prepayment_retained' && event.paymentId === payment.id,
+        )) {
+          // The history's business unique key also arbitrates concurrent cancellations in the DB.
+          await deps.port.appendHistoryEvent({
+            organizationId: input.organizationId,
+            appointmentId: input.appointmentId,
+            paymentId: payment.id,
+            eventType: 'prepayment_retained',
+            amountMinor: retainedMinor,
+            currency: payment.currency,
+            providerId: payment.providerId,
+            comment: input.reason ?? null,
+          });
         }
-        // The history's business unique key also arbitrates concurrent cancellations in the DB.
-        await deps.port.appendHistoryEvent({
-          organizationId: input.organizationId,
-          appointmentId: input.appointmentId,
-          paymentId: payment.id,
-          eventType: 'prepayment_retained',
-          amountMinor: appointmentAmountMinor,
-          currency: payment.currency,
-          providerId: payment.providerId,
-          comment: input.reason ?? null,
-        });
+        const refundMinor = appointmentAmountMinor - retainedMinor;
+        if (refundMinor > 0) {
+          await refundAppointmentPaymentOnce({
+            organizationId: input.organizationId,
+            appointmentId: input.appointmentId,
+            amountMinor: refundMinor,
+            reason: input.reason,
+            idempotencyKey: `refund:${payment.id}:${input.appointmentId}`,
+            amountIsTarget: true,
+          });
+        }
         return { ok: true as const, skipped: false as const, action: 'retained' as const };
       }
 
@@ -1059,6 +1091,7 @@ export function createPaymentsService(deps: {
           amountMinor: appointmentAmountMinor,
           reason: input.reason,
           idempotencyKey,
+          amountIsTarget: true,
         });
         return { ok: true as const, skipped: false as const, action: 'refunded' as const };
       }

@@ -28589,6 +28589,14 @@ const REV10_CONTEXT = {
       typedArgs: ['text', 'timestamp with time zone'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.be_payment_reconciliation_checkpoints', columns: ['organization_id', 'provider_id', 'watermark', 'updated_at'], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const], evidence: 'monotonic durable checkpoint upsert' as const }],
     }),
+    'app.enqueue_booking_payment_refund_reconciliation()': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: ['app_object_owner'], purpose: 'atomically persist a cancellation payment continuation on the reconciliation queue',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.outgoing_delivery_queue', columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts', 'next_retry_at', 'priority'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'immutable cancellation fact atomically writes one idempotent reconciliation continuation' as const },
+      ],
+    }),
     'app.settle_booking_payment_webhook_event(text,text,text,text,text)': rev10Function({
       owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_tenant_service'],

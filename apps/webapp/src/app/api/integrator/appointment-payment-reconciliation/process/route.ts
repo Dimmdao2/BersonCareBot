@@ -8,6 +8,14 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 const bodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('intent'), organizationId: z.string().uuid(), intentId: z.string().uuid() }).strict(),
   z.object({ kind: z.literal('sweep'), organizationId: z.string().uuid(), providerId: z.string().min(1).max(100) }).strict(),
+  z.object({
+    kind: z.literal('refund'),
+    organizationId: z.string().uuid(),
+    appointmentId: z.string().uuid(),
+    prepaymentRetained: z.boolean(),
+    prepaymentRefunded: z.boolean(),
+    reason: z.string().max(1_000).nullable(),
+  }).strict(),
 ]);
 
 const reconciliationErrorCodes = new Set([
@@ -42,7 +50,14 @@ export async function POST(request: Request) {
   let body: unknown;
   try { body = JSON.parse(rawBody) as unknown; } catch { body = null; }
   const parsed = bodySchema.safeParse(body);
-  if (!parsed.success || idempotencyKey !== `appointment-payment-reconciliation:${parsed.data.kind}:${parsed.data.organizationId}:${parsed.data.kind === 'intent' ? parsed.data.intentId : parsed.data.providerId}`) {
+  const workId = parsed.success
+    ? parsed.data.kind === 'intent'
+      ? parsed.data.intentId
+      : parsed.data.kind === 'sweep'
+        ? parsed.data.providerId
+        : parsed.data.appointmentId
+    : null;
+  if (!parsed.success || idempotencyKey !== `appointment-payment-reconciliation:${parsed.data.kind}:${parsed.data.organizationId}:${workId}`) {
     return NextResponse.json({ ok: false, error: 'invalid payload' }, { status: 400 });
   }
   if (!enterVerifiedIntegratorOrganizationPrincipal(parsed.data.organizationId, 'api/integrator/appointment-payment-reconciliation/process:POST')) {
@@ -53,7 +68,15 @@ export async function POST(request: Request) {
     if (!payments) throw new Error('payments_unavailable');
     const result = parsed.data.kind === 'intent'
       ? await payments.reconcileAppointmentPaymentIntent({ organizationId: parsed.data.organizationId, intentId: parsed.data.intentId })
-      : await payments.reconcileAppointmentPaymentSweep({ organizationId: parsed.data.organizationId, providerId: parsed.data.providerId });
+      : parsed.data.kind === 'sweep'
+        ? await payments.reconcileAppointmentPaymentSweep({ organizationId: parsed.data.organizationId, providerId: parsed.data.providerId })
+        : await payments.applyCancelPaymentOutcome({
+            appointmentId: parsed.data.appointmentId,
+            organizationId: parsed.data.organizationId,
+            prepaymentRetained: parsed.data.prepaymentRetained,
+            prepaymentRefunded: parsed.data.prepaymentRefunded,
+            reason: parsed.data.reason ?? undefined,
+          });
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json({ ok: false, error: safeReconciliationErrorCode(error) }, { status: 500 });

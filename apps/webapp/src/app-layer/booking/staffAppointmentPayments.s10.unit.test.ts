@@ -20,7 +20,12 @@ const org = 'org-s10';
 const patient = 'patient-s10';
 const input = { organizationId: org, appointmentId: 'a', platformUserId: patient, createdBy: 'doctor', returnUrl: '/app' };
 
-function harness(onlineMinor = 0, slots = 1, providerConfigured = true) {
+function harness(
+  onlineMinor = 0,
+  slots = 1,
+  providerConfigured = true,
+  prepaymentRequiredMinor = onlineMinor,
+) {
   const refunds: Parameters<PaymentsPort['createRefund']>[0][] = [];
   const history: PaymentHistoryEventRecord[] = [];
   const externalRefunds = new Map<string, number>();
@@ -35,7 +40,8 @@ function harness(onlineMinor = 0, slots = 1, providerConfigured = true) {
     providerIntentRef: 'external-payment', checkoutUrl: null,
   };
   const appointment = (id: string) => ({
-    id, organizationId: org, paymentRef: onlineMinor ? payment.id : null, serviceId: null, status: 'confirmed',
+    id, organizationId: org, paymentRef: onlineMinor ? payment.id : null, serviceId: null,
+    status: 'confirmed', prepaymentRequiredMinor,
   }) as BeAppointment;
   provider.refund.mockImplementation(async ({ amountMinor, idempotencyKey }: { amountMinor: number; idempotencyKey: string }) => {
     if (!externalRefunds.has(idempotencyKey)) externalRefunds.set(idempotencyKey, amountMinor);
@@ -66,6 +72,7 @@ function harness(onlineMinor = 0, slots = 1, providerConfigured = true) {
       providers: providerConfigured ? [{ id: 'yookassa', label: 'YooKassa', enabled: true, shopId: 'sandbox', apiKey: 'test-only' }] : [] }) },
     bookingEngine: { getAppointment: async (id) => appointment(id), listAppointmentsByChainId: async () => [], transitionAppointmentStatus: vi.fn() },
     captureUnitOfWork: { run: async (_org, fn) => fn(), runSerializedPostCommit: async (_org, _key, fn) => fn() },
+    resolvePayerEmail: async () => 'patient@example.test',
   });
   const staff = createStaffAppointmentPaymentsService({ payments,
     patientBooking: { getBookingByCanonicalAppointment: vi.fn(async () => ({ serviceTitleSnapshot: 'Visit', priceMinorSnapshot: 10_000 } as PatientBookingRecord)) },
@@ -114,6 +121,43 @@ describe('S10 independent money acceptance', () => {
     expect(history.filter(event => event.eventType === 'prepayment_retained')).toHaveLength(1);
   });
 
+  it('replaying a completed cancellation refund succeeds without returning the money twice', async () => {
+    const { payments, externalRefunds, history } = harness(10_000);
+    const cancel = {
+      appointmentId: 'a',
+      organizationId: org,
+      prepaymentRetained: false,
+      prepaymentRefunded: true,
+    };
+
+    await payments.applyCancelPaymentOutcome(cancel);
+    await payments.applyCancelPaymentOutcome(cancel);
+
+    expect([...externalRefunds.values()]).toEqual([10_000]);
+    expect(history.filter((event) => event.eventType === 'refund_succeeded')).toHaveLength(1);
+  });
+
+  // OWNER_PRODUCT_RULES §13.1: for each canceled session, keep only its non-refundable
+  // prepayment and return the rest of an already fully paid session. Otherwise a 5 000 ₽
+  // prepayment on a 10 000 ₽ paid visit silently becomes a 10 000 ₽ cancellation penalty.
+  it('retains only the required prepayment and refunds the paid remainder on cancellation', async () => {
+    const { payments, history, externalRefunds } = harness(10_000, 1, true, 5_000);
+
+    await payments.applyCancelPaymentOutcome({
+      appointmentId: 'a',
+      organizationId: org,
+      prepaymentRetained: true,
+      prepaymentRefunded: false,
+    });
+
+    expect(
+      history
+        .filter((event) => event.eventType === 'prepayment_retained')
+        .reduce((sum, event) => sum + (event.amountMinor ?? 0), 0),
+    ).toBe(5_000);
+    expect([...externalRefunds.values()].reduce((sum, amount) => sum + amount, 0)).toBe(5_000);
+  });
+
   it('S11 K7: retrying a cash refund without an optional request ID does not return money twice', async () => {
     const { staff } = harness();
     await staff.createPayment({ ...input, action: 'cash', amountMinor: 10_000 });
@@ -130,6 +174,63 @@ describe('S10 independent money acceptance', () => {
       .rejects.toThrow('provider unavailable');
     expect(history.filter(event => event.eventType === 'refund_succeeded')).toEqual([]);
     expect([...externalRefunds.values()]).toEqual([]);
+  });
+
+  // The persisted payment state is an externally consumed finance fact (details and analytics),
+  // not an implementation callback. A partial immutable refund must not leave it claiming that the
+  // whole provider payment is still captured.
+  it('marks a provider payment partially_refunded after returning only part of it', async () => {
+    const { payments } = harness(10_000);
+    await payments.refundAppointmentPayment({
+      organizationId: org,
+      appointmentId: 'a',
+      amountMinor: 3_000,
+    });
+
+    const summary = await payments.getAppointmentPaymentSummary('a', org);
+    expect(summary?.payment?.status).toBe('partially_refunded');
+  });
+
+  // YooKassa's 54-FZ protocol requires receipt data in the same request for a partial refund.
+  // The provider call is the observable external side effect: without this amount-matched receipt,
+  // cancellation is already committed while the money remains with the clinic.
+  it('sends an amount-matched fiscal receipt with a partial YooKassa refund', async () => {
+    const { payments } = harness(10_000);
+    await payments.refundAppointmentPayment({
+      organizationId: org,
+      appointmentId: 'a',
+      amountMinor: 3_000,
+    });
+
+    const request = provider.refund.mock.calls[0]?.[0] as
+      | {
+          receipt?: {
+            customer: { email: string };
+            items: Array<{ amountMinor: number; quantity: number }>;
+          };
+        }
+      | undefined;
+    expect(request?.receipt?.customer.email).toBe('patient@example.test');
+    expect(
+      request?.receipt?.items.reduce(
+        (sum, item) => sum + item.amountMinor * item.quantity,
+        0,
+      ),
+    ).toBe(3_000);
+  });
+
+  // The integrated audit brief follows YooKassa's fiscal-refund contract: a partial refund needs
+  // corrected receipt items, while a full refund of a payment that already has a provider receipt
+  // reuses that original receipt and must not submit another one.
+  it('does not send a second fiscal receipt with a full YooKassa refund', async () => {
+    const { payments } = harness(10_000);
+    await payments.refundAppointmentPayment({
+      organizationId: org,
+      appointmentId: 'a',
+      amountMinor: 10_000,
+    });
+
+    expect(provider.refund.mock.calls[0]?.[0]).not.toHaveProperty('receipt');
   });
 
   it('K1: collected cash cannot exceed the remaining appointment debt', async () => {

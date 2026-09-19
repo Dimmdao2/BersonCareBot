@@ -274,8 +274,7 @@ export function createBookingAppointmentLifecycleService(deps: {
           !eligibility.isFree && eligibility.decisionType === 'package_charged',
         prepaymentRetained:
           !eligibility.isFree && policy.lateChangeBehavior === 'retain_prepayment',
-        prepaymentRefunded:
-          !eligibility.isFree && policy.lateChangeBehavior === 'refund_prepayment',
+        prepaymentRefunded: eligibility.isFree || policy.lateChangeBehavior === 'refund_prepayment',
         notificationsSent: input.notificationsSent ?? {
           policy: {
             notifyPatient: policy.notifyPatient,
@@ -329,7 +328,8 @@ export function createBookingAppointmentLifecycleService(deps: {
         targetStatus,
         packageSessionCharged: input.decisionType === 'package_charged',
         prepaymentRetained: input.decisionType === 'retain_prepayment',
-        prepaymentRefunded: input.decisionType === 'refund_prepayment',
+        prepaymentRefunded:
+          input.decisionType === 'free' || input.decisionType === 'refund_prepayment',
         notificationsSent: input.notificationsSent,
         suppressPatientNotification: input.suppressPatientNotification,
       });

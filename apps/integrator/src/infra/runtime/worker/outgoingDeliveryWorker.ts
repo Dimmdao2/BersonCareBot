@@ -229,7 +229,8 @@ async function recordBookingLifecycleReplayDeadIncident(
 ): Promise<void> {
   if (
     row.kind === 'appointment_payment_reconciliation_intent' ||
-    row.kind === 'appointment_payment_reconciliation_sweep'
+    row.kind === 'appointment_payment_reconciliation_sweep' ||
+    row.kind === 'appointment_payment_reconciliation_refund'
   ) {
     const errorClass = reconciliationIncidentClass(currentError);
     // A terminal reconciliation row without its operator incident would silently lose the only
@@ -754,7 +755,8 @@ export async function processOutgoingDeliveryRow(
     deps;
   if (
     row.kind === 'appointment_payment_reconciliation_intent' ||
-    row.kind === 'appointment_payment_reconciliation_sweep'
+    row.kind === 'appointment_payment_reconciliation_sweep' ||
+    row.kind === 'appointment_payment_reconciliation_refund'
   ) {
     const payload = row.payloadJson;
     const organizationId = typeof payload.organizationId === 'string' ? payload.organizationId : null;
@@ -763,21 +765,34 @@ export async function processOutgoingDeliveryRow(
         ? typeof payload.intentId === 'string'
           ? payload.intentId
           : null
-        : typeof payload.providerId === 'string'
+        : row.kind === 'appointment_payment_reconciliation_sweep' && typeof payload.providerId === 'string'
           ? payload.providerId
           : null;
-    if (!organizationId || !id || !deps.bookingLifecycle?.webappEventsPort?.processAppointmentPaymentReconciliation) {
+    const appointmentId =
+      row.kind === 'appointment_payment_reconciliation_refund' && typeof payload.appointmentId === 'string'
+        ? payload.appointmentId
+        : null;
+    const prepaymentRetained = payload.prepaymentRetained === true;
+    const prepaymentRefunded = payload.prepaymentRefunded === true;
+    const reason = typeof payload.reason === 'string' ? payload.reason : null;
+    if (!organizationId || (!id && !appointmentId) || !deps.bookingLifecycle?.webappEventsPort?.processAppointmentPaymentReconciliation) {
       throw new Error('APPOINTMENT_PAYMENT_RECONCILIATION_PAYLOAD_INVALID');
     }
-    const kind = row.kind === 'appointment_payment_reconciliation_intent' ? 'intent' : 'sweep';
+    const kind = row.kind === 'appointment_payment_reconciliation_intent'
+      ? 'intent'
+      : row.kind === 'appointment_payment_reconciliation_sweep'
+        ? 'sweep'
+        : 'refund';
     const body = JSON.stringify(
       kind === 'intent'
         ? { kind, organizationId, intentId: id }
-        : { kind, organizationId, providerId: id },
+        : kind === 'sweep'
+          ? { kind, organizationId, providerId: id }
+          : { kind, organizationId, appointmentId, prepaymentRetained, prepaymentRefunded, reason },
     );
     const result = await deps.bookingLifecycle.webappEventsPort.processAppointmentPaymentReconciliation({
       body,
-      idempotencyKey: `appointment-payment-reconciliation:${kind}:${organizationId}:${id}`,
+      idempotencyKey: `appointment-payment-reconciliation:${kind}:${organizationId}:${id ?? appointmentId}`,
     });
     if (!result.ok) {
       throw new Error(`APPOINTMENT_PAYMENT_RECONCILIATION_FAILED:${result.status}:${result.error ?? ''}`);

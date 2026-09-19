@@ -467,6 +467,17 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       const value = (amountMinor / 100).toFixed(2);
       const yookassaIdempotenceKey = toYookassaIdempotenceKey(idempotencyKey);
       if (receipt) assertReceiptMatchesOperation(receipt, amountMinor, currency);
+      // Invoice refs are the local payment ref for expiring appointment prepayments, but YooKassa
+      // refunds require the payment created from that invoice, never the invoice itself.
+      const paymentId = providerIntentRef.startsWith('in-')
+        ? String(
+            (
+              await fetchYookassaObject('invoices', providerIntentRef, shopId, secretKey)
+                .then((invoice) => invoice.payment_details?.id)
+            ) ?? '',
+          )
+        : providerIntentRef;
+      if (!paymentId) throw new Error('yookassa_invoice_payment_id_missing');
       const body = await fetchWithTimeout(
         'https://api.yookassa.ru/v3/refunds',
         {
@@ -477,7 +488,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
             'Idempotence-Key': yookassaIdempotenceKey,
           },
           body: JSON.stringify({
-            payment_id: providerIntentRef,
+            payment_id: paymentId,
             amount: { value, currency },
             ...(receipt ? { receipt: toYookassaReceipt(receipt, currency) } : {}),
           }),
@@ -488,10 +499,14 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
             const text = await res.text().catch(() => '');
             throw new Error(`yookassa_refund_failed:${res.status}:${text.slice(0, 200)}`);
           }
-          return (await res.json()) as { id?: string };
+          return (await res.json()) as { id?: string; status?: string };
         },
       );
-      return { providerRefundRef: String(body.id ?? idempotencyKey) };
+      const refundId = String(body.id ?? '');
+      if (!refundId || body.status !== 'succeeded') {
+        throw new Error(`yookassa_refund_not_succeeded:${body.status ?? 'unknown'}:${refundId}`);
+      }
+      return { providerRefundRef: refundId };
     },
 
     inspectWebhook({ bodyText }) {

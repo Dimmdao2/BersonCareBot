@@ -116,6 +116,7 @@ function captureProviderRequests() {
       }
       return Response.json({
         id: 'yookassa-payment-1',
+        status: 'succeeded',
         confirmation: { confirmation_url: 'https://pay.example.test/yookassa' },
       });
     }),
