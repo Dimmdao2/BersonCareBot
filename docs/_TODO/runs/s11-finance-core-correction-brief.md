@@ -6,11 +6,7 @@
 §10a, §10b и §24. Authority — `docs/_TODO/APPOINTMENT_PREPAYMENT_VISIBILITY_2026-09-11.md`,
 `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §24 и указанный audit-artifact. Не расширяй scope.
 
-## Источник оракула
-
-- `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §24: «бизнес-факт и outbox фиксируются одной транзакцией».
-- `docs/_TODO/runs/s11-finance-integrated-final-audit-brief.md`: «для частичного возврата обязателен, для полного не
-  отправляется, если провайдер использует исходный чек».
+## Источник оракула: `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §24 — «бизнес-факт и outbox фиксируются одной транзакцией»; `docs/_TODO/runs/s11-finance-integrated-final-audit-brief.md` — «для частичного возврата обязателен, для полного не отправляется, если провайдер использует исходный чек».
 
 ## Исправления
 
