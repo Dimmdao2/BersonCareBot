@@ -274,9 +274,9 @@ function ChartSideAxis({
 }) {
   const isLeft = side === 'left';
   return (
-    <div className="relative h-64 w-4 shrink-0" aria-hidden="true">
+    <div className="relative h-[264px] w-4 shrink-0" aria-hidden="true">
       <span
-        className={cn('absolute top-[10px] bottom-[66px] w-px', isLeft ? 'right-0' : 'left-0')}
+        className={cn('absolute top-[18px] bottom-[66px] w-px', isLeft ? 'right-0' : 'left-0')}
         style={{ backgroundColor: color }}
       />
       {values.map((value, index) => (
@@ -287,7 +287,7 @@ function ChartSideAxis({
             isLeft ? 'right-1 text-right' : 'left-1 text-left',
             !isLeft && value === 10 && '-translate-x-[3px]',
           )}
-          style={{ top: `${10 + (index / (values.length - 1)) * 180}px`, color }}
+          style={{ top: `${18 + (index / (values.length - 1)) * 180}px`, color }}
         >
           {value}
         </span>
@@ -410,17 +410,19 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
     <section className="shrink-0 space-y-3 pt-3 pb-4" aria-label="Динамика">
       {hasValues ? (
         <div>
-          <div className="grid grid-cols-[1fr_auto_1fr] items-start px-2">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-start px-2 pt-1">
             <div>
-              <p className="text-sm font-semibold text-primary">Объём</p>
-              <p className={doctorMetaTextClass}>подх. × повт.</p>
+              <p className="text-sm leading-5 font-semibold text-primary">Объём</p>
+              <p className="-mt-1 text-[11px] leading-3 text-muted-foreground">подх. × повт.</p>
             </div>
             <p className="pt-px text-[13px] leading-5 font-normal text-foreground">
               {visibleMonthDate ? monthLabel(visibleMonthDate) : null}
             </p>
             <div className="text-right">
-              <p className="text-sm font-semibold text-[var(--doctor-exercise-pain-chart)]">Боль</p>
-              <p className={doctorMetaTextClass}>1–10</p>
+              <p className="text-sm leading-5 font-semibold text-[var(--doctor-exercise-pain-chart)]">
+                Боль
+              </p>
+              <p className="-mt-1 text-[11px] leading-3 text-muted-foreground">1–10</p>
             </div>
           </div>
           <div className="flex px-1">
@@ -443,9 +445,9 @@ function ExerciseDynamicsChart({ days }: { days: ChartDay[] }) {
               <div style={{ width, minWidth: '100%' }}>
                 <ComposedChart
                   width={width}
-                  height={256}
+                  height={264}
                   data={days}
-                  margin={{ top: 10, right: 0, bottom: 12, left: 0 }}
+                  margin={{ top: 18, right: 0, bottom: 12, left: 0 }}
                 >
                   <CartesianGrid
                     vertical
