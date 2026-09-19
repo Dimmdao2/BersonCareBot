@@ -1826,7 +1826,7 @@ UI-тексты читает владелец и пользователи, их 
 
 - **Reuse-first:** перед новой секцией/списком/тулбаром проверить гайд §3–§8 и `doctorVisual` / `shared/ui/doctor/`.
 - **Не** добавлять локальные «самописные» карточки, заголовки и empty states, если покрывает `DoctorSection`, `DoctorEmptyState` или константы из `doctorVisual.ts`.
-- **Page-level секции:** `doctorSectionCardClass` (или `<DoctorSection>`) — радиус `10px`, внутренний отступ `18px`, `gap-3`, **без** `shadow-sm` и **без** `rounded-2xl`.
+- **Page-level секции:** `doctorSectionCardClass` (или `<DoctorSection>`) — радиус `10px`, внутренний отступ `16px`, `gap-3`, **без** `shadow-sm` и **без** `rounded-2xl`.
 - **Заголовки:** `doctorSectionTitleClass` / `doctorPageTitleClass` / `doctorClientSectionTitleClass` — **запрещены** голые `<h2>` / `<h3>` без `className`.
 - **Карточка клиента:** только chrome из `doctorClientCardChrome.ts`; вкладки и overview — primary/secondary/stacked по гайду §9.
 - **Каталоги (split-layout):** эталон — `exercises/ExercisesPageClient.tsx`; стек `DoctorCatalogPageLayout` + `DoctorCatalogFiltersToolbar` + `CatalogSplitLayout`; primary action — `doctorCatalogToolbarPrimaryActionClassName`.

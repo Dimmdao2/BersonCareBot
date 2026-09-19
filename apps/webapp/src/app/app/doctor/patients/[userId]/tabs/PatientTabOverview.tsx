@@ -2210,7 +2210,7 @@ export function PatientTabOverview({
                 type="button"
                 variant="ghost"
                 onClick={() => onTabSwitch?.('program')}
-                className="h-auto w-full justify-start p-0 text-left text-base font-medium text-primary hover:bg-transparent hover:text-primary"
+                className="h-auto w-full justify-start p-0 text-left text-base font-medium text-[var(--doctor-entity-title)] hover:bg-transparent hover:text-[var(--doctor-entity-title)]"
               >
                 {data.programTitle}
               </Button>
@@ -2262,8 +2262,8 @@ export function PatientTabOverview({
                   )}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block line-clamp-2">{displayStage.title}</span>
-                    <span className="mt-0.5 block text-sm text-foreground">
+                    <span className="block line-clamp-2 text-base">{displayStage.title}</span>
+                    <span className={cn(doctorMetaTextClass, 'mt-0.5 block')}>
                       {formatExerciseCountRu(displayStageExercises.length)}
                     </span>
                   </span>
