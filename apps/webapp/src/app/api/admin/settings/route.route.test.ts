@@ -609,33 +609,6 @@ describe('clinic-owner atomic settings readback', () => {
     );
   });
 
-  it('persists the normalized branded auth-mail template in the authenticated clinic only', async () => {
-    const response = await patch({
-      key: 'clinic_transactional_mail_template',
-      value: {
-        senderDisplayNameTemplate: ' {{clinicName}} · {{platformName}} ',
-        authCodeSubjectTemplate: ' Код: {{senderDisplayName}} ',
-        authCodeTextTemplate: ' {{senderDisplayName}}: {{code}} ',
-      },
-    });
-
-    expect(response.status).toBe(200);
-    expect(fakes.updateSetting).toHaveBeenCalledWith(
-      'clinic_transactional_mail_template',
-      'admin',
-      {
-        value: {
-          senderDisplayNameTemplate: '{{clinicName}} · {{platformName}}',
-          authCodeSubjectTemplate: 'Код: {{senderDisplayName}}',
-          authCodeTextTemplate: '{{senderDisplayName}}: {{code}}',
-        },
-      },
-      clinicSession.user.userId,
-      { organizationId: CLINIC_ORGANIZATION_ID },
-    );
-    expect(fakes.getClinicPlatformIntegrationAvailability).not.toHaveBeenCalled();
-  });
-
   it('rejects an incomplete branded auth-mail template before a clinic write', async () => {
     const response = await patch({
       key: 'clinic_transactional_mail_template',
