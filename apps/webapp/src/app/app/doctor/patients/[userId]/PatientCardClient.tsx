@@ -590,7 +590,7 @@ export function PatientCardClient({
             </div>
 
             {workspaceModules?.encounters !== false || workspaceModules?.video_meetings ? (
-              <div className="flex w-full flex-nowrap gap-1 sm:gap-2 md:mt-0 md:ml-auto md:w-auto md:shrink-0">
+              <div className="-mx-1.5 flex w-[calc(100%+0.75rem)] flex-nowrap gap-1 sm:gap-2 md:mx-0 md:mt-0 md:ml-auto md:w-auto md:shrink-0">
                 {workspaceModules?.encounters !== false ? (
                   <>
                     <Button
@@ -667,7 +667,7 @@ export function PatientCardClient({
               header={header}
               desktopCombined={desktopCombined}
               overviewLead={
-                <div className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card px-4 py-2.5">
+                <div className="rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-2.5">
                   <PatientContactActions
                     identity={identity}
                     hasTelegram={hasTelegram}

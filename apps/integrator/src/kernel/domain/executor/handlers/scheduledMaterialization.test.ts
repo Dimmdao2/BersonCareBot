@@ -25,15 +25,24 @@ const ctx: DomainContext = {
 };
 
 describe('scheduled patient reminder materialization', () => {
-  it('does only one signed webapp wake', async () => {
+  it('resolves the public patient origin before the signed webapp wake', async () => {
     const wake = vi.fn(async () => ({ ok: true, status: 200 }));
+    const getPatientPublicOrigin = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      patientPublicOrigin: 'https://patient.example',
+    }));
     const result = await handleScheduledMaterialization(action, ctx, {
-      webappEventsPort: { wakePatientReminderMaterialization: wake },
+      webappEventsPort: { getPatientPublicOrigin, wakePatientReminderMaterialization: wake },
     });
     expect(result.status).toBe('success');
+    expect(getPatientPublicOrigin).toHaveBeenCalledWith({
+      organizationId: 'd0000000-0000-4000-8000-00000000000d',
+    });
     expect(wake).toHaveBeenCalledWith({
       organizationId: 'd0000000-0000-4000-8000-00000000000d',
       wakeId: schedulerEventId,
+      patientPublicOrigin: 'https://patient.example',
     });
   });
 

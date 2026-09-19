@@ -130,6 +130,53 @@ export function createWebappEventsPort(deps: {
     }
   }
 
+  async function getSignedJson(input: {
+    path: string;
+    search: URLSearchParams;
+  }): Promise<{
+    ok: boolean;
+    status: number;
+    patientPublicOrigin?: string;
+    error?: string;
+  }> {
+    const baseUrl = await deps.getAppBaseUrl();
+    if (!baseUrl || !secret) {
+      return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
+    }
+    const pathWithSearch = `${input.path}?${input.search.toString()}`;
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signature = sign(timestamp, `GET ${pathWithSearch}`, secret);
+    try {
+      const response = await fetch(`${baseUrl.replace(/\/$/, '')}${pathWithSearch}`, {
+        method: 'GET',
+        headers: {
+          'X-Bersoncare-Timestamp': timestamp,
+          'X-Bersoncare-Signature': signature,
+        },
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        patientPublicOrigin?: unknown;
+        error?: unknown;
+      };
+      if (!response.ok || data.ok !== true || typeof data.patientPublicOrigin !== 'string') {
+        return {
+          ok: false,
+          status: response.status,
+          error: typeof data.error === 'string' ? data.error : response.statusText,
+        };
+      }
+      const patientPublicOrigin = new URL(data.patientPublicOrigin).origin;
+      return { ok: true, status: response.status, patientPublicOrigin };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 0,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   return {
     async processBookingLifecycle(input) {
       const result = await postSignedJson({
@@ -184,7 +231,18 @@ export function createWebappEventsPort(deps: {
       });
     },
 
-    async wakePatientReminderMaterialization(input: { wakeId: string; organizationId: string }) {
+    async getPatientPublicOrigin(input: { organizationId: string }) {
+      return getSignedJson({
+        path: '/api/integrator/reminders/patient-origin',
+        search: new URLSearchParams({ organizationId: input.organizationId }),
+      });
+    },
+
+    async wakePatientReminderMaterialization(input: {
+      wakeId: string;
+      organizationId: string;
+      patientPublicOrigin: string;
+    }) {
       return postSignedJson({
         path: '/api/integrator/patient-reminders/materialize-wake',
         body: JSON.stringify(input),

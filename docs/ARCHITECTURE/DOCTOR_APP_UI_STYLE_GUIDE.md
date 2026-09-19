@@ -12,7 +12,7 @@
 **Companion-файл констант:** `apps/webapp/src/shared/ui/doctor/doctorVisual.ts`  
 **Зональные токены:** `apps/webapp/src/app/styles/doctor.css` (`#app-shell-doctor`)
 
-> **Как читать гайд.** §A–§C — визуальный язык, единая шкала и общий стиль компонентов (целевой дизайн, эталон — экран упражнений). §1–§21 — конкретные паттерны экранов и константы. Актуальные owner-параметры: белый page header, canvas `#F2F2F0`, page/KPI/control radius `10/8/7px`, padding 18px. При конфликте величин приоритет у §A–§B.
+> **Как читать гайд.** §A–§C — визуальный язык, единая шкала и общий стиль компонентов (целевой дизайн, эталон — экран упражнений). §1–§21 — конкретные паттерны экранов и константы. Актуальные owner-параметры: белый page header, canvas `#F2F2F0`, page/KPI/control radius `10/8/7px`, padding 16px. При конфликте величин приоритет у §A–§B.
 
 ---
 
@@ -105,7 +105,8 @@
 | --------------------------------- | ------------------------------ | ------------------------------------------ | ------- |
 | Page title (h1)                   | `doctorPageTitleClass`         | `text-[18px] font-medium tracking-tight`   | 18      |
 | Заголовок модалки                 | `doctorModalTitleClass`        | `text-base font-medium tracking-tight`     | 16      |
-| Название сущности в модалке       | `doctorModalEntityTitleClass`  | `text-[17px] font-semibold`, серо-синий    | 17      |
+| Название сущности в модалке       | `doctorModalEntityTitleClass`  | `text-[18px] font-normal`, серо-синий      | 18      |
+| Название сущности в карточке      | `doctorCardEntityTitleClass`   | `text-[18px] font-normal`, серо-синий      | 18      |
 | Имя пациента в entity-header     | `doctorClientDisplayNameClass` | `text-[18px] font-bold leading-6`           | 18      |
 | Section title (h2/h3)             | `doctorSectionTitleClass`      | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
 | Body                              | `doctorBodyTextClass`          | mobile `text-base`, desktop `text-sm`      | 16 / 14 |
@@ -140,7 +141,7 @@
 
 - Между блоками страницы — `gap-3` (12px), дефолт.
 - Внутри секции — `gap-2` / `gap-3`.
-- Внутренний отступ основных блоков — `18px` (`--doctor-block-padding`).
+- Внутренний отступ основных блоков — `16px` (`--doctor-block-padding`).
 - Page padding — `px-3 pt-3`; единый нижний зазор — `18px` через
   `--doctor-page-bottom-gutter` (не дублировать локальным `pb-*`).
 - **Запрещено** на admin/ops-страницах: `space-y-6`, `gap-6`, `mb-6`.
@@ -263,7 +264,7 @@ tablet `768–1023px` используется узкий sidebar rail, раск
 | ------------------------------- | ------------- | ------------------------------------------------------------- |
 | Заголовок страницы (h1)         | `h1`          | `text-[18px] font-medium tracking-tight text-foreground`      |
 | Заголовок модалки               | `h1` или `h2` | `text-base font-medium tracking-tight text-foreground`        |
-| Название сущности в модалке     | `h2` или `h3` | `doctorModalEntityTitleClass` — 17px, серо-синий             |
+| Название сущности в модалке     | `h2` или `h3` | `doctorModalEntityTitleClass` — 18px, серо-синий             |
 | Заголовок секции / панели       | `h2` или `h3` | mobile `text-base`, desktop `text-sm`, `font-semibold`        |
 | Первичная строка сущности       | `p`           | `text-base font-normal text-foreground`                       |
 | Обычный текст                   | `p`           | mobile `text-base`, desktop `text-sm`, `text-foreground`      |
@@ -313,10 +314,10 @@ tablet `768–1023px` используется узкий sidebar rail, раск
 Используется для блоков прямо на странице: «Сегодня», «Записи», «Аналитика», «Сигналы».
 
 ```
-rounded-[10px] border border-border bg-card p-[18px] flex flex-col gap-3
+rounded-[10px] border border-border bg-card p-4 flex flex-col gap-3
 ```
 
-- `p-[18px]` (18px внутренний отступ)
+- `p-4` (16px внутренний отступ)
 - Нет `shadow-sm`
 - Нет `gap-4` — только `gap-3`
 
@@ -352,7 +353,7 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 
 ```
 Я рисую…
-├── Блок прямо на странице → rounded-[10px] border border-border bg-card p-[18px]
+├── Блок прямо на странице → rounded-[10px] border border-border bg-card p-4
 ├── Панель в overview-сетке клиента
 │   ├── Основная (программа, задачи) → doctorClientOverviewPrimaryCardClass
 │   └── Вспомогательная (хронология, сигналы) → doctorClientOverviewSecondaryCardClass
@@ -365,7 +366,7 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 
 - `rounded-2xl` в page-level секциях → `doctorSectionCardClass` / радиус 10px
 - `rounded-lg border border-border bg-card p-4 shadow-sm` на page-section без stat-карточек → `doctorSectionCardClass`, без лишнего `shadow-sm`
-- `p-4` / `p-3` в page-level секциях без особого контракта → общий padding 18px
+- `p-3` в page-level секциях без особого контракта → общий padding 16px
 
 ---
 
@@ -1013,7 +1014,7 @@ import { cn } from '@/lib/utils';
 
 /** Page-level секция: основной контейнер на странице. */
 export const doctorSectionCardClass =
-  'rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3';
+  'rounded-[var(--doctor-page-block-radius,10px)] border border-border bg-card p-[var(--doctor-block-padding,16px)] flex flex-col gap-3';
 
 /** Вложенная строка-карточка внутри page-section (записи, заявки, инсайты). */
 export const doctorSectionItemClass =
@@ -1092,9 +1093,9 @@ Overview-сетка и панели уровня 2 — в `doctorClientCardChrom
 При добавлении нового экрана или блока в `/app/doctor/**`:
 
 - [ ] Нет голого `<h2>` / `<h3>` без className
-- [ ] Page-level секция: радиус 10px, `border border-border bg-card`, padding 18px (не `rounded-2xl`)
+- [ ] Page-level секция: радиус 10px, `border border-border bg-card`, padding 16px (не `rounded-2xl`)
 - [ ] `shadow-sm` добавлен только на медиакарточки или card-internal панели (§4)
-- [ ] Основной page-block использует padding 18px; локальные внутренние панели — только по своему контракту
+- [ ] Основной page-block использует padding 16px; локальные внутренние панели — только по своему контракту
 - [ ] Каталожный toolbar: `DoctorCatalogFiltersToolbar` (не кастомный sticky)
 - [ ] Primary action — `default` Button или `doctorCatalogToolbarPrimaryActionClassName`
 - [ ] Пустое состояние по §18

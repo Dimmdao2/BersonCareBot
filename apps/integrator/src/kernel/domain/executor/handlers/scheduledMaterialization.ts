@@ -25,16 +25,29 @@ export async function handleScheduledMaterialization(
   const organizationId =
     stringValue(action.params.organizationId) ??
     stringValue(recordValue(ctx.event.payload).organizationId);
-  if (!organizationId || !deps.webappEventsPort?.wakePatientReminderMaterialization) {
+  if (
+    !organizationId ||
+    !deps.webappEventsPort?.getPatientPublicOrigin ||
+    !deps.webappEventsPort.wakePatientReminderMaterialization
+  ) {
     return {
       actionId: action.id,
       status: 'failed',
       error: 'patient reminder materialization wake unavailable',
     };
   }
+  const originResult = await deps.webappEventsPort.getPatientPublicOrigin({ organizationId });
+  if (!originResult.ok || !originResult.patientPublicOrigin) {
+    return {
+      actionId: action.id,
+      status: 'failed',
+      error: `patient reminder public origin failed:${originResult.status}:${originResult.error ?? 'unavailable'}`,
+    };
+  }
   const result = await deps.webappEventsPort.wakePatientReminderMaterialization({
     organizationId,
     wakeId: ctx.event.meta.eventId,
+    patientPublicOrigin: originResult.patientPublicOrigin,
   });
   if (!result.ok) {
     return {

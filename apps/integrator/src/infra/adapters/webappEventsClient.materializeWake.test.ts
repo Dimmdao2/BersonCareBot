@@ -26,11 +26,16 @@ describe('webapp events client patient reminder materialization wake', () => {
     vi.stubGlobal('fetch', fetchMock);
     const organizationId = 'd0000000-0000-4000-8000-00000000000d';
     const wakeId = 'sch:ffffffff-ffff-4fff-8fff-ffffffffffff';
+    const patientPublicOrigin = 'https://patient.example';
     const port = createWebappEventsPort({
       getAppBaseUrl: async () => 'https://app.example/',
     });
 
-    const result = await port.wakePatientReminderMaterialization?.({ organizationId, wakeId });
+    const result = await port.wakePatientReminderMaterialization?.({
+      organizationId,
+      wakeId,
+      patientPublicOrigin,
+    });
 
     expect(result).toMatchObject({ ok: true, status: 200 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -38,7 +43,7 @@ describe('webapp events client patient reminder materialization wake', () => {
     expect(call).toBeDefined();
     if (!call) throw new Error('expected one fetch call');
     const [url, init] = call;
-    const body = JSON.stringify({ organizationId, wakeId });
+    const body = JSON.stringify({ organizationId, wakeId, patientPublicOrigin });
     expect(url).toBe('https://app.example/api/integrator/patient-reminders/materialize-wake');
     expect(init).toMatchObject({ method: 'POST', body });
     const headers = (init?.headers ?? {}) as Record<string, string>;

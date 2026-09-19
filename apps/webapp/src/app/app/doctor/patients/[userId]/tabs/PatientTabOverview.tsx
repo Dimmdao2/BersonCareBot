@@ -12,7 +12,7 @@
  */
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { ListPlus, ListTodo, NotebookPen } from 'lucide-react';
+import { ChevronRight, ListPlus, ListTodo, NotebookPen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { useDoctorPatientTerms } from '@/shared/ui/doctor/shell/DoctorPatientTermsContext';
@@ -47,6 +47,7 @@ import {
 } from '@/modules/treatment-program/stage-semantics';
 import {
   doctorBodyTextClass,
+  doctorCardEntityTitleClass,
   doctorMetaTextClass,
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -912,7 +913,7 @@ function StageExerciseGroupRow({
     <li
       className={cn(
         doctorDnaFlatListRowClass,
-        'mt-2 min-h-[72px] flex-wrap items-end gap-x-3 gap-y-1 bg-[var(--doctor-group-header-background)] py-3 first:mt-0',
+        'mt-1.5 min-h-10 flex-wrap items-end gap-x-3 gap-y-1 bg-[var(--doctor-group-header-background)] py-2 first:mt-0',
       )}
     >
       <p className="min-w-[60%] flex-1 line-clamp-2 whitespace-normal text-base leading-snug font-medium text-foreground">
@@ -1624,10 +1625,18 @@ export function PatientTabOverview({
       : null;
   const stageTimingLabel =
     stageElapsedDays != null && displayStage?.startedAt
-      ? `с ${fmtDateShort(displayStage.startedAt)} (${formatDaysRu(stageElapsedDays)})`
+      ? `с ${fmtDateShort(displayStage.startedAt)} (${formatDaysRu(stageElapsedDays)}${
+          displayStage.expectedDurationDays != null
+            ? ` из ${displayStage.expectedDurationDays}`
+            : ''
+        })`
       : !displayStage?.startedAt && displayStage?.expectedDurationDays != null
         ? `по плану ${formatDaysRu(displayStage.expectedDurationDays)}`
         : null;
+  const stageDurationIsOverrun =
+    stageElapsedDays != null &&
+    displayStage?.expectedDurationDays != null &&
+    stageElapsedDays > displayStage.expectedDurationDays;
   const programControlIsOverdue =
     programControlDate && clientNowIso
       ? isBeforeCurrentCalendarDay(programControlDate, clientNowIso)
@@ -2210,9 +2219,14 @@ export function PatientTabOverview({
                 type="button"
                 variant="ghost"
                 onClick={() => onTabSwitch?.('program')}
-                className="h-auto w-full justify-start p-0 text-left text-base font-medium text-primary hover:bg-transparent hover:text-primary"
+                className={cn(
+                  doctorCardEntityTitleClass,
+                  'mb-2 h-auto w-full justify-start p-0 text-left hover:bg-transparent hover:text-[var(--doctor-entity-title)]',
+                )}
               >
-                {data.programTitle}
+                <span className="border-b border-dashed border-primary/40 pb-px">
+                  {data.programTitle}
+                </span>
               </Button>
             ) : null}
             {!isLoading && data?.programStatus === 'ok' && displayStage ? (
@@ -2222,7 +2236,14 @@ export function PatientTabOverview({
                 </span>
                 <div className="flex items-center gap-3">
                   {stageTimingLabel ? (
-                    <span className={doctorMetaTextClass}>{stageTimingLabel}</span>
+                    <span
+                      className={cn(
+                        doctorMetaTextClass,
+                        stageDurationIsOverrun && 'text-[var(--doctor-stage-overrun)]',
+                      )}
+                    >
+                      {stageTimingLabel}
+                    </span>
                   ) : null}
                   {programControlDate ? (
                     <span
@@ -2255,19 +2276,22 @@ export function PatientTabOverview({
                   variant="ghost"
                   onClick={() => setStageExercisesModalOpen(true)}
                   className={cn(
-                    'relative h-auto min-h-9 w-full items-start justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
+                    'relative -mt-1 h-auto min-h-9 w-full items-start justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
                     currentStageUnread > 0
                       ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive'
                       : 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary',
                   )}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block line-clamp-2">{displayStage.title}</span>
-                    <span className="mt-0.5 block text-sm text-foreground">
+                    <span className="block line-clamp-2 text-base">{displayStage.title}</span>
+                    <span className={cn(doctorMetaTextClass, 'mt-0.5 block')}>
                       {formatExerciseCountRu(displayStageExercises.length)}
                     </span>
                   </span>
-                  <DoctorAttentionBadge count={currentStageUnread} dot />
+                  <span className="flex shrink-0 items-center gap-1 self-center">
+                    <DoctorAttentionBadge count={currentStageUnread} dot />
+                    <ChevronRight aria-hidden className="size-4 text-primary" />
+                  </span>
                 </Button>
               ) : null}
               {exerciseCalendar}

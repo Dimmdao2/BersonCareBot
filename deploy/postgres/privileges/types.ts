@@ -262,6 +262,12 @@ export interface FunctionRelationSurface {
    */
   requiredByTrigger?: Partial<Record<Privilege, { trigger: string; onRelation: string }>>;
   /**
+   * PostgreSQL's referential-integrity check can read the referenced relation while a definer
+   * function writes the referencing relation. The read is absent from the PL/pgSQL source, so it
+   * must name the exact live foreign-key constraint and the relation written by the function.
+   */
+  requiredByForeignKey?: Partial<Record<Privilege, { constraint: string; onRelation: string }>>;
+  /**
    * Отношение со стеной арендатора, которое тело SECURITY DEFINER читает БЕЗ привязки к принципалу
    * порта, — и это ЗАМЫСЕЛ, а не забытый предикат. Значение — причина словами, почему у этого
    * чтения организации нет и быть не может (строка найдена по неугадываемому секрету до вступления

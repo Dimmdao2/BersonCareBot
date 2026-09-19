@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 /** Page-level section container for doctor pages. */
 export const doctorSectionCardClass =
-  'rounded-[var(--doctor-page-block-radius,10px)] border border-[var(--doctor-block-border)] bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3';
+  'rounded-[var(--doctor-page-block-radius,10px)] border border-[var(--doctor-block-border)] bg-card p-[var(--doctor-block-padding,16px)] flex flex-col gap-3';
 
 /** Inner list row/card inside page-level sections. */
 export const doctorSectionItemClass =
@@ -58,7 +58,10 @@ export const doctorModalTitleClass = 'text-base font-medium tracking-tight text-
 
 /** Prominent entity name in a doctor modal header (stage, program, symptom, exercise). */
 export const doctorModalEntityTitleClass =
-  'text-[17px] leading-[22px] font-semibold tracking-tight text-[var(--doctor-entity-title)]';
+  'text-[18px] leading-6 font-normal tracking-tight text-[var(--doctor-entity-title)]';
+
+/** Prominent entity name inside a doctor page card (for example, the active treatment program). */
+export const doctorCardEntityTitleClass = doctorModalEntityTitleClass;
 
 /** Section title for h2/h3 in doctor pages. */
 export const doctorSectionTitleClass =
