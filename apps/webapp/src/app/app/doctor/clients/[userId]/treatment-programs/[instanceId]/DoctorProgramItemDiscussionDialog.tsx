@@ -2,9 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { DoctorModal, DoctorModalStackedTitle } from '@/shared/ui/doctor/DoctorModal';
+import {
+  DoctorModal,
+  DoctorModalFooter,
+  DoctorModalStackedTitle,
+} from '@/shared/ui/doctor/DoctorModal';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 import {
+  AssignmentToolbar,
   DoctorProgramDiscussionMessagesPanel,
   type DoctorProgramDiscussionAssignment,
 } from './DoctorProgramDiscussionMessagesPanel';
@@ -15,12 +20,17 @@ import { resolveStageItemExerciseLoad } from '@/app/app/patient/treatment/stageI
 import { firstSnapshotMedia } from '@/app/app/doctor/comments/exerciseCommentThumb';
 import { thumbToExerciseMedia } from '@/app/app/doctor/comments/exerciseCommentThumb';
 import { DoctorExerciseRecommendationsModal } from '@/app/app/doctor/treatment-program-shared/DoctorExerciseRecommendationsModal';
-import { DoctorExerciseStatisticsModal } from '@/app/app/doctor/treatment-program-shared/DoctorExerciseStatisticsModal';
+import {
+  DoctorExerciseStatisticsPanel,
+  type DoctorExerciseStatisticsView,
+} from '@/app/app/doctor/treatment-program-shared/DoctorExerciseStatisticsModal';
 import { readSafeApiErrorText } from '@/shared/http/apiErrorCode';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import { notifyDoctorExerciseCommentsChanged } from '@/shared/ui/doctor/shell/doctorShellBadgeEvents';
 import { notificationText } from '@/shared/notifications/notificationText';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -69,12 +79,51 @@ function reconcileMessages(
   return changed ? next : current;
 }
 
+function ExerciseStatisticsViewToggle({
+  value,
+  onChange,
+}: {
+  value: DoctorExerciseStatisticsView;
+  onChange: (value: DoctorExerciseStatisticsView) => void;
+}) {
+  return (
+    <div className="grid w-full grid-cols-2 gap-1 rounded-lg border border-primary/25 bg-primary/10 p-1">
+      {(
+        [
+          ['dynamics', 'Динамика'],
+          ['journal', 'Журнал выполнения'],
+        ] as const
+      ).map(([nextValue, label]) => {
+        const active = value === nextValue;
+        return (
+          <Button
+            key={nextValue}
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-pressed={active}
+            className={cn(
+              'min-w-0 border text-sm',
+              active
+                ? 'border-primary/25 bg-card font-medium text-primary shadow-sm hover:bg-card hover:text-primary'
+                : 'border-transparent bg-transparent text-primary shadow-none hover:bg-primary/10 hover:text-primary',
+            )}
+            onClick={() => onChange(nextValue)}
+          >
+            <span className="truncate">{label}</span>
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
- * Каноническая модалка упражнения: тред, рекомендации и переходы в статистику/редактирование.
- * Единственный вариант деталей упражнения — открывается и из «Сегодня → Комментарии», и из
- * списка упражнений этапа в карточке пациента, и из конструктора программы.
+ * Каноническая модалка упражнения с двумя контекстными входами:
+ * из этапа сначала открываются детали, из коммуникаций — комментарии.
  */
 export function DoctorProgramItemDiscussionDialog(props: {
+  initialView?: 'details' | 'comments';
   instanceId: string;
   itemId: string;
   itemLabel?: string;
@@ -88,6 +137,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
   onMarkedRead?: () => void;
 }) {
   const {
+    initialView = 'details',
     instanceId,
     itemId,
     itemLabel,
@@ -99,6 +149,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
     onOpenChange,
     onMarkedRead,
   } = props;
+  const commentsFirst = initialView === 'comments';
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -109,7 +160,9 @@ export function DoctorProgramItemDiscussionDialog(props: {
   const [patientUserId, setPatientUserId] = useState<string | null>(initialPatientUserId ?? null);
   const [recommendationsEditable, setRecommendationsEditable] = useState(false);
   const [recommendationsOpen, setRecommendationsOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const [statisticsOpen, setStatisticsOpen] = useState(false);
+  const [exerciseView, setExerciseView] = useState<DoctorExerciseStatisticsView>('dynamics');
   const loadGenerationRef = useRef(0);
   const onMarkedReadRef = useRef(onMarkedRead);
   const lastMarkedPatientMessageIdRef = useRef<string | null>(null);
@@ -203,12 +256,14 @@ export function DoctorProgramItemDiscussionDialog(props: {
     setPatientUserId(initialPatientUserId ?? null);
     setRecommendationsEditable(false);
     setRecommendationsOpen(false);
+    setCommentsOpen(false);
     setStatisticsOpen(false);
+    setExerciseView('dynamics');
     lastMarkedPatientMessageIdRef.current = null;
     markingPatientMessageIdRef.current = null;
     try {
       const loaded = await loadPage(null, false, generation);
-      if (loaded) markLatestPatientMessageRead(loaded);
+      if (commentsFirst && loaded) markLatestPatientMessageRead(loaded);
     } catch (e) {
       if (generation !== loadGenerationRef.current) return;
       const msg = e instanceof Error ? e.message : 'Не удалось загрузить обсуждение';
@@ -218,7 +273,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
         setLoading(false);
       }
     }
-  }, [loadPage, initialPatientUserId, markLatestPatientMessageRead]);
+  }, [commentsFirst, initialPatientUserId, loadPage, markLatestPatientMessageRead]);
 
   useEffect(() => {
     if (!open) return;
@@ -236,7 +291,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
     }
   }, [loadPage, markLatestPatientMessageRead]);
 
-  useMessagePolling(poll, open, 8000, false);
+  useMessagePolling(poll, open && (commentsFirst || commentsOpen), 8000, false);
 
   useEffect(() => {
     if (open) return;
@@ -248,8 +303,83 @@ export function DoctorProgramItemDiscussionDialog(props: {
     setNextCursor(null);
     setAssignment(null);
     setPatientUserId(null);
+    setCommentsOpen(false);
     setStatisticsOpen(false);
   }, [open]);
+
+  const openComments = useCallback(() => {
+    setCommentsOpen(true);
+    const generation = loadGenerationRef.current;
+    void loadPage(null, false, generation)
+      .then((loaded) => {
+        if (loaded) markLatestPatientMessageRead(loaded);
+      })
+      .catch(() => {
+        // Вложенная модалка покажет уже загруженный тред и текущее сообщение об ошибке.
+      });
+  }, [loadPage, markLatestPatientMessageRead]);
+
+  const messagesPanel = (
+    <DoctorProgramDiscussionMessagesPanel
+      messages={messages}
+      loading={loading}
+      loadingOlder={loadingOlder}
+      error={error}
+      nextCursor={nextCursor}
+      peerLastReadAt={peerLastReadAt}
+      composerStageItemId={itemId}
+      onSendReply={async (_stageItemId, text) => {
+        const sendResult = await sendDoctorProgramDiscussionReply({
+          instanceId,
+          stageItemId: itemId,
+          text,
+        });
+        if (!sendResult.ok) return sendResult;
+        const generation = loadGenerationRef.current;
+        try {
+          await loadPage(null, false, generation);
+        } catch {
+          if (generation === loadGenerationRef.current) {
+            toast.error(notificationText.doctorReplySentListStale);
+          }
+        }
+        return { ok: true as const };
+      }}
+      onDeleteMediaMessage={async (messageId) => {
+        const deleteResult = await deleteDoctorProgramDiscussionMediaMessage({
+          instanceId,
+          messageId,
+        });
+        if (!deleteResult.ok) return deleteResult;
+        const generation = loadGenerationRef.current;
+        try {
+          await loadPage(null, false, generation);
+        } catch {
+          if (generation === loadGenerationRef.current) {
+            toast.error(notificationText.doctorFileDeletedListStale);
+          }
+        }
+        return { ok: true as const };
+      }}
+      onLoadOlder={() => {
+        if (!nextCursor) return;
+        const generation = loadGenerationRef.current;
+        setLoadingOlder(true);
+        void loadPage(nextCursor, true, generation)
+          .catch((loadError) => {
+            if (generation !== loadGenerationRef.current) return;
+            setError(
+              loadError instanceof Error ? loadError.message : 'Не удалось загрузить обсуждение',
+            );
+          })
+          .finally(() => {
+            if (generation === loadGenerationRef.current) {
+              setLoadingOlder(false);
+            }
+          });
+      }}
+    />
+  );
 
   return (
     <DoctorModal
@@ -258,7 +388,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
       onClose={() => onOpenChange(false)}
       title={
         <DoctorModalStackedTitle
-          label="Упражнение"
+          label={commentsFirst ? 'Комментарии' : 'Упражнение'}
           entity={itemLabel}
           patientName={patientName}
           patientHref={patientUserId ? patientCardHref(patientUserId) : null}
@@ -267,70 +397,36 @@ export function DoctorProgramItemDiscussionDialog(props: {
         />
       }
       size="content"
-      bodyClassName="!p-0"
+      bodyClassName="!p-0 flex flex-col overflow-hidden"
     >
-      <DoctorProgramDiscussionMessagesPanel
-        messages={messages}
-        loading={loading}
-        loadingOlder={loadingOlder}
-        error={error}
-        nextCursor={nextCursor}
-        peerLastReadAt={peerLastReadAt}
-        assignment={assignment}
-        onShowStatistics={
-          recommendationsEditable && patientUserId ? () => setStatisticsOpen(true) : undefined
-        }
-        onEditAssignment={recommendationsEditable ? () => setRecommendationsOpen(true) : undefined}
-        composerStageItemId={itemId}
-        onSendReply={async (_stageItemId, text) => {
-          const sendResult = await sendDoctorProgramDiscussionReply({
-            instanceId,
-            stageItemId: itemId,
-            text,
-          });
-          if (!sendResult.ok) return sendResult;
-          const generation = loadGenerationRef.current;
-          try {
-            await loadPage(null, false, generation);
-          } catch {
-            if (generation === loadGenerationRef.current) {
-              toast.error(notificationText.doctorReplySentListStale);
-            }
+      {assignment ? (
+        <AssignmentToolbar
+          assignment={assignment}
+          onEdit={recommendationsEditable ? () => setRecommendationsOpen(true) : undefined}
+          onOpenComments={!commentsFirst ? openComments : undefined}
+          onOpenStatistics={
+            commentsFirst && patientUserId ? () => setStatisticsOpen(true) : undefined
           }
-          return { ok: true as const };
-        }}
-        onDeleteMediaMessage={async (messageId) => {
-          const deleteResult = await deleteDoctorProgramDiscussionMediaMessage({
-            instanceId,
-            messageId,
-          });
-          if (!deleteResult.ok) return deleteResult;
-          const generation = loadGenerationRef.current;
-          try {
-            await loadPage(null, false, generation);
-          } catch {
-            if (generation === loadGenerationRef.current) {
-              toast.error(notificationText.doctorFileDeletedListStale);
-            }
-          }
-          return { ok: true as const };
-        }}
-        onLoadOlder={() => {
-          if (!nextCursor) return;
-          const generation = loadGenerationRef.current;
-          setLoadingOlder(true);
-          void loadPage(nextCursor, true, generation)
-            .catch((e) => {
-              if (generation !== loadGenerationRef.current) return;
-              setError(e instanceof Error ? e.message : 'Не удалось загрузить обсуждение');
-            })
-            .finally(() => {
-              if (generation === loadGenerationRef.current) {
-                setLoadingOlder(false);
-              }
-            });
-        }}
-      />
+        />
+      ) : null}
+      {commentsFirst ? (
+        messagesPanel
+      ) : patientUserId ? (
+        <DoctorExerciseStatisticsPanel
+          active={open}
+          patientUserId={patientUserId}
+          instanceId={instanceId}
+          itemId={itemId}
+          view={exerciseView}
+        />
+      ) : error ? (
+        <p className="px-4 py-4 text-sm text-destructive">{error}</p>
+      ) : null}
+      {!commentsFirst && patientUserId ? (
+        <DoctorModalFooter layout="content">
+          <ExerciseStatisticsViewToggle value={exerciseView} onChange={setExerciseView} />
+        </DoctorModalFooter>
+      ) : null}
       {assignment && recommendationsEditable ? (
         <DoctorExerciseRecommendationsModal
           open={recommendationsOpen}
@@ -348,18 +444,56 @@ export function DoctorProgramItemDiscussionDialog(props: {
           }}
         />
       ) : null}
-      {patientUserId && recommendationsEditable ? (
-        <DoctorExerciseStatisticsModal
+      {!commentsFirst ? (
+        <DoctorModal
+          variant="panel"
+          open={commentsOpen}
+          onClose={() => setCommentsOpen(false)}
+          title={
+            <DoctorModalStackedTitle
+              label="Комментарии"
+              entity={itemLabel}
+              patientName={patientName}
+              patientHref={patientUserId ? patientCardHref(patientUserId) : null}
+              patientOnSupport={patientOnSupport}
+              patientVariant={patientVariant}
+            />
+          }
+          size="content"
+          bodyClassName="!p-0"
+        >
+          {messagesPanel}
+        </DoctorModal>
+      ) : null}
+      {commentsFirst && patientUserId ? (
+        <DoctorModal
+          variant="panel"
           open={statisticsOpen}
           onClose={() => setStatisticsOpen(false)}
-          patientUserId={patientUserId}
-          patientName={patientName}
-          patientOnSupport={patientOnSupport}
-          patientVariant={patientVariant}
-          exerciseTitle={itemLabel ?? 'Упражнение'}
-          instanceId={instanceId}
-          itemId={itemId}
-        />
+          title={
+            <DoctorModalStackedTitle
+              label="Статистика"
+              entity={itemLabel}
+              patientName={patientName}
+              patientHref={patientCardHref(patientUserId)}
+              patientOnSupport={patientOnSupport}
+              patientVariant={patientVariant}
+            />
+          }
+          size="content"
+          bodyClassName="!p-0 flex flex-col overflow-hidden"
+        >
+          <DoctorExerciseStatisticsPanel
+            active={open && statisticsOpen}
+            patientUserId={patientUserId}
+            instanceId={instanceId}
+            itemId={itemId}
+            view={exerciseView}
+          />
+          <DoctorModalFooter layout="content">
+            <ExerciseStatisticsViewToggle value={exerciseView} onChange={setExerciseView} />
+          </DoctorModalFooter>
+        </DoctorModal>
       ) : null}
     </DoctorModal>
   );

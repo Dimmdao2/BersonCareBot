@@ -74,6 +74,8 @@ export type ExerciseCommentItem = {
 /** Группа по этапу. */
 export type ExerciseCommentStageGroup = {
   stageId: string;
+  /** Порядковый номер этапа в программе, начиная с 1. */
+  stageNumber: number;
   stageTitle: string;
   stageStatus: TreatmentProgramInstanceStageStatus;
   /** Этап «активный» (in_progress или available) — показывать раскрытым сверху. */
@@ -213,11 +215,17 @@ export async function loadDoctorPatientExercisesWithComments(
     string,
     {
       stageId: string;
+      stageNumber: number;
       stageTitle: string;
       stageStatus: TreatmentProgramInstanceStageStatus;
       exercises: ExerciseCommentItem[];
     }
   >();
+  const stageNumberById = new Map(
+    [...detail.stages]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((stage, index) => [stage.id, index + 1] as const),
+  );
 
   for (const item of itemsWithComments) {
     const counts = unreadMap.get(item.id)!;
@@ -241,6 +249,7 @@ export async function loadDoctorPatientExercisesWithComments(
     if (!stageGroupMap.has(stageId)) {
       stageGroupMap.set(stageId, {
         stageId,
+        stageNumber: stageNumberById.get(stageId) ?? 1,
         stageTitle: item.stage.title,
         stageStatus: item.stage.status,
         exercises: [],

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUp, ChartLine, Pencil, Play, Trash2, X } from 'lucide-react';
+import { ArrowUp, ChartLine, MessageCircle, Pencil, Play, Trash2, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
@@ -52,14 +52,16 @@ export type DoctorProgramDiscussionAssignment = {
   note: string | null;
 };
 
-function AssignmentToolbar({
+export function AssignmentToolbar({
   assignment,
-  onShowStatistics,
   onEdit,
+  onOpenComments,
+  onOpenStatistics,
 }: {
   assignment: DoctorProgramDiscussionAssignment;
-  onShowStatistics?: () => void;
   onEdit?: () => void;
+  onOpenComments?: () => void;
+  onOpenStatistics?: () => void;
 }) {
   const [videoOpen, setVideoOpen] = useState(false);
   const isPlayableVideo =
@@ -112,7 +114,11 @@ function AssignmentToolbar({
         )}
         <div className="relative min-w-0 flex-1" style={{ marginTop: '-4px' }}>
           <div style={{ marginTop: '4px' }}>
-            <div style={{ paddingRight: onShowStatistics || onEdit ? '5rem' : undefined }}>
+            <div
+              style={{
+                paddingRight: onEdit || onOpenComments || onOpenStatistics ? '4.25rem' : undefined,
+              }}
+            >
               {loadParts.length > 0 ? (
                 <p className="text-sm leading-5 font-medium text-muted-foreground">
                   {loadParts.join(', ')}
@@ -127,33 +133,45 @@ function AssignmentToolbar({
               </p>
             ) : null}
           </div>
-          {onShowStatistics || onEdit ? (
+          {onEdit || onOpenComments || onOpenStatistics ? (
             <div
-              className="absolute right-0 flex shrink-0 items-center gap-1"
+              className="absolute right-0 flex shrink-0 items-center gap-0.5"
               style={{ top: '-5px' }}
             >
-              {onShowStatistics ? (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="size-9 shrink-0 text-foreground"
-                  onClick={onShowStatistics}
-                  aria-label="Открыть статистику упражнения"
-                >
-                  <ChartLine className="size-5" aria-hidden />
-                </Button>
-              ) : null}
               {onEdit ? (
                 <Button
                   type="button"
-                  size="icon"
+                  size="icon-sm"
                   variant="ghost"
-                  className="size-9 shrink-0 text-foreground"
+                  className="size-8 shrink-0 text-primary hover:text-primary"
                   onClick={onEdit}
                   aria-label="Изменить рекомендации"
                 >
                   <Pencil className="size-5" aria-hidden />
+                </Button>
+              ) : null}
+              {onOpenComments ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="size-8 shrink-0 text-primary hover:text-primary"
+                  onClick={onOpenComments}
+                  aria-label="Открыть комментарии"
+                >
+                  <MessageCircle className="size-5" aria-hidden />
+                </Button>
+              ) : null}
+              {onOpenStatistics ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="size-8 shrink-0 text-primary hover:text-primary"
+                  onClick={onOpenStatistics}
+                  aria-label="Открыть статистику"
+                >
+                  <ChartLine className="size-5" aria-hidden />
                 </Button>
               ) : null}
             </div>
@@ -182,9 +200,6 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   onDeleteMediaMessage?: (messageId: string) => Promise<{ ok: boolean; error?: string }>;
   peerLastReadAt?: string | null;
   peerLastReadAtByStageItemId?: Record<string, string | null>;
-  assignment?: DoctorProgramDiscussionAssignment | null;
-  onShowStatistics?: () => void;
-  onEditAssignment?: () => void;
   /** Per-item dialog can send directly without first selecting a patient message. */
   composerStageItemId?: string;
 }) {
@@ -200,9 +215,6 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     onDeleteMediaMessage,
     peerLastReadAt = null,
     peerLastReadAtByStageItemId,
-    assignment = null,
-    onShowStatistics,
-    onEditAssignment,
     composerStageItemId,
   } = props;
   const sortedMessages = useMemo(() => [...messages].sort(compareMessages), [messages]);
@@ -367,13 +379,6 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {assignment ? (
-        <AssignmentToolbar
-          assignment={assignment}
-          onShowStatistics={onShowStatistics}
-          onEdit={onEditAssignment}
-        />
-      ) : null}
       {error ? <p className="mx-4 mt-3 text-sm text-destructive">{error}</p> : null}
       {nextCursor ? (
         <Button
@@ -596,13 +601,11 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                 </div>
               ) : null
             }
-            status={
-              replyError ? <p className="text-xs text-destructive">{replyError}</p> : null
-            }
+            status={replyError ? <p className="text-xs text-destructive">{replyError}</p> : null}
             renderTextarea={(textareaProps) => (
               <Textarea
                 {...textareaProps}
-                className="min-h-10 resize-none rounded-lg py-2 pr-10 pl-3 leading-5"
+                className="min-h-10 resize-none rounded-[var(--doctor-chat-composer-radius)] py-2 pr-10 pl-3 leading-5"
               />
             )}
             renderSubmit={(buttonProps) => (

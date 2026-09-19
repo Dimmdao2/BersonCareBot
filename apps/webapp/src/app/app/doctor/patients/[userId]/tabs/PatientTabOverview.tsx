@@ -41,10 +41,7 @@ import {
   deriveOverviewProgramWidgetFromDetail,
   pickOpenTreatmentProgramInstance,
 } from '../../treatmentProgramInstanceOpen';
-import {
-  expectedStageControlDateIso,
-  sortDoctorInstanceStageGroupsForDisplay,
-} from '@/modules/treatment-program/stage-semantics';
+import { sortDoctorInstanceStageGroupsForDisplay } from '@/modules/treatment-program/stage-semantics';
 import {
   doctorBodyTextClass,
   doctorCardEntityTitleClass,
@@ -322,12 +319,6 @@ function elapsedProgramDays(startedAt: string, nowIso: string): number | null {
   const currentDay = utcCalendarDayIndex(nowIso);
   if (startedDay == null || currentDay == null || currentDay < startedDay) return null;
   return currentDay - startedDay + 1;
-}
-
-function isBeforeCurrentCalendarDay(iso: string, nowIso: string): boolean {
-  const day = utcCalendarDayIndex(iso);
-  const currentDay = utcCalendarDayIndex(nowIso);
-  return day != null && currentDay != null && day < currentDay;
 }
 
 function fmtDateMsgShort(iso: string): string {
@@ -1609,12 +1600,6 @@ export function PatientTabOverview({
   const patientHeaderName = header
     ? formatDoctorFioShort(header.identity, header.identity.displayName)
     : null;
-  const programControlDate = displayStage
-    ? expectedStageControlDateIso({
-        startedAt: displayStage.startedAt ?? null,
-        expectedDurationDays: displayStage.expectedDurationDays ?? null,
-      })
-    : null;
   const programElapsedDays =
     data?.programStartedAt && clientNowIso
       ? elapsedProgramDays(data.programStartedAt, clientNowIso)
@@ -1623,24 +1608,23 @@ export function PatientTabOverview({
     displayStage?.startedAt && clientNowIso
       ? elapsedProgramDays(displayStage.startedAt, clientNowIso)
       : null;
-  const stageTimingLabel =
-    stageElapsedDays != null && displayStage?.startedAt
-      ? `с ${fmtDateShort(displayStage.startedAt)} (${formatDaysRu(stageElapsedDays)}${
-          displayStage.expectedDurationDays != null
+  const stageStartedAtLabel = displayStage?.startedAt
+    ? `с ${fmtDateShort(displayStage.startedAt)}`
+    : null;
+  const stageDurationLabel =
+    stageElapsedDays != null
+      ? `${formatDaysRu(stageElapsedDays)}${
+          displayStage?.expectedDurationDays != null
             ? ` из ${displayStage.expectedDurationDays}`
             : ''
-        })`
-      : !displayStage?.startedAt && displayStage?.expectedDurationDays != null
+        }`
+      : displayStage?.expectedDurationDays != null
         ? `по плану ${formatDaysRu(displayStage.expectedDurationDays)}`
         : null;
   const stageDurationIsOverrun =
     stageElapsedDays != null &&
     displayStage?.expectedDurationDays != null &&
     stageElapsedDays > displayStage.expectedDurationDays;
-  const programControlIsOverdue =
-    programControlDate && clientNowIso
-      ? isBeforeCurrentCalendarDay(programControlDate, clientNowIso)
-      : false;
   const displayStageExercises = displayStage
     ? [...displayStage.items]
         .filter((item) => item.itemType === 'exercise' && item.status !== 'disabled')
@@ -2221,42 +2205,13 @@ export function PatientTabOverview({
                 onClick={() => onTabSwitch?.('program')}
                 className={cn(
                   doctorCardEntityTitleClass,
-                  'mb-2 h-auto w-full justify-start p-0 text-left hover:bg-transparent hover:text-[var(--doctor-entity-title)]',
+                  'mb-1 h-auto w-full justify-start p-0 text-left hover:bg-transparent hover:text-[var(--doctor-entity-title)]',
                 )}
               >
                 <span className="border-b border-dashed border-primary/40 pb-px">
                   {data.programTitle}
                 </span>
               </Button>
-            ) : null}
-            {!isLoading && data?.programStatus === 'ok' && displayStage ? (
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <span className={doctorMetaTextClass}>
-                  Этап {displayStageIndex + 1} из {data.programStages.length}
-                </span>
-                <div className="flex items-center gap-3">
-                  {stageTimingLabel ? (
-                    <span
-                      className={cn(
-                        doctorMetaTextClass,
-                        stageDurationIsOverrun && 'text-[var(--doctor-stage-overrun)]',
-                      )}
-                    >
-                      {stageTimingLabel}
-                    </span>
-                  ) : null}
-                  {programControlDate ? (
-                    <span
-                      className={cn(
-                        doctorMetaTextClass,
-                        programControlIsOverdue && 'text-destructive',
-                      )}
-                    >
-                      до {fmtDateShort(programControlDate)}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
             ) : null}
           </div>
 
@@ -2276,21 +2231,44 @@ export function PatientTabOverview({
                   variant="ghost"
                   onClick={() => setStageExercisesModalOpen(true)}
                   className={cn(
-                    'relative -mt-1 h-auto min-h-9 w-full items-start justify-start rounded-lg border px-3 py-2 text-left text-sm font-normal',
+                    'relative -mx-1.5 h-auto min-h-9 w-[calc(100%+0.75rem)] items-start justify-start rounded-lg border px-1.5 py-2 text-left text-sm font-normal',
                     currentStageUnread > 0
                       ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive'
                       : 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary',
                   )}
                 >
-                  <span className="min-w-0 flex-1">
-                    <span className="block line-clamp-2 text-base">{displayStage.title}</span>
-                    <span className={cn(doctorMetaTextClass, 'mt-0.5 block')}>
-                      {formatExerciseCountRu(displayStageExercises.length)}
+                  <span className="flex min-w-0 w-full flex-1 flex-col gap-1">
+                    <span className="flex items-center justify-between gap-3">
+                      <span className={doctorMetaTextClass}>
+                        Этап {displayStageIndex + 1} из {data.programStages.length}
+                      </span>
+                      {stageStartedAtLabel ? (
+                        <span className={cn(doctorMetaTextClass, 'shrink-0')}>
+                          {stageStartedAtLabel}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="block line-clamp-2 pr-8 text-base">{displayStage.title}</span>
+                    <span className="flex items-center justify-between gap-3">
+                      <span className={doctorMetaTextClass}>
+                        {formatExerciseCountRu(displayStageExercises.length)}
+                      </span>
+                      {stageDurationLabel ? (
+                        <span
+                          className={cn(
+                            doctorMetaTextClass,
+                            'shrink-0',
+                            stageDurationIsOverrun && 'text-[var(--doctor-overrun)]',
+                          )}
+                        >
+                          {stageDurationLabel}
+                        </span>
+                      ) : null}
                     </span>
                   </span>
-                  <span className="flex shrink-0 items-center gap-1 self-center">
+                  <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1">
                     <DoctorAttentionBadge count={currentStageUnread} dot />
-                    <ChevronRight aria-hidden className="size-4 text-primary" />
+                    <ChevronRight aria-hidden className="size-4 text-primary" strokeWidth={1.5} />
                   </span>
                 </Button>
               ) : null}

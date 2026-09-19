@@ -296,7 +296,7 @@ export function DoctorChatPanel({
       renderTextarea={(props) => (
         <Textarea
           {...props}
-          className="min-h-10 resize-none rounded-lg py-2 pr-10 pl-3 leading-5"
+          className="min-h-10 resize-none rounded-[var(--doctor-chat-composer-radius)] py-2 pr-10 pl-3 leading-5"
         />
       )}
       renderSubmit={(props) => (
